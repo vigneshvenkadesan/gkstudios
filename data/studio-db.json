@@ -4,7 +4,7 @@
       "id": "pf-iyer-oonjal",
       "title": "Kaveri & Subramanian — Oonjal & Muhurtham",
       "category": "Iyer Weddings",
-      "location": "Kumbakonam & Kandarakkottai Mandapam",
+      "location": "Panruti Mandapam",
       "imageUrl": "/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg",
       "shootNotes": "Full 2-day Iyer wedding documentation covering Vratham, Kashi Yatra, Oonjal songs, and sunrise Muhurtham with dual candid cameras and ambient kuthuvilakku lighting.",
       "exif": "35mm · f/1.8 · 1/250s · ISO 640",
@@ -56,7 +56,7 @@
       "id": "pf-birthday-milestone",
       "title": "Vihaan Turns One — Family Milestone",
       "category": "Birthdays & Milestones",
-      "location": "Kandarakkottai Celebration Hall",
+      "location": "Panruti Celebration Hall",
       "imageUrl": "/images/portfolio/birthday_milestone_celebration_1794972489472.jpg",
       "shootNotes": "Candid first-birthday family celebration framed around marigold floral arches, warm fairy-light bokeh, and natural unposed family laughter.",
       "exif": "50mm · f/1.8 · 1/320s · ISO 500",
@@ -142,174 +142,58 @@
       ]
     }
   ],
-  "bookings": [
+  "bookings": [],
+  "calendarEntries": [],
+  "eventProjects": [
     {
-      "id": "bk-1794996526089",
-      "referenceCode": "GK-2611-864",
-      "clientName": "Vignesh & Sneha Priya",
-      "phone": "9786009607",
-      "eventType": "Iyer Weddings",
-      "preferredDate": "2026-11-28",
-      "venue": "SV Mahal, Panruti",
-      "packageId": "pkg-grand",
-      "packageName": "Traditional Grand Wedding",
-      "quotedAmount": 52000,
-      "notes": "",
-      "status": "Pending",
-      "createdAt": "2026-11-18T10:08:46.089Z"
-    },
-    {
-      "id": "bk-1794994964871",
-      "referenceCode": "GK-2611-828",
-      "clientName": "Vignesh & Sneha Priya",
-      "phone": "9786009607",
-      "eventType": "Iyer Weddings",
-      "preferredDate": "2027-01-05",
-      "venue": "SV Mahal, Panruti",
-      "packageId": "pkg-essential",
-      "packageName": "Essential Ceremony",
-      "quotedAmount": 24000,
-      "notes": "",
-      "status": "Pending",
-      "createdAt": "2026-11-18T09:42:44.871Z"
-    },
-    {
-      "id": "bk-101",
+      "id": "ev-1794997776507",
+      "bookingId": "bk-101",
       "referenceCode": "GK-2611-01",
       "clientName": "Srinivasan & Lakshmi Narayanan",
       "phone": "9840112233",
       "eventType": "Iyer Weddings",
-      "preferredDate": "2026-11-29",
+      "eventDate": "2026-11-29",
       "endDate": "2026-11-30",
       "venue": "Sri Krishna Mahal, Villupuram",
-      "packageId": "pkg-royal",
       "packageName": "Royal Cinematic Complete",
-      "quotedAmount": 88000,
-      "notes": "Need dedicated coverage for Oonjal, Kashi Yatra, and morning Muhurtham at 6:15 AM.",
-      "status": "Pending",
-      "createdAt": "2026-11-16T10:30:00Z"
+      "assignedCrew": "G Krishna + Studio Unit",
+      "currentStage": "Booking Confirmed",
+      "stageUpdates": {
+        "Booking Confirmed": {
+          "completedAt": "2026-11-18",
+          "note": "Thank you for choosing GK Studios. Date is available for your ceremony."
+        }
+      },
+      "agreedAmount": 88000,
+      "extraCharges": 0,
+      "discount": 0,
+      "payments": [],
+      "deliveryNotes": "Need dedicated coverage for Oonjal, Kashi Yatra, and morning Muhurtham at 6:15 AM."
     },
     {
-      "id": "bk-102",
-      "referenceCode": "GK-2611-02",
-      "clientName": "Priyadharshini Mohan",
-      "phone": "9443298765",
-      "eventType": "Kaathu Kuthi",
-      "preferredDate": "2026-12-06",
-      "venue": "Kandarakkottai Family Residence",
-      "packageId": "pkg-essential",
-      "packageName": "Essential Ceremony",
-      "quotedAmount": 24000,
-      "notes": "Morning ear-piercing ceremony followed by family portraits with grandparents.",
-      "status": "Acknowledged",
-      "assignedCrew": "G Krishna + Mani (Video)",
-      "acknowledgementNote": "Sent quote and confirmed availability for morning Muhurtham window.",
-      "createdAt": "2026-11-14T15:10:00Z"
-    },
-    {
-      "id": "bk-103",
-      "referenceCode": "GK-2611-03",
-      "clientName": "Aishwarya & Vigneshwaran",
-      "phone": "9789054321",
-      "eventType": "Temple Weddings",
-      "preferredDate": "2026-11-22",
-      "venue": "Thiruvakkarai Chandramouleeswarar Temple",
-      "packageId": "pkg-grand",
-      "packageName": "Traditional Grand Wedding",
-      "quotedAmount": 52000,
-      "notes": "Temple permission arranged. Need sunrise portraits before 7:30 AM Muhurtham.",
-      "status": "Confirmed",
-      "assignedCrew": "G Krishna, Karthik (Candid), Bala (Cinema)",
-      "createdAt": "2026-11-05T09:15:00Z"
-    },
-    {
-      "id": "bk-104",
-      "referenceCode": "GK-2611-04",
-      "clientName": "Imran & Ayesha Begum",
-      "phone": "9003145678",
-      "eventType": "Hindu, Christian & Muslim Weddings",
-      "preferredDate": "2026-12-13",
-      "venue": "Grand Palace Convention Hall, Tindivanam",
-      "packageId": "pkg-grand",
-      "packageName": "Traditional Grand Wedding",
-      "quotedAmount": 52000,
-      "notes": "Nikah morning coverage and evening Valima reception with 4K teaser.",
-      "status": "Pending",
-      "createdAt": "2026-11-17T08:45:00Z"
-    }
-  ],
-  "calendarEntries": [
-    {
-      "date": "2026-11-22",
-      "status": "Booked",
-      "title": "Aishwarya & Vigneshwaran — Temple Wedding",
-      "eventType": "Temple Weddings",
-      "clientName": "Aishwarya & Vigneshwaran",
-      "venue": "Thiruvakkarai Temple",
-      "assignedCrew": "G Krishna, Karthik, Bala",
-      "bookingId": "bk-103"
-    },
-    {
-      "date": "2026-11-25",
-      "status": "Limited",
-      "title": "Muhurtham Peak Day — Afternoon Slot Open",
-      "eventType": "Muhurtham Rush",
-      "notes": "Morning crew booked in Villupuram; afternoon outdoor/reception unit available."
-    },
-    {
-      "date": "2026-11-29",
-      "status": "Limited",
-      "title": "Suba Muhurtham — 1 Team Remaining",
-      "eventType": "Muhurtham Rush",
-      "notes": "High demand auspicious date. Pending inquiry under review."
-    },
-    {
-      "date": "2026-12-03",
-      "status": "Booked",
-      "title": "Studio Camera Calibration & Lens Service",
-      "eventType": "Studio Maintenance",
-      "assignedCrew": "Studio Lab",
-      "notes": "Annual sensor cleaning and cinema gimbal calibration."
-    },
-    {
-      "date": "2026-12-06",
-      "status": "Limited",
-      "title": "Priyadharshini — Kaathu Kuthi (Morning Hold)",
-      "eventType": "Kaathu Kuthi",
-      "clientName": "Priyadharshini Mohan",
-      "venue": "Kandarakkottai",
-      "assignedCrew": "G Krishna + Mani",
-      "bookingId": "bk-102"
-    },
-    {
-      "date": "2026-12-11",
-      "status": "Booked",
-      "title": "Raghavan & Deepika — Iyer Wedding Day 1",
+      "id": "ev-1794997722383",
+      "bookingId": "bk-1794996526089",
+      "referenceCode": "GK-2611-864",
+      "clientName": "Vignesh & Sneha Priya",
+      "phone": "9786009607",
       "eventType": "Iyer Weddings",
-      "clientName": "Raghavan Family",
-      "venue": "Chennai Mylapore Mandapam",
-      "assignedCrew": "Full Cinema Unit"
+      "eventDate": "2026-11-28",
+      "venue": "SV Mahal, Panruti",
+      "packageName": "Traditional Grand Wedding",
+      "assignedCrew": "G Krishna + Studio Unit",
+      "currentStage": "Booking Confirmed",
+      "stageUpdates": {
+        "Booking Confirmed": {
+          "completedAt": "2026-11-18",
+          "note": "Thank you for choosing GK Studios. Date is available for your ceremony."
+        }
+      },
+      "agreedAmount": 52000,
+      "extraCharges": 0,
+      "discount": 0,
+      "payments": [],
+      "deliveryNotes": "Standard album & 4K delivery workflow."
     },
-    {
-      "date": "2026-12-12",
-      "status": "Booked",
-      "title": "Raghavan & Deepika — Muhurtham Day 2",
-      "eventType": "Iyer Weddings",
-      "clientName": "Raghavan Family",
-      "venue": "Chennai Mylapore Mandapam",
-      "assignedCrew": "Full Cinema Unit"
-    },
-    {
-      "date": "2026-12-20",
-      "status": "Booked",
-      "title": "Joseph & Maria — Church Wedding & Reception",
-      "eventType": "Hindu, Christian & Muslim Weddings",
-      "clientName": "Joseph Family",
-      "venue": "Pondicherry Sacred Heart Basilica",
-      "assignedCrew": "G Krishna + 3 Crew"
-    }
-  ],
-  "eventProjects": [
     {
       "id": "ev-101",
       "bookingId": "bk-103",
@@ -343,6 +227,20 @@
           "amount": 16000,
           "method": "UPI / GPay",
           "referenceNote": "GPay Ref #442910"
+        },
+        {
+          "date": "2026-11-18",
+          "label": "Balance",
+          "amount": 10000,
+          "method": "UPI / GPay",
+          "id": "pay-1794997608800"
+        },
+        {
+          "date": "2026-11-18",
+          "label": "Booking Advance",
+          "amount": 10000,
+          "method": "UPI / GPay",
+          "id": "pay-1794997608853"
         }
       ],
       "deliveryNotes": "50-Sheet Metallic Karizma Album + 4K Teaser due within 25 days post-wedding."

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { CalendarPlus, Trash2 } from 'lucide-react';
+import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Grid2X2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import { CalendarDayEntry, EVENT_CATEGORIES, EventCategory } from '@/src/types/studio';
@@ -21,9 +21,11 @@ import {
 
 export function AdminScheduleModule() {
   const { calendarEntries, upsertCalendarEntry, removeCalendarEntry } = useStudio();
-  const [monthDate, setMonthDate] = useState<Date>(() => new Date(2026, 10, 1));
-  const [selectedDate, setSelectedDate] = useState<string>('2026-11-22');
+  const [monthDate, setMonthDate] = useState<Date>(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(toISODate(new Date()));
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('month');
+  const [editingEntryId, setEditingEntryId] = useState<string | undefined>();
 
   const [status, setStatus] = useState<'Booked' | 'Limited'>('Booked');
   const [title, setTitle] = useState('');
@@ -37,6 +39,7 @@ export function AdminScheduleModule() {
 
   const handleSelectDate = (isoDate: string, entry?: CalendarDayEntry) => {
     setSelectedDate(isoDate);
+    setEditingEntryId(entry?.id);
     if (entry) {
       setStatus(entry.status);
       setTitle(entry.title);
@@ -66,6 +69,7 @@ export function AdminScheduleModule() {
 
     try {
       await upsertCalendarEntry({
+        id: editingEntryId,
         date: selectedDate,
         status,
         title: title.trim(),
@@ -83,9 +87,9 @@ export function AdminScheduleModule() {
     }
   };
 
-  const handleClearDate = async (dateToRemove: string) => {
+  const handleClearDate = async (dateToRemove: string, entryId?: string) => {
     try {
-      await removeCalendarEntry(dateToRemove);
+      await removeCalendarEntry(dateToRemove, entryId);
       setDialogOpen(false);
       toast.info(`${formatDateDisplay(dateToRemove)} is now Open / Available on the public site.`);
     } catch (error) {
@@ -97,6 +101,30 @@ export function AdminScheduleModule() {
     () => [...calendarEntries].sort((a, b) => a.date.localeCompare(b.date)),
     [calendarEntries]
   );
+
+  const selectedEntries = useMemo(
+    () => calendarEntries.filter((entry) => entry.date === selectedDate),
+    [calendarEntries, selectedDate]
+  );
+
+  const weekDates = useMemo(() => {
+    const selected = new Date(`${selectedDate}T12:00:00`);
+    const start = new Date(selected);
+    start.setDate(selected.getDate() - selected.getDay());
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return toISODate(date);
+    });
+  }, [selectedDate]);
+
+  const moveSelectedDate = (offset: number) => {
+    const date = new Date(`${selectedDate}T12:00:00`);
+    date.setDate(date.getDate() + offset);
+    const next = toISODate(date);
+    setSelectedDate(next);
+    setMonthDate(new Date(date.getFullYear(), date.getMonth(), 1));
+  };
 
   const selectedHasEntry = calendarEntries.some((c) => c.date === selectedDate);
 
@@ -121,15 +149,151 @@ export function AdminScheduleModule() {
           </Button>
         </CardHeader>
         <CardContent className="pt-6">
-          <StudioCalendar
-            monthDate={monthDate}
-            onMonthChange={setMonthDate}
-            entries={calendarEntries}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
-            allowSelectBooked
-            size="large"
-          />
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              {(['day', 'week', 'month'] as const).map((view) => (
+                <Button
+                  key={view}
+                  type="button"
+                  size="sm"
+                  variant={calendarView === view ? 'default' : 'outline'}
+                  onClick={() => setCalendarView(view)}
+                  className="capitalize"
+                >
+                  {view === 'day' && <CalendarDays className="h-3.5 w-3.5" />}
+                  {view === 'week' && <Grid2X2 className="h-3.5 w-3.5" />}
+                  {view === 'month' && <CalendarPlus className="h-3.5 w-3.5" />}
+                  {view}
+                </Button>
+              ))}
+            </div>
+
+            {calendarView !== 'month' && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    moveSelectedDate(calendarView === 'week' ? -7 : -1)
+                  }
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-36 text-center text-sm font-semibold text-white">
+                  {formatDateDisplay(selectedDate)}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    moveSelectedDate(calendarView === 'week' ? 7 : 1)
+                  }
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {calendarView === 'day' && (
+            <div className="rounded-xl border border-[#C5B378]/20 bg-[#072421]/50 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                  {formatDateDisplay(selectedDate)}
+                </h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleSelectDate(selectedDate)}
+                >
+                  <CalendarPlus className="h-4 w-4" /> Add Event
+                </Button>
+              </div>
+              {selectedEntries.length === 0 ? (
+                <p className="py-10 text-center text-sm text-[#E6ECEB]/70">
+                  No events scheduled for this day.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {selectedEntries.map((entry) => (
+                    <button
+                      key={entry.id || `${entry.date}-${entry.title}`}
+                      type="button"
+                      onClick={() => handleSelectDate(entry.date, entry)}
+                      className="w-full rounded-lg border border-[#C5B378]/20 bg-[#092E2B] p-4 text-left hover:border-[#D8C78E]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
+                          {entry.status}
+                        </Badge>
+                        <span className="font-semibold text-white">{entry.title}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-[#E6ECEB]/75">
+                        {[entry.eventType, entry.venue, entry.assignedCrew]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {calendarView === 'week' && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-7">
+              {weekDates.map((date) => {
+                const entries = calendarEntries.filter((entry) => entry.date === date);
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(date);
+                      setCalendarView('day');
+                    }}
+                    className="min-h-36 rounded-lg border border-[#C5B378]/20 bg-[#092E2B] p-3 text-left hover:border-[#D8C78E]"
+                  >
+                    <p className="text-sm font-semibold text-[#D8C78E]">
+                      {formatDateDisplay(date)}
+                    </p>
+                    <div className="mt-2 space-y-1.5">
+                      {entries.slice(0, 4).map((entry) => (
+                        <div
+                          key={entry.id || `${entry.date}-${entry.title}`}
+                          className="rounded border border-white/10 bg-[#072421] px-2 py-1.5 text-xs text-white"
+                        >
+                          {entry.title}
+                        </div>
+                      ))}
+                      {entries.length === 0 && (
+                        <p className="text-xs text-[#E6ECEB]/50">Available</p>
+                      )}
+                      {entries.length > 4 && (
+                        <p className="text-xs text-[#D8C78E]">
+                          +{entries.length - 4} more
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {calendarView === 'month' && (
+            <StudioCalendar
+              monthDate={monthDate}
+              onMonthChange={setMonthDate}
+              entries={calendarEntries}
+              selectedDate={selectedDate}
+              onSelectDate={handleSelectDate}
+              allowSelectBooked
+              size="large"
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -183,7 +347,7 @@ export function AdminScheduleModule() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleClearDate(entry.date)}
+                      onClick={() => handleClearDate(entry.date, entry.id)}
                     >
                       Remove
                     </Button>
@@ -329,7 +493,7 @@ export function AdminScheduleModule() {
                   type="button"
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleClearDate(selectedDate)}
+                  onClick={() => handleClearDate(selectedDate, editingEntryId)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Mark Date Open

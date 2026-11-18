@@ -26,10 +26,11 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
+    const entryId = searchParams.get('id') || undefined;
     if (!date) {
       return NextResponse.json({ error: 'Query param "date" is required.' }, { status: 400 });
     }
-    const state = await removeCalendarEntryOnServer(date);
+    const state = await removeCalendarEntryOnServer(date, entryId);
     return NextResponse.json(state);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to remove schedule entry';

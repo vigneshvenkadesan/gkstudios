@@ -106,7 +106,7 @@ export function HeroSection({ onCheckAvailability, onExplorePackages }: HeroSect
 
             <div className="border-t border-[#C5B378]/20 pt-5 text-xs sm:text-sm text-[#E6ECEB]/75">
               <span>Led by </span>
-              <span className="font-semibold text-white">{STUDIO_INFO.leadPhotographer}</span>
+              <span className="font-semibold text-white ml-2">{STUDIO_INFO.leadPhotographer}</span>
               <span className="mx-2 text-[#C5B378]/50" aria-hidden="true">
                 ·
               </span>

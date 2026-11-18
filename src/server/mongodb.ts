@@ -1,5 +1,5 @@
 import mongoose, { Schema, type Model } from 'mongoose';
-import type { BookingRequest } from '../types/studio';
+import type { BookingRequest, CalendarDayEntry } from '../types/studio';
 
 const uri = process.env.MONGODB_URI;
 const databaseName = process.env.MONGODB_DATABASE || 'gk_studios';
@@ -56,4 +56,48 @@ export async function getBookingModel(): Promise<Model<BookingRequestDocument> |
   return (
     mongoose.models.BookingRequest as Model<BookingRequestDocument> | undefined
   ) || mongoose.model<BookingRequestDocument>('BookingRequest', BookingSchema);
+}
+
+interface CalendarScheduleDocument extends CalendarDayEntry, mongoose.Document {}
+
+const CalendarScheduleSchema = new Schema<CalendarScheduleDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    date: { type: String, required: true },
+    status: { type: String, required: true },
+    title: { type: String, required: true },
+    eventType: String,
+    clientName: String,
+    venue: String,
+    assignedCrew: String,
+    notes: String,
+    bookingId: String,
+  },
+  { collection: 'calendar_schedule', strict: false, timestamps: false }
+);
+
+export async function getCalendarScheduleModel(): Promise<Model<CalendarScheduleDocument> | null> {
+  if (!uri) return null;
+
+  if (!globalForMongoose.mongooseConnection) {
+    globalForMongoose.mongooseConnection = mongoose
+      .connect(uri, {
+        dbName: databaseName,
+        maxPoolSize: 5,
+        minPoolSize: 0,
+        maxIdleTimeMS: 30000,
+        serverSelectionTimeoutMS: 15000,
+      })
+      .then((instance) => instance)
+      .catch((error) => {
+        globalForMongoose.mongooseConnection = undefined;
+        throw error;
+      });
+  }
+
+  await globalForMongoose.mongooseConnection;
+
+  return (
+    mongoose.models.CalendarSchedule as Model<CalendarScheduleDocument> | undefined
+  ) || mongoose.model<CalendarScheduleDocument>('CalendarSchedule', CalendarScheduleSchema);
 }

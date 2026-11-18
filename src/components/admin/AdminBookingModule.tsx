@@ -114,7 +114,7 @@ export function AdminBookingModule() {
     const pkgName = selectedPkg?.name || activeBooking.packageName;
     return [
       `Vanakkam ${activeBooking.clientName}!`,
-      `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai.`,
+      `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
       `We have received your ${activeBooking.eventType} inquiry (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}.`,
       `Package: ${pkgName} | Quote: ${formatINR(editQuote)}`,
       editNote ? `Note: ${editNote}` : '',
