@@ -1,3 +1,5 @@
+'use client';
+
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   BookingRequest,
@@ -11,9 +13,7 @@ import {
   StudioPackage,
   StudioState,
 } from '@/src/types/studio';
-import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '@/src/data/initialStudioData';
-
-const STORAGE_KEY = 'gk_studios_state_v2';
+import { INITIAL_STUDIO_STATE } from '@/src/data/initialStudioData';
 
 interface SubmitBookingInput {
   clientName: string;
@@ -52,344 +52,196 @@ interface CreateEventProjectInput {
 
 interface StudioContextValue {
   state: StudioState;
+  isLoading: boolean;
   packages: StudioPackage[];
   portfolio: PortfolioItem[];
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
   eventProjects: EventProject[];
-  submitBooking: (input: SubmitBookingInput) => BookingRequest;
-  updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
-  processBookingAction: (input: AcknowledgeBookingInput) => void;
-  upsertCalendarEntry: (entry: CalendarDayEntry) => void;
-  removeCalendarEntry: (date: string) => void;
-  addPortfolioItem: (item: Omit<PortfolioItem, 'id'>) => PortfolioItem;
-  updatePortfolioItem: (id: string, patch: Partial<PortfolioItem>) => void;
-  deletePortfolioItem: (id: string) => void;
-  createEventProject: (input: CreateEventProjectInput) => EventProject;
-  updateEventStage: (projectId: string, stage: EventStage, note?: string) => void;
+  refreshStudio: () => Promise<void>;
+  submitBooking: (input: SubmitBookingInput) => Promise<BookingRequest>;
+  updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
+  processBookingAction: (input: AcknowledgeBookingInput) => Promise<void>;
+  upsertCalendarEntry: (entry: CalendarDayEntry) => Promise<void>;
+  removeCalendarEntry: (date: string) => Promise<void>;
+  addPortfolioItem: (item: Omit<PortfolioItem, 'id'>) => Promise<PortfolioItem>;
+  updatePortfolioItem: (id: string, patch: Partial<PortfolioItem>) => Promise<void>;
+  deletePortfolioItem: (id: string) => Promise<void>;
+  createEventProject: (input: CreateEventProjectInput) => Promise<EventProject>;
+  updateEventStage: (projectId: string, stage: EventStage, note?: string) => Promise<void>;
   updateEventFinancials: (
     projectId: string,
-    patch: { agreedAmount?: number; extraCharges?: number; discount?: number; deliveryNotes?: string; assignedCrew?: string }
-  ) => void;
-  addEventPayment: (projectId: string, payment: Omit<PaymentRecord, 'id'>) => void;
-  deleteEventPayment: (projectId: string, paymentId: string) => void;
-  resetDemoData: () => void;
+    patch: {
+      agreedAmount?: number;
+      extraCharges?: number;
+      discount?: number;
+      deliveryNotes?: string;
+      assignedCrew?: string;
+    }
+  ) => Promise<void>;
+  addEventPayment: (projectId: string, payment: Omit<PaymentRecord, 'id'>) => Promise<void>;
+  deleteEventPayment: (projectId: string, paymentId: string) => Promise<void>;
+  resetDemoData: () => Promise<void>;
 }
 
 const StudioContext = createContext<StudioContextValue | undefined>(undefined);
 
-function loadInitialState(): StudioState {
-  if (typeof window === 'undefined') return INITIAL_STUDIO_STATE;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_STUDIO_STATE;
-    const parsed = JSON.parse(raw) as Partial<StudioState>;
-    const normalizedPortfolio =
-      Array.isArray(parsed.portfolio) && parsed.portfolio.length > 0
-        ? parsed.portfolio.map((item) => ({
-            ...item,
-            imageUrl: DEFAULT_IMAGE_BY_ID[item.id] || item.imageUrl,
-          }))
-        : INITIAL_STUDIO_STATE.portfolio;
-
-    return {
-      portfolio: normalizedPortfolio,
-      packages:
-        Array.isArray(parsed.packages) && parsed.packages.length > 0
-          ? parsed.packages
-          : INITIAL_STUDIO_STATE.packages,
-      bookings: Array.isArray(parsed.bookings) ? parsed.bookings : INITIAL_STUDIO_STATE.bookings,
-      calendarEntries: Array.isArray(parsed.calendarEntries)
-        ? parsed.calendarEntries
-        : INITIAL_STUDIO_STATE.calendarEntries,
-      eventProjects: Array.isArray(parsed.eventProjects)
-        ? parsed.eventProjects
-        : INITIAL_STUDIO_STATE.eventProjects,
-    };
-  } catch {
-    return INITIAL_STUDIO_STATE;
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+  });
+  const data = (await res.json()) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error || `Request failed (${res.status})`);
   }
+  return data;
 }
 
-export function StudioProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<StudioState>(loadInitialState);
+export function StudioProvider({
+  children,
+  initialState,
+}: {
+  children: React.ReactNode;
+  initialState?: StudioState;
+}) {
+  const [state, setState] = useState<StudioState>(initialState || INITIAL_STUDIO_STATE);
+  const [isLoading, setIsLoading] = useState<boolean>(!initialState);
+
+  const refreshStudio = useCallback(async () => {
+    try {
+      const serverState = await requestJson<StudioState>('/api/studio', { cache: 'no-store' });
+      setState(serverState);
+    } catch {
+      // Keep current state if transient error
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Ignore storage quota errors gracefully
-    }
-  }, [state]);
+    refreshStudio();
+  }, [refreshStudio]);
 
   const submitBooking = useCallback(
-    (input: SubmitBookingInput): BookingRequest => {
-      const selectedPkg =
-        state.packages.find((p) => p.id === input.packageId) || state.packages[0];
-      const now = new Date();
-      const refNumber = String(Math.floor(100 + Math.random() * 900));
-      const newBooking: BookingRequest = {
-        id: `bk-${Date.now()}`,
-        referenceCode: `GK-${String(now.getFullYear()).slice(-2)}${String(
-          now.getMonth() + 1
-        ).padStart(2, '0')}-${refNumber}`,
-        clientName: input.clientName.trim(),
-        phone: input.phone.trim(),
-        eventType: input.eventType,
-        preferredDate: input.preferredDate,
-        endDate: input.endDate || undefined,
-        venue: input.venue.trim(),
-        packageId: selectedPkg.id,
-        packageName: selectedPkg.name,
-        quotedAmount: selectedPkg.price,
-        notes: input.notes.trim(),
-        status: 'Pending',
-        createdAt: now.toISOString(),
-      };
-
+    async (input: SubmitBookingInput): Promise<BookingRequest> => {
+      const data = await requestJson<{ booking: BookingRequest }>('/api/bookings', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
       setState((prev) => ({
         ...prev,
-        bookings: [newBooking, ...prev.bookings],
+        bookings: [data.booking, ...prev.bookings],
       }));
-
-      return newBooking;
+      return data.booking;
     },
-    [state.packages]
+    []
   );
 
-  const updateBookingStatus = useCallback((bookingId: string, status: BookingStatus) => {
-    setState((prev) => ({
-      ...prev,
-      bookings: prev.bookings.map((b) => (b.id === bookingId ? { ...b, status } : b)),
-    }));
-  }, []);
-
-  const processBookingAction = useCallback((input: AcknowledgeBookingInput) => {
-    setState((prev) => {
-      const pkg = prev.packages.find((p) => p.id === input.packageId);
-      const targetBooking = prev.bookings.find((b) => b.id === input.bookingId);
-      if (!targetBooking) return prev;
-
-      const resolvedPkgName = pkg ? pkg.name : targetBooking.packageName;
-      const resolvedCrew = input.assignedCrew?.trim() || targetBooking.assignedCrew || 'G Krishna & Studio Unit';
-
-      const updatedBookings = prev.bookings.map((b) =>
-        b.id === input.bookingId
-          ? {
-              ...b,
-              packageId: pkg ? pkg.id : b.packageId,
-              packageName: resolvedPkgName,
-              quotedAmount: input.quotedAmount,
-              assignedCrew: resolvedCrew,
-              acknowledgementNote: input.acknowledgementNote.trim(),
-              status: input.nextStatus,
-            }
-          : b
-      );
-
-      let updatedCalendar = [...prev.calendarEntries];
-
-      if (input.blockCalendarDate && targetBooking.preferredDate) {
-        const datesToUpdate: string[] = [targetBooking.preferredDate];
-        if (targetBooking.endDate && targetBooking.endDate > targetBooking.preferredDate) {
-          const start = new Date(targetBooking.preferredDate + 'T00:00:00');
-          const end = new Date(targetBooking.endDate + 'T00:00:00');
-          const cursor = new Date(start);
-          cursor.setDate(cursor.getDate() + 1);
-          let guard = 0;
-          while (cursor <= end && guard < 7) {
-            const iso = cursor.toISOString().slice(0, 10);
-            datesToUpdate.push(iso);
-            cursor.setDate(cursor.getDate() + 1);
-            guard++;
-          }
-        }
-
-        datesToUpdate.forEach((dateStr) => {
-          const entry: CalendarDayEntry = {
-            date: dateStr,
-            status: input.nextStatus === 'Confirmed' ? 'Booked' : 'Limited',
-            title: `${targetBooking.clientName} — ${targetBooking.eventType}`,
-            eventType: targetBooking.eventType,
-            clientName: targetBooking.clientName,
-            venue: targetBooking.venue,
-            assignedCrew: resolvedCrew,
-            notes: input.acknowledgementNote.trim() || targetBooking.notes,
-            bookingId: targetBooking.id,
-          };
-          const existingIdx = updatedCalendar.findIndex((c) => c.date === dateStr);
-          if (existingIdx >= 0) {
-            updatedCalendar[existingIdx] = entry;
-          } else {
-            updatedCalendar.push(entry);
-          }
-        });
-      }
-
-      // Auto-sync Confirmed bookings into Event Timeline & Payment Ledger
-      let updatedProjects = [...prev.eventProjects];
-      if (input.nextStatus === 'Confirmed') {
-        const exists = updatedProjects.some((p) => p.bookingId === targetBooking.id);
-        if (!exists) {
-          const todayIso = new Date().toISOString().slice(0, 10);
-          const newProject: EventProject = {
-            id: `ev-${Date.now()}`,
-            bookingId: targetBooking.id,
-            referenceCode: targetBooking.referenceCode,
-            clientName: targetBooking.clientName,
-            phone: targetBooking.phone,
-            eventType: targetBooking.eventType,
-            eventDate: targetBooking.preferredDate,
-            endDate: targetBooking.endDate,
-            venue: targetBooking.venue,
-            packageName: resolvedPkgName,
-            assignedCrew: resolvedCrew,
-            currentStage: 'Booking Confirmed',
-            stageUpdates: {
-              'Booking Confirmed': {
-                completedAt: todayIso,
-                note: input.acknowledgementNote.trim() || 'Date locked via booking approval.',
-              },
-            },
-            agreedAmount: input.quotedAmount,
-            extraCharges: 0,
-            discount: 0,
-            payments: [],
-            deliveryNotes: targetBooking.notes || 'Standard album & 4K delivery workflow.',
-          };
-          updatedProjects = [newProject, ...updatedProjects];
-        }
-      }
-
-      return {
-        ...prev,
-        bookings: updatedBookings,
-        calendarEntries: updatedCalendar,
-        eventProjects: updatedProjects,
-      };
+  const updateBookingStatus = useCallback(async (bookingId: string, status: BookingStatus) => {
+    const nextState = await requestJson<StudioState>(`/api/bookings/${bookingId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'status', status }),
     });
+    setState(nextState);
   }, []);
 
-  const upsertCalendarEntry = useCallback((entry: CalendarDayEntry) => {
-    setState((prev) => {
-      const idx = prev.calendarEntries.findIndex((c) => c.date === entry.date);
-      const next = [...prev.calendarEntries];
-      if (idx >= 0) {
-        next[idx] = entry;
-      } else {
-        next.push(entry);
-      }
-      next.sort((a, b) => a.date.localeCompare(b.date));
-      return { ...prev, calendarEntries: next };
-    });
-  }, []);
-
-  const removeCalendarEntry = useCallback((date: string) => {
-    setState((prev) => ({
-      ...prev,
-      calendarEntries: prev.calendarEntries.filter((c) => c.date !== date),
-    }));
-  }, []);
-
-  const addPortfolioItem = useCallback((item: Omit<PortfolioItem, 'id'>): PortfolioItem => {
-    const newItem: PortfolioItem = {
-      ...item,
-      id: `pf-${Date.now()}`,
-    };
-    setState((prev) => ({
-      ...prev,
-      portfolio: [newItem, ...prev.portfolio],
-    }));
-    return newItem;
-  }, []);
-
-  const updatePortfolioItem = useCallback((id: string, patch: Partial<PortfolioItem>) => {
-    setState((prev) => ({
-      ...prev,
-      portfolio: prev.portfolio.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    }));
-  }, []);
-
-  const deletePortfolioItem = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      portfolio: prev.portfolio.filter((item) => item.id !== id),
-    }));
-  }, []);
-
-  const createEventProject = useCallback((input: CreateEventProjectInput): EventProject => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const refNumber = String(Math.floor(100 + Math.random() * 900));
-    const initialPayments: PaymentRecord[] =
-      input.initialAdvance && input.initialAdvance > 0
-        ? [
-            {
-              id: `pay-${Date.now()}`,
-              date: todayIso,
-              label: 'Booking Advance',
-              amount: input.initialAdvance,
-              method: 'UPI / GPay',
-            },
-          ]
-        : [];
-
-    const newProject: EventProject = {
-      id: `ev-${Date.now()}`,
-      referenceCode: `GK-${todayIso.slice(2, 4)}${todayIso.slice(5, 7)}-${refNumber}`,
-      clientName: input.clientName.trim(),
-      phone: input.phone.trim(),
-      eventType: input.eventType,
-      eventDate: input.eventDate,
-      endDate: input.endDate || undefined,
-      venue: input.venue.trim(),
-      packageName: input.packageName,
-      assignedCrew: input.assignedCrew.trim() || 'G Krishna & Studio Unit',
-      currentStage: 'Booking Confirmed',
-      stageUpdates: {
-        'Booking Confirmed': {
-          completedAt: todayIso,
-          note: 'Offline booking created in Studio Timeline.',
-        },
-      },
-      agreedAmount: input.agreedAmount,
-      extraCharges: 0,
-      discount: 0,
-      payments: initialPayments,
-      deliveryNotes: input.deliveryNotes?.trim() || '',
-    };
-
-    setState((prev) => ({
-      ...prev,
-      eventProjects: [newProject, ...prev.eventProjects],
-    }));
-
-    return newProject;
-  }, []);
-
-  const updateEventStage = useCallback((projectId: string, stage: EventStage, note?: string) => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    setState((prev) => ({
-      ...prev,
-      eventProjects: prev.eventProjects.map((proj) => {
-        if (proj.id !== projectId) return proj;
-        const existing = proj.stageUpdates[stage] || {};
-        return {
-          ...proj,
-          currentStage: stage,
-          stageUpdates: {
-            ...proj.stageUpdates,
-            [stage]: {
-              completedAt: existing.completedAt || todayIso,
-              note: note !== undefined ? note : existing.note,
-            },
-          },
-        };
+  const processBookingAction = useCallback(async (input: AcknowledgeBookingInput) => {
+    const nextState = await requestJson<StudioState>(`/api/bookings/${input.bookingId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        action: 'process',
+        packageId: input.packageId,
+        quotedAmount: input.quotedAmount,
+        assignedCrew: input.assignedCrew,
+        acknowledgementNote: input.acknowledgementNote,
+        nextStatus: input.nextStatus,
+        blockCalendarDate: input.blockCalendarDate,
       }),
-    }));
+    });
+    setState(nextState);
   }, []);
+
+  const upsertCalendarEntry = useCallback(async (entry: CalendarDayEntry) => {
+    const nextState = await requestJson<StudioState>('/api/schedule', {
+      method: 'PUT',
+      body: JSON.stringify(entry),
+    });
+    setState(nextState);
+  }, []);
+
+  const removeCalendarEntry = useCallback(async (date: string) => {
+    const nextState = await requestJson<StudioState>(
+      `/api/schedule?date=${encodeURIComponent(date)}`,
+      { method: 'DELETE' }
+    );
+    setState(nextState);
+  }, []);
+
+  const addPortfolioItem = useCallback(
+    async (item: Omit<PortfolioItem, 'id'>): Promise<PortfolioItem> => {
+      const data = await requestJson<{ state: StudioState; created: PortfolioItem }>(
+        '/api/portfolio',
+        {
+          method: 'POST',
+          body: JSON.stringify(item),
+        }
+      );
+      setState(data.state);
+      return data.created;
+    },
+    []
+  );
+
+  const updatePortfolioItem = useCallback(
+    async (id: string, patch: Partial<PortfolioItem>) => {
+      const nextState = await requestJson<StudioState>(`/api/portfolio/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      });
+      setState(nextState);
+    },
+    []
+  );
+
+  const deletePortfolioItem = useCallback(async (id: string) => {
+    const nextState = await requestJson<StudioState>(`/api/portfolio/${id}`, {
+      method: 'DELETE',
+    });
+    setState(nextState);
+  }, []);
+
+  const createEventProject = useCallback(
+    async (input: CreateEventProjectInput): Promise<EventProject> => {
+      const data = await requestJson<{ state: StudioState; created: EventProject }>(
+        '/api/events',
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }
+      );
+      setState(data.state);
+      return data.created;
+    },
+    []
+  );
+
+  const updateEventStage = useCallback(
+    async (projectId: string, stage: EventStage, note?: string) => {
+      const nextState = await requestJson<StudioState>(`/api/events/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'stage', stage, note }),
+      });
+      setState(nextState);
+    },
+    []
+  );
 
   const updateEventFinancials = useCallback(
-    (
+    async (
       projectId: string,
       patch: {
         agreedAmount?: number;
@@ -399,63 +251,52 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         assignedCrew?: string;
       }
     ) => {
-      setState((prev) => ({
-        ...prev,
-        eventProjects: prev.eventProjects.map((proj) =>
-          proj.id === projectId ? { ...proj, ...patch } : proj
-        ),
-      }));
+      const nextState = await requestJson<StudioState>(`/api/events/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'financials', ...patch }),
+      });
+      setState(nextState);
     },
     []
   );
 
   const addEventPayment = useCallback(
-    (projectId: string, payment: Omit<PaymentRecord, 'id'>) => {
-      const newPayment: PaymentRecord = {
-        ...payment,
-        id: `pay-${Date.now()}`,
-      };
-      setState((prev) => ({
-        ...prev,
-        eventProjects: prev.eventProjects.map((proj) =>
-          proj.id === projectId
-            ? { ...proj, payments: [...proj.payments, newPayment] }
-            : proj
-        ),
-      }));
+    async (projectId: string, payment: Omit<PaymentRecord, 'id'>) => {
+      const nextState = await requestJson<StudioState>(`/api/events/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'add_payment', payment }),
+      });
+      setState(nextState);
     },
     []
   );
 
-  const deleteEventPayment = useCallback((projectId: string, paymentId: string) => {
-    setState((prev) => ({
-      ...prev,
-      eventProjects: prev.eventProjects.map((proj) =>
-        proj.id === projectId
-          ? { ...proj, payments: proj.payments.filter((p) => p.id !== paymentId) }
-          : proj
-      ),
-    }));
+  const deleteEventPayment = useCallback(async (projectId: string, paymentId: string) => {
+    const nextState = await requestJson<StudioState>(`/api/events/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'delete_payment', paymentId }),
+    });
+    setState(nextState);
   }, []);
 
-  const resetDemoData = useCallback(() => {
-    setState(INITIAL_STUDIO_STATE);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_STUDIO_STATE));
-    } catch {
-      // Ignore
-    }
+  const resetDemoData = useCallback(async () => {
+    const nextState = await requestJson<StudioState>('/api/studio/reset', {
+      method: 'POST',
+    });
+    setState(nextState);
   }, []);
 
   return (
     <StudioContext.Provider
       value={{
         state,
+        isLoading,
         packages: state.packages,
         portfolio: state.portfolio,
         bookings: state.bookings,
         calendarEntries: state.calendarEntries,
         eventProjects: state.eventProjects,
+        refreshStudio,
         submitBooking,
         updateBookingStatus,
         processBookingAction,

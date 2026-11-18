@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';

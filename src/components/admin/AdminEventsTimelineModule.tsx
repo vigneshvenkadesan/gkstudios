@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useMemo, useState } from 'react';
 import {
   CheckCircle2,
@@ -65,24 +67,19 @@ export function AdminEventsTimelineModule() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  // Stage note inside detail dialog
   const [stageNoteInput, setStageNoteInput] = useState('');
-
-  // Financial inputs inside detail dialog
   const [editAgreed, setEditAgreed] = useState(0);
   const [editExtras, setEditExtras] = useState(0);
   const [editDiscount, setEditDiscount] = useState(0);
   const [editCrew, setEditCrew] = useState('');
   const [editDeliveryNotes, setEditDeliveryNotes] = useState('');
 
-  // New payment receipt inputs
   const [payDate, setPayDate] = useState(() => toISODate(new Date()));
   const [payLabel, setPayLabel] = useState('Booking Advance');
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<PaymentMethod>('UPI / GPay');
   const [payRef, setPayRef] = useState('');
 
-  // Create new offline project modal inputs
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEventType, setNewEventType] = useState<EventCategory>('Iyer Weddings');
@@ -150,26 +147,34 @@ export function AdminEventsTimelineModule() {
     });
   }, [eventProjects, filter, searchQuery]);
 
-  const handleSetStage = (stage: EventStage) => {
+  const handleSetStage = async (stage: EventStage) => {
     if (!activeProject) return;
-    updateEventStage(activeProject.id, stage, stageNoteInput.trim() || undefined);
-    toast.success(`Stage updated to "${stage}" for ${activeProject.clientName}.`);
+    try {
+      await updateEventStage(activeProject.id, stage, stageNoteInput.trim() || undefined);
+      toast.success(`Stage updated to "${stage}" for ${activeProject.clientName}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update stage.');
+    }
   };
 
-  const handleSaveFinancials = (e: React.FormEvent) => {
+  const handleSaveFinancials = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeProject) return;
-    updateEventFinancials(activeProject.id, {
-      agreedAmount: Number(editAgreed) || 0,
-      extraCharges: Number(editExtras) || 0,
-      discount: Number(editDiscount) || 0,
-      assignedCrew: editCrew.trim(),
-      deliveryNotes: editDeliveryNotes.trim(),
-    });
-    toast.success('Billing & delivery notes saved.');
+    try {
+      await updateEventFinancials(activeProject.id, {
+        agreedAmount: Number(editAgreed) || 0,
+        extraCharges: Number(editExtras) || 0,
+        discount: Number(editDiscount) || 0,
+        assignedCrew: editCrew.trim(),
+        deliveryNotes: editDeliveryNotes.trim(),
+      });
+      toast.success('Billing & delivery notes saved to backend.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save billing.');
+    }
   };
 
-  const handleAddPayment = (e: React.FormEvent) => {
+  const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeProject) return;
     const numericAmount = Number(payAmount);
@@ -177,42 +182,50 @@ export function AdminEventsTimelineModule() {
       toast.error('Enter a valid payment amount in INR.');
       return;
     }
-    addEventPayment(activeProject.id, {
-      date: payDate,
-      label: payLabel.trim() || 'Installment',
-      amount: numericAmount,
-      method: payMethod,
-      referenceNote: payRef.trim() || undefined,
-    });
-    toast.success(`Recorded ${formatINR(numericAmount)} payment for ${activeProject.clientName}.`);
-    setPayAmount('');
-    setPayRef('');
+    try {
+      await addEventPayment(activeProject.id, {
+        date: payDate,
+        label: payLabel.trim() || 'Installment',
+        amount: numericAmount,
+        method: payMethod,
+        referenceNote: payRef.trim() || undefined,
+      });
+      toast.success(`Recorded ${formatINR(numericAmount)} payment for ${activeProject.clientName}.`);
+      setPayAmount('');
+      setPayRef('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to record payment.');
+    }
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientName.trim() || !newPhone.trim() || !newVenue.trim()) {
       toast.error('Please enter client name, phone, and venue.');
       return;
     }
-    const created = createEventProject({
-      clientName: newClientName,
-      phone: newPhone,
-      eventType: newEventType,
-      eventDate: newEventDate,
-      venue: newVenue,
-      packageName: newPackageName,
-      assignedCrew: newCrew,
-      agreedAmount: Number(newAgreedAmount) || 0,
-      initialAdvance: Number(newInitialAdvance) || 0,
-    });
-    toast.success(`Created timeline project ${created.referenceCode} for ${created.clientName}.`);
-    setCreateModalOpen(false);
-    setNewClientName('');
-    setNewPhone('');
-    setNewVenue('');
-    setNewInitialAdvance('');
-    openProjectDetail(created);
+    try {
+      const created = await createEventProject({
+        clientName: newClientName,
+        phone: newPhone,
+        eventType: newEventType,
+        eventDate: newEventDate,
+        venue: newVenue,
+        packageName: newPackageName,
+        assignedCrew: newCrew,
+        agreedAmount: Number(newAgreedAmount) || 0,
+        initialAdvance: Number(newInitialAdvance) || 0,
+      });
+      toast.success(`Created timeline project ${created.referenceCode} for ${created.clientName}.`);
+      setCreateModalOpen(false);
+      setNewClientName('');
+      setNewPhone('');
+      setNewVenue('');
+      setNewInitialAdvance('');
+      openProjectDetail(created);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create project.');
+    }
   };
 
   return (
@@ -346,7 +359,6 @@ export function AdminEventsTimelineModule() {
                 </CardHeader>
 
                 <CardContent className="pt-5 space-y-4">
-                  {/* 6-Stage Horizontal Timeline Stepper */}
                   <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
                     {EVENT_STAGES.map((stage, idx) => {
                       const isDone = idx <= activeStageIdx;
@@ -356,8 +368,8 @@ export function AdminEventsTimelineModule() {
                         <button
                           key={stage}
                           type="button"
-                          onClick={() => {
-                            updateEventStage(project.id, stage);
+                          onClick={async () => {
+                            await updateEventStage(project.id, stage);
                             toast.success(`${project.clientName}: moved to "${stage}"`);
                           }}
                           className={`flex flex-col justify-between rounded-lg border p-3 text-left transition-colors cursor-pointer ${
@@ -421,7 +433,6 @@ export function AdminEventsTimelineModule() {
               </DialogHeader>
 
               <div className="space-y-6 pt-2">
-                {/* 1. Stage Progression Section */}
                 <div className="rounded-xl border border-[#C5B378]/20 bg-[#072421] p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="text-sm font-semibold text-white">
@@ -475,7 +486,6 @@ export function AdminEventsTimelineModule() {
                   </div>
                 </div>
 
-                {/* 2. Billing Summary & Delivery Notes */}
                 <form
                   onSubmit={handleSaveFinancials}
                   className="rounded-xl border border-[#C5B378]/20 bg-[#072421] p-4 space-y-4"
@@ -503,9 +513,7 @@ export function AdminEventsTimelineModule() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-xs text-[#D8C78E]">
-                        Add-Ons / Extras (₹)
-                      </label>
+                      <label className="block text-xs text-[#D8C78E]">Add-Ons / Extras (₹)</label>
                       <input
                         type="number"
                         value={editExtras}
@@ -554,7 +562,6 @@ export function AdminEventsTimelineModule() {
                   </div>
                 </form>
 
-                {/* 3. Payment Receipts Ledger & Record Payment Form */}
                 <div className="rounded-xl border border-[#C5B378]/20 bg-[#072421] p-4 space-y-4">
                   {(() => {
                     const { netTotal, paidTotal, balanceDue } = getProjectTotals(activeProject);
@@ -602,8 +609,8 @@ export function AdminEventsTimelineModule() {
                               <button
                                 type="button"
                                 aria-label="Delete payment entry"
-                                onClick={() => {
-                                  deleteEventPayment(activeProject.id, pay.id);
+                                onClick={async () => {
+                                  await deleteEventPayment(activeProject.id, pay.id);
                                   toast.info('Payment receipt removed.');
                                 }}
                                 className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer"
@@ -621,7 +628,6 @@ export function AdminEventsTimelineModule() {
                     </p>
                   )}
 
-                  {/* Add Payment Receipt Form */}
                   <form
                     onSubmit={handleAddPayment}
                     className="grid grid-cols-1 gap-3 sm:grid-cols-12 items-end border-t border-[#C5B378]/15 pt-4"

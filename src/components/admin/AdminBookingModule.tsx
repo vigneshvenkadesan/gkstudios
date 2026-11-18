@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useMemo, useState } from 'react';
 import {
   CheckCircle2,
@@ -131,43 +133,55 @@ export function AdminBookingModule() {
     }
   };
 
-  const handleAcknowledge = () => {
+  const handleAcknowledge = async () => {
     if (!activeBooking) return;
-    processBookingAction({
-      bookingId: activeBooking.id,
-      packageId: editPackageId,
-      quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
-      assignedCrew: editCrew,
-      acknowledgementNote: editNote,
-      nextStatus: 'Acknowledged',
-      blockCalendarDate: true,
-    });
-    toast.success(`Inquiry ${activeBooking.referenceCode} acknowledged & marked Limited on calendar.`);
-    setActiveBooking(null);
-  };
-
-  const handleConfirmAndBlock = () => {
-    if (!activeBooking) return;
-    processBookingAction({
-      bookingId: activeBooking.id,
-      packageId: editPackageId,
-      quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
-      assignedCrew: editCrew,
-      acknowledgementNote: editNote,
-      nextStatus: 'Confirmed',
-      blockCalendarDate: true,
-    });
-    toast.success(
-      `Booking ${activeBooking.referenceCode} confirmed! ${formatDateDisplay(activeBooking.preferredDate)} is now blocked on the live calendar.`
-    );
-    setActiveBooking(null);
-  };
-
-  const handleDecline = (booking: BookingRequest) => {
-    updateBookingStatus(booking.id, 'Declined');
-    toast.info(`Inquiry ${booking.referenceCode} marked as Declined.`);
-    if (activeBooking?.id === booking.id) {
+    try {
+      await processBookingAction({
+        bookingId: activeBooking.id,
+        packageId: editPackageId,
+        quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
+        assignedCrew: editCrew,
+        acknowledgementNote: editNote,
+        nextStatus: 'Acknowledged',
+        blockCalendarDate: true,
+      });
+      toast.success(`Inquiry ${activeBooking.referenceCode} acknowledged & marked Limited on calendar.`);
       setActiveBooking(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to acknowledge inquiry.');
+    }
+  };
+
+  const handleConfirmAndBlock = async () => {
+    if (!activeBooking) return;
+    try {
+      await processBookingAction({
+        bookingId: activeBooking.id,
+        packageId: editPackageId,
+        quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
+        assignedCrew: editCrew,
+        acknowledgementNote: editNote,
+        nextStatus: 'Confirmed',
+        blockCalendarDate: true,
+      });
+      toast.success(
+        `Booking ${activeBooking.referenceCode} confirmed! ${formatDateDisplay(activeBooking.preferredDate)} is now blocked on the live calendar.`
+      );
+      setActiveBooking(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to confirm booking.');
+    }
+  };
+
+  const handleDecline = async (booking: BookingRequest) => {
+    try {
+      await updateBookingStatus(booking.id, 'Declined');
+      toast.info(`Inquiry ${booking.referenceCode} marked as Declined.`);
+      if (activeBooking?.id === booking.id) {
+        setActiveBooking(null);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to decline inquiry.');
     }
   };
 

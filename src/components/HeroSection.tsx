@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useState } from 'react';
 import { Calendar, Camera, ChevronLeft, ChevronRight, MapPin, Phone } from 'lucide-react';
 import { useStudio } from '@/src/context/StudioContext';

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useMemo, useState } from 'react';
 import { Camera, ChevronLeft, ChevronRight, Expand, MapPin } from 'lucide-react';
 import { useStudio } from '@/src/context/StudioContext';

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Eye, EyeOff, ImagePlus, Pencil, Star, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -52,34 +54,38 @@ export function AdminGalleryModule() {
     reader.readAsDataURL(file);
   };
 
-  const handleAddPhoto = (e: React.FormEvent) => {
+  const handleAddPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !location.trim() || !imageUrl.trim()) {
       toast.error('Please enter a title, location, and image URL or file upload.');
       return;
     }
 
-    addPortfolioItem({
-      title: title.trim(),
-      category,
-      location: location.trim(),
-      imageUrl: imageUrl.trim(),
-      shootNotes:
-        shootNotes.trim() ||
-        'Captured by GK Studios documentary team with natural color grading.',
-      exif: exif.trim() || '35mm · f/1.8 · 1/250s',
-      dateLabel: dateLabel.trim() || 'November 2026',
-      isHeroFeatured,
-      isVisible: true,
-      aspect,
-    });
+    try {
+      await addPortfolioItem({
+        title: title.trim(),
+        category,
+        location: location.trim(),
+        imageUrl: imageUrl.trim(),
+        shootNotes:
+          shootNotes.trim() ||
+          'Captured by GK Studios documentary team with natural color grading.',
+        exif: exif.trim() || '35mm · f/1.8 · 1/250s',
+        dateLabel: dateLabel.trim() || 'November 2026',
+        isHeroFeatured,
+        isVisible: true,
+        aspect,
+      });
 
-    toast.success(`Added "${title.trim()}" to the live ${category} gallery.`);
-    setTitle('');
-    setLocation('');
-    setImageUrl('');
-    setShootNotes('');
-    setIsHeroFeatured(false);
+      toast.success(`Added "${title.trim()}" to the live ${category} gallery.`);
+      setTitle('');
+      setLocation('');
+      setImageUrl('');
+      setShootNotes('');
+      setIsHeroFeatured(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to publish photograph.');
+    }
   };
 
   const openEditModal = (item: PortfolioItem) => {
@@ -90,17 +96,21 @@ export function AdminGalleryModule() {
     setEditNotes(item.shootNotes);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
-    updatePortfolioItem(editingItem.id, {
-      title: editTitle.trim(),
-      category: editCategory,
-      location: editLocation.trim(),
-      shootNotes: editNotes.trim(),
-    });
-    toast.success('Portfolio caption and metadata updated.');
-    setEditingItem(null);
+    try {
+      await updatePortfolioItem(editingItem.id, {
+        title: editTitle.trim(),
+        category: editCategory,
+        location: editLocation.trim(),
+        shootNotes: editNotes.trim(),
+      });
+      toast.success('Portfolio caption and metadata updated.');
+      setEditingItem(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update photograph.');
+    }
   };
 
   return (
@@ -171,7 +181,7 @@ export function AdminGalleryModule() {
                   required
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="/src/assets/images/... or https://..."
+                  placeholder="/images/portfolio/... or https://..."
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 font-mono text-xs text-white placeholder:font-sans placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>

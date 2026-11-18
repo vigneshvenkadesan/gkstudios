@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useMemo, useState } from 'react';
 import { CalendarPlus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -55,32 +57,40 @@ export function AdminScheduleModule() {
     setDialogOpen(true);
   };
 
-  const handleSaveEntry = (e: React.FormEvent) => {
+  const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate || !title.trim()) {
       toast.error('Please select a date and provide an event or block title.');
       return;
     }
 
-    upsertCalendarEntry({
-      date: selectedDate,
-      status,
-      title: title.trim(),
-      eventType,
-      clientName: clientName.trim() || undefined,
-      venue: venue.trim() || undefined,
-      assignedCrew: assignedCrew.trim() || undefined,
-      notes: notes.trim() || undefined,
-    });
+    try {
+      await upsertCalendarEntry({
+        date: selectedDate,
+        status,
+        title: title.trim(),
+        eventType,
+        clientName: clientName.trim() || undefined,
+        venue: venue.trim() || undefined,
+        assignedCrew: assignedCrew.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
 
-    toast.success(`Schedule updated for ${formatDateDisplay(selectedDate)} (${status}).`);
-    setDialogOpen(false);
+      toast.success(`Schedule updated for ${formatDateDisplay(selectedDate)} (${status}).`);
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save schedule entry.');
+    }
   };
 
-  const handleClearDate = (dateToRemove: string) => {
-    removeCalendarEntry(dateToRemove);
-    setDialogOpen(false);
-    toast.info(`${formatDateDisplay(dateToRemove)} is now Open / Available on the public site.`);
+  const handleClearDate = async (dateToRemove: string) => {
+    try {
+      await removeCalendarEntry(dateToRemove);
+      setDialogOpen(false);
+      toast.info(`${formatDateDisplay(dateToRemove)} is now Open / Available on the public site.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove schedule entry.');
+    }
   };
 
   const sortedEntries = useMemo(

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar as CalendarIcon, CheckCircle2, Info, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,8 +26,15 @@ export function BookingSection({
 }: BookingSectionProps) {
   const { packages, calendarEntries, submitBooking } = useStudio();
 
-  const [monthDate, setMonthDate] = useState<Date>(() => new Date(2026, 10, 1));
-  const [selectedDate, setSelectedDate] = useState<string>('2026-11-28');
+  const [monthDate, setMonthDate] = useState<Date>(() => {
+    const now = new Date();
+    const defaultStart = new Date(2026, 10, 1);
+    return now > new Date(2026, 10, 28) ? new Date(now.getFullYear(), now.getMonth(), 1) : defaultStart;
+  });
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const todayIso = toISODate(new Date());
+    return todayIso > '2026-11-28' ? todayIso : '2026-11-28';
+  });
   const [selectedDayNote, setSelectedDayNote] = useState<CalendarDayEntry | undefined>(undefined);
 
   const [clientName, setClientName] = useState('');
@@ -35,6 +44,7 @@ export function BookingSection({
   const [venue, setVenue] = useState('');
   const [packageId, setPackageId] = useState(preselectedPackageId || packages[0]?.id || 'pkg-grand');
   const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmitted, setLastSubmitted] = useState<BookingRequest | null>(null);
 
   useEffect(() => {
@@ -69,7 +79,7 @@ export function BookingSection({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!clientName.trim() || !phone.trim() || !selectedDate || !venue.trim()) {
@@ -85,24 +95,31 @@ export function BookingSection({
       return;
     }
 
-    const created = submitBooking({
-      clientName,
-      phone,
-      eventType,
-      preferredDate: selectedDate,
-      endDate: endDate && endDate >= selectedDate ? endDate : undefined,
-      venue,
-      packageId,
-      notes,
-    });
+    setIsSubmitting(true);
+    try {
+      const created = await submitBooking({
+        clientName,
+        phone,
+        eventType,
+        preferredDate: selectedDate,
+        endDate: endDate && endDate >= selectedDate ? endDate : undefined,
+        venue,
+        packageId,
+        notes,
+      });
 
-    setLastSubmitted(created);
-    toast.success(`Inquiry ${created.referenceCode} received! G Krishna will confirm shortly.`);
-    setClientName('');
-    setPhone('');
-    setVenue('');
-    setEndDate('');
-    setNotes('');
+      setLastSubmitted(created);
+      toast.success(`Inquiry ${created.referenceCode} saved! G Krishna will confirm shortly.`);
+      setClientName('');
+      setPhone('');
+      setVenue('');
+      setEndDate('');
+      setNotes('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to submit inquiry.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -120,7 +137,7 @@ export function BookingSection({
           </h2>
           <p className="text-base text-[#E6ECEB]/80">
             Select an open date directly on our live studio calendar—synced in real time with our
-            production schedule—and submit your event details below.
+            backend schedule—and submit your event details below.
           </p>
         </div>
 
@@ -178,7 +195,7 @@ export function BookingSection({
             <CardHeader>
               <CardTitle className="text-xl">Booking Inquiry Form</CardTitle>
               <CardDescription>
-                Submitting creates an instant booking request for GK Studios review and WhatsApp
+                Submitting sends your booking request to our studio backend for review and WhatsApp
                 acknowledgement.
               </CardDescription>
             </CardHeader>
@@ -200,7 +217,7 @@ export function BookingSection({
                       <span className="font-mono tabular-nums text-white">
                         {formatDateDisplay(lastSubmitted.preferredDate)}
                       </span>{' '}
-                      is now in our Studio Admin Inbox as Pending.
+                      has been recorded for studio confirmation.
                     </p>
                   </div>
                 </div>
@@ -218,7 +235,7 @@ export function BookingSection({
                       required
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
-                      placeholder="e.g., Karthikeyan &amp; Revathi"
+                      placeholder="e.g., Karthikeyan & Revathi"
                       className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none focus:ring-1 focus:ring-[#D8C78E]"
                     />
                   </div>
@@ -348,9 +365,9 @@ export function BookingSection({
                       {selectedPackage ? formatINR(selectedPackage.price) : ''}
                     </span>
                   </div>
-                  <Button type="submit" size="lg">
+                  <Button type="submit" size="lg" disabled={isSubmitting}>
                     <Send className="h-4 w-4" />
-                    Submit Booking Inquiry
+                    {isSubmitting ? 'Submitting...' : 'Submit Booking Inquiry'}
                   </Button>
                 </div>
               </form>

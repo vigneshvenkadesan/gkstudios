@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --color-emerald-deep: #092E2B;
   --color-emerald-royal: #0E423E;
@@ -19,6 +19,7 @@
     font-family: var(--font-sans);
     background-color: #092E2B;
     color: #E6ECEB;
+    scroll-behavior: smooth;
   }
 
   h1, h2, h3, h4 {
@@ -36,7 +37,6 @@
   background-size: 220px 220px;
 }
 
-/* Custom scrollbar for studio emerald aesthetic */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
