@@ -144,6 +144,36 @@
   ],
   "bookings": [
     {
+      "id": "bk-1794996526089",
+      "referenceCode": "GK-2611-864",
+      "clientName": "Vignesh & Sneha Priya",
+      "phone": "9786009607",
+      "eventType": "Iyer Weddings",
+      "preferredDate": "2026-11-28",
+      "venue": "SV Mahal, Panruti",
+      "packageId": "pkg-grand",
+      "packageName": "Traditional Grand Wedding",
+      "quotedAmount": 52000,
+      "notes": "",
+      "status": "Pending",
+      "createdAt": "2026-11-18T10:08:46.089Z"
+    },
+    {
+      "id": "bk-1794994964871",
+      "referenceCode": "GK-2611-828",
+      "clientName": "Vignesh & Sneha Priya",
+      "phone": "9786009607",
+      "eventType": "Iyer Weddings",
+      "preferredDate": "2027-01-05",
+      "venue": "SV Mahal, Panruti",
+      "packageId": "pkg-essential",
+      "packageName": "Essential Ceremony",
+      "quotedAmount": 24000,
+      "notes": "",
+      "status": "Pending",
+      "createdAt": "2026-11-18T09:42:44.871Z"
+    },
+    {
       "id": "bk-101",
       "referenceCode": "GK-2611-01",
       "clientName": "Srinivasan & Lakshmi Narayanan",
