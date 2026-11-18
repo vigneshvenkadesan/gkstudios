@@ -12,15 +12,30 @@ import {
   StudioState,
 } from '../types/studio';
 import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '../data/initialStudioData';
+import { getBookingModel, getCalendarScheduleModel } from './mongodb';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
-const FALLBACK_DB_PATH = '/tmp/gk-studios-db.json';
 
 let memoryCache: StudioState | null = null;
-let activeDbPath: string = PRIMARY_DB_PATH;
 
 function cloneInitialState(): StudioState {
   return JSON.parse(JSON.stringify(INITIAL_STUDIO_STATE)) as StudioState;
+}
+
+async function requireBookingModel() {
+  const bookings = await getBookingModel();
+  if (!bookings) {
+    throw new Error('MongoDB is not configured. Booking requests cannot be stored.');
+  }
+  return bookings;
+}
+
+async function requireCalendarScheduleModel() {
+  const schedule = await getCalendarScheduleModel();
+  if (!schedule) {
+    throw new Error('MongoDB is not configured. Calendar schedule cannot be stored.');
+  }
+  return schedule;
 }
 
 function normalizeState(raw: Partial<StudioState>): StudioState {
@@ -38,10 +53,8 @@ function normalizeState(raw: Partial<StudioState>): StudioState {
       Array.isArray(raw.packages) && raw.packages.length > 0
         ? raw.packages
         : INITIAL_STUDIO_STATE.packages,
-    bookings: Array.isArray(raw.bookings) ? raw.bookings : INITIAL_STUDIO_STATE.bookings,
-    calendarEntries: Array.isArray(raw.calendarEntries)
-      ? raw.calendarEntries
-      : INITIAL_STUDIO_STATE.calendarEntries,
+    bookings: [],
+    calendarEntries: [],
     eventProjects: Array.isArray(raw.eventProjects)
       ? raw.eventProjects
       : INITIAL_STUDIO_STATE.eventProjects,
@@ -49,51 +62,108 @@ function normalizeState(raw: Partial<StudioState>): StudioState {
 }
 
 async function readFromDisk(): Promise<StudioState> {
-  for (const candidate of [activeDbPath, PRIMARY_DB_PATH, FALLBACK_DB_PATH]) {
-    try {
-      const content = await fs.readFile(candidate, 'utf-8');
-      const parsed = JSON.parse(content) as Partial<StudioState>;
-      activeDbPath = candidate;
-      return normalizeState(parsed);
-    } catch {
-      // Try next location
-    }
+  try {
+    const content = await fs.readFile(PRIMARY_DB_PATH, 'utf-8');
+    const parsed = JSON.parse(content) as Partial<StudioState>;
+    return normalizeState(parsed);
+  } catch {
+    const seed = cloneInitialState();
+    seed.bookings = [];
+    await writeToDisk(seed);
+    return seed;
   }
-  const seed = cloneInitialState();
-  await writeToDisk(seed);
-  return seed;
 }
 
 async function writeToDisk(nextState: StudioState): Promise<void> {
-  const payload = JSON.stringify(nextState, null, 2);
-  try {
-    await fs.mkdir(path.dirname(activeDbPath), { recursive: true });
-    await fs.writeFile(activeDbPath, payload, 'utf-8');
-  } catch {
-    activeDbPath = FALLBACK_DB_PATH;
-    try {
-      await fs.writeFile(FALLBACK_DB_PATH, payload, 'utf-8');
-    } catch {
-      // Keep memoryCache authoritative if filesystem is completely read-only
-    }
-  }
+  await fs.mkdir(path.dirname(PRIMARY_DB_PATH), { recursive: true });
+  await fs.writeFile(
+    PRIMARY_DB_PATH,
+    JSON.stringify({ ...nextState, bookings: [] }, null, 2),
+    'utf-8'
+  );
+}
+
+function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): BookingRequest {
+  return {
+    id: String(booking.id),
+    referenceCode: String(booking.referenceCode),
+    clientName: String(booking.clientName),
+    phone: String(booking.phone),
+    eventType: booking.eventType,
+    preferredDate: String(booking.preferredDate),
+    ...(booking.endDate ? { endDate: String(booking.endDate) } : {}),
+    venue: String(booking.venue),
+    packageId: String(booking.packageId),
+    packageName: String(booking.packageName),
+    quotedAmount: Number(booking.quotedAmount),
+    notes: String(booking.notes || ''),
+    status: booking.status,
+    ...(booking.assignedCrew ? { assignedCrew: String(booking.assignedCrew) } : {}),
+    ...(booking.acknowledgementNote
+      ? { acknowledgementNote: String(booking.acknowledgementNote) }
+      : {}),
+    createdAt:
+      typeof booking.createdAt === 'string'
+        ? booking.createdAt
+        : new Date(String(booking.createdAt)).toISOString(),
+  };
 }
 
 export async function getStudioState(): Promise<StudioState> {
   if (!memoryCache) {
     memoryCache = await readFromDisk();
   }
+
+  const bookings = await requireBookingModel();
+  const mongoBookings = await bookings.find({}).sort({ createdAt: -1 }).lean().exec();
+  const plainBookings = mongoBookings.map((booking) =>
+    toPlainBooking(booking as unknown as BookingRequest & { createdAt?: unknown })
+  );
+
+  const schedule = await requireCalendarScheduleModel();
+  const mongoSchedule = await schedule.find({}).sort({ date: 1 }).lean().exec();
+  const plainSchedule = mongoSchedule.map((entry) => {
+    const plain = entry as unknown as CalendarDayEntry & { _id?: unknown };
+    return {
+      id: String(plain.id),
+      date: String(plain.date),
+      status: plain.status,
+      title: String(plain.title),
+      ...(plain.eventType ? { eventType: plain.eventType } : {}),
+      ...(plain.clientName ? { clientName: String(plain.clientName) } : {}),
+      ...(plain.venue ? { venue: String(plain.venue) } : {}),
+      ...(plain.assignedCrew ? { assignedCrew: String(plain.assignedCrew) } : {}),
+      ...(plain.notes ? { notes: String(plain.notes) } : {}),
+      ...(plain.bookingId ? { bookingId: String(plain.bookingId) } : {}),
+    } satisfies CalendarDayEntry;
+  });
+
+  memoryCache = {
+    ...memoryCache,
+    bookings: plainBookings,
+    calendarEntries: plainSchedule,
+  };
   return memoryCache;
 }
 
 export async function saveStudioState(nextState: StudioState): Promise<StudioState> {
-  memoryCache = nextState;
-  await writeToDisk(nextState);
+  memoryCache = {
+    ...nextState,
+    bookings: nextState.bookings,
+  };
+  await writeToDisk({ ...nextState, bookings: [], calendarEntries: [] });
   return memoryCache;
 }
 
 export async function resetStudioState(): Promise<StudioState> {
+  const bookings = await requireBookingModel();
+  const schedule = await requireCalendarScheduleModel();
+  await bookings.deleteMany({});
+  await schedule.deleteMany({});
+
   const seed = cloneInitialState();
+  seed.bookings = [];
+  seed.calendarEntries = [];
   return saveStudioState(seed);
 }
 
@@ -139,10 +209,17 @@ export async function createBookingOnServer(input: {
     createdAt: now.toISOString(),
   };
 
-  await saveStudioState({
+  const bookings = await requireBookingModel();
+  await bookings.updateOne(
+    { id: newBooking.id },
+    { $set: newBooking },
+    { upsert: true }
+  );
+
+  memoryCache = {
     ...state,
     bookings: [newBooking, ...state.bookings],
-  });
+  };
 
   return newBooking;
 }
@@ -157,10 +234,15 @@ export async function updateBookingStatusOnServer(
     throw new Error('Booking request not found.');
   }
 
-  return saveStudioState({
+  const bookings = await requireBookingModel();
+  await bookings.updateOne({ id: bookingId }, { $set: { status } });
+
+  const nextState = {
     ...state,
     bookings: state.bookings.map((b) => (b.id === bookingId ? { ...b, status } : b)),
-  });
+  };
+  memoryCache = nextState;
+  return nextState;
 }
 
 export async function processBookingOnServer(input: {
@@ -226,11 +308,26 @@ export async function processBookingOnServer(input: {
         notes: input.acknowledgementNote.trim() || targetBooking.notes,
         bookingId: targetBooking.id,
       };
-      const existingIdx = updatedCalendar.findIndex((c) => c.date === dateStr);
+      const existingIdx = targetBooking.id
+        ? updatedCalendar.findIndex(
+            (c) => c.date === dateStr && c.bookingId === targetBooking.id
+          )
+        : -1;
       if (existingIdx >= 0) {
-        updatedCalendar[existingIdx] = entry;
+        updatedCalendar[existingIdx] = {
+          ...updatedCalendar[existingIdx],
+          ...entry,
+          id: updatedCalendar[existingIdx].id,
+        };
       } else {
-        updatedCalendar.push(entry);
+        const matchingLegacyIdx = updatedCalendar.findIndex(
+          (c) => c.date === dateStr && c.bookingId === targetBooking.id
+        );
+        if (matchingLegacyIdx >= 0) {
+          updatedCalendar[matchingLegacyIdx] = entry;
+        } else {
+          updatedCalendar.push({ ...entry, id: `cal-${targetBooking.id}-${dateStr}` });
+        }
       }
     });
   }
@@ -269,6 +366,31 @@ export async function processBookingOnServer(input: {
     }
   }
 
+  if (input.blockCalendarDate) {
+    const schedule = await requireCalendarScheduleModel();
+    for (const entry of updatedCalendar) {
+      if (!entry.id) continue;
+      await schedule.updateOne(
+        { id: entry.id },
+        { $set: entry },
+        { upsert: true }
+      );
+    }
+  }
+
+  const targetBookingId = targetBooking.id;
+  const updatedBooking = updatedBookings.find((booking) => booking.id === targetBookingId);
+  if (!updatedBooking) {
+    throw new Error('Booking request not found.');
+  }
+
+  const bookings = await requireBookingModel();
+  await bookings.updateOne(
+    { id: targetBookingId },
+    { $set: updatedBooking },
+    { upsert: true }
+  );
+
   return saveStudioState({
     ...state,
     bookings: updatedBookings,
@@ -280,28 +402,32 @@ export async function processBookingOnServer(input: {
 export async function upsertCalendarEntryOnServer(
   entry: CalendarDayEntry
 ): Promise<StudioState> {
-  const state = await getStudioState();
-  const next = [...state.calendarEntries];
-  const idx = next.findIndex((c) => c.date === entry.date);
-  if (idx >= 0) {
-    next[idx] = entry;
-  } else {
-    next.push(entry);
-  }
-  next.sort((a, b) => a.date.localeCompare(b.date));
+  const schedule = await requireCalendarScheduleModel();
+  const entryId = entry.id || `cal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const normalizedEntry: CalendarDayEntry = { ...entry, id: entryId };
 
-  return saveStudioState({
-    ...state,
-    calendarEntries: next,
-  });
+  await schedule.updateOne(
+    { id: entryId },
+    { $set: normalizedEntry },
+    { upsert: true }
+  );
+
+  return getStudioState();
 }
 
-export async function removeCalendarEntryOnServer(date: string): Promise<StudioState> {
-  const state = await getStudioState();
-  return saveStudioState({
-    ...state,
-    calendarEntries: state.calendarEntries.filter((c) => c.date !== date),
-  });
+export async function removeCalendarEntryOnServer(
+  date: string,
+  entryId?: string
+): Promise<StudioState> {
+  const schedule = await requireCalendarScheduleModel();
+
+  if (entryId) {
+    await schedule.deleteOne({ id: entryId });
+  } else {
+    await schedule.deleteMany({ date });
+  }
+
+  return getStudioState();
 }
 
 export async function addPortfolioItemOnServer(

@@ -38,7 +38,7 @@ export function Footer({ onJumpToSection, onHiddenAdminTrigger }: FooterProps) {
 
             <p className="text-sm leading-relaxed text-[#E6ECEB]/75 max-w-md">
               Wedding, ceremonial, and milestone photography &amp; 4K cinema studio serving
-              families in Kandarakkottai, Villupuram, Chennai, and across Tamil Nadu.
+              families in Panruti, Villupuram, Chennai, and across Tamil Nadu.
             </p>
 
             <div className="space-y-2 text-sm">

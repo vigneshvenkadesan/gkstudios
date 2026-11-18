@@ -114,7 +114,7 @@ export function AdminBookingModule() {
     const pkgName = selectedPkg?.name || activeBooking.packageName;
     return [
       `Vanakkam ${activeBooking.clientName}!`,
-      `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai.`,
+      `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
       `We have received your ${activeBooking.eventType} inquiry (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}.`,
       `Package: ${pkgName} | Quote: ${formatINR(editQuote)}`,
       editNote ? `Note: ${editNote}` : '',
@@ -226,7 +226,7 @@ export function AdminBookingModule() {
       </div>
 
       {/* Bookings Table */}
-      <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] overflow-hidden">
+      <div className="w-full rounded-xl border border-[#C5B378]/20 bg-[#0E423E] overflow-hidden">
         {filteredBookings.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <p className="text-base font-semibold text-white">No booking requests match this filter</p>
@@ -238,50 +238,50 @@ export function AdminBookingModule() {
           <Table>
             <TableHeader className="bg-[#072421]/60">
               <TableRow>
-                <TableHead>Ref / Client</TableHead>
-                <TableHead>Event &amp; Venue</TableHead>
-                <TableHead>Event Date</TableHead>
-                <TableHead>Package / Quote</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Workflow Action</TableHead>
+                <TableHead className="px-5 py-4 text-sm">Ref / Client</TableHead>
+                <TableHead className="px-5 py-4 text-sm">Event &amp; Venue</TableHead>
+                <TableHead className="px-5 py-4 text-sm">Event Date</TableHead>
+                <TableHead className="px-5 py-4 text-sm">Package / Quote</TableHead>
+                <TableHead className="px-5 py-4 text-sm">Status</TableHead>
+                <TableHead className="px-5 py-4 text-right text-sm">Workflow Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredBookings.map((booking) => (
-                <TableRow key={booking.id}>
-                  <TableCell>
-                    <p className="font-mono text-xs text-[#D8C78E] tabular-nums">
+                <TableRow key={booking.id} className="text-base">
+                  <TableCell className="px-5 py-5">
+                    <p className="font-mono text-sm text-[#D8C78E] tabular-nums">
                       {booking.referenceCode}
                     </p>
-                    <p className="font-semibold text-white">{booking.clientName}</p>
-                    <p className="font-mono text-xs text-[#E6ECEB]/70 tabular-nums">
+                    <p className="mt-1 text-base font-semibold text-white">{booking.clientName}</p>
+                    <p className="mt-0.5 font-mono text-sm text-[#E6ECEB]/70 tabular-nums">
                       {booking.phone}
                     </p>
                   </TableCell>
-                  <TableCell>
-                    <p className="font-medium text-white">{booking.eventType}</p>
-                    <p className="text-xs text-[#E6ECEB]/75 max-w-[220px] truncate">
+                  <TableCell className="px-5 py-5">
+                    <p className="text-base font-medium text-white">{booking.eventType}</p>
+                    <p className="mt-1 text-sm text-[#E6ECEB]/75 min-w-[180px] max-w-[320px]">
                       {booking.venue}
                     </p>
                   </TableCell>
-                  <TableCell>
-                    <p className="font-mono text-xs text-white tabular-nums whitespace-nowrap">
+                  <TableCell className="px-5 py-5">
+                    <p className="font-mono text-sm text-white tabular-nums whitespace-nowrap">
                       {formatDateDisplay(booking.preferredDate)}
                     </p>
                     {booking.endDate && (
-                      <p className="font-mono text-[11px] text-[#D8C78E] tabular-nums whitespace-nowrap">
+                      <p className="mt-1 font-mono text-xs text-[#D8C78E] tabular-nums whitespace-nowrap">
                         to {formatDateDisplay(booking.endDate)}
                       </p>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <p className="text-sm text-white">{booking.packageName}</p>
-                    <p className="font-mono text-xs text-[#D8C78E] tabular-nums">
+                  <TableCell className="px-5 py-5">
+                    <p className="text-base text-white">{booking.packageName}</p>
+                    <p className="mt-1 font-mono text-sm text-[#D8C78E] tabular-nums">
                       {formatINR(booking.quotedAmount)}
                     </p>
                   </TableCell>
-                  <TableCell>{getStatusBadge(booking.status)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="px-5 py-5">{getStatusBadge(booking.status)}</TableCell>
+                  <TableCell className="px-5 py-5 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button
                         size="sm"

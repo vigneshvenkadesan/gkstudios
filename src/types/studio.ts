@@ -118,6 +118,7 @@ export interface BookingRequest {
 }
 
 export interface CalendarDayEntry {
+  id?: string;
   date: string; // YYYY-MM-DD
   status: Exclude<AvailabilityStatus, 'Available'>;
   title: string;

@@ -216,7 +216,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-[#072421] text-[#E6ECEB]">
-      <div className="mx-auto flex max-w-7xl flex-col lg:flex-row">
+      <div className="mx-auto flex w-full max-w-[1920px] flex-col lg:flex-row">
         {/* Left Workspace Sidebar */}
         <aside className="w-full lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-[#C5B378]/20 bg-[#092E2B] p-4 sm:p-5 flex flex-col justify-between gap-6">
           <div className="space-y-6">
@@ -299,7 +299,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-w-0">
+        <main className="flex-1 px-4 py-5 sm:px-8 sm:py-6 lg:px-10 xl:px-14 2xl:px-16 space-y-6 min-w-0">
           {/* Top Breadcrumb Bar */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#C5B378]/15 pb-5">
             <div>

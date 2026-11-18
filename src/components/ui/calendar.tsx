@@ -36,8 +36,12 @@ export function StudioCalendar({
   const todayISO = toISODate(new Date());
 
   const entryMap = React.useMemo(() => {
-    const map = new Map<string, CalendarDayEntry>();
-    entries.forEach((e) => map.set(e.date, e));
+    const map = new Map<string, CalendarDayEntry[]>();
+    entries.forEach((entry) => {
+      const dayEntries = map.get(entry.date) || [];
+      dayEntries.push(entry);
+      map.set(entry.date, dayEntries);
+    });
     return map;
   }, [entries]);
 
@@ -127,7 +131,7 @@ export function StudioCalendar({
           }
 
           const entry = entryMap.get(cell.iso);
-          const status: AvailabilityStatus = entry?.status ?? 'Available';
+          const status: AvailabilityStatus = entry?.[0]?.status ?? 'Available';
           const isPast = cell.iso < todayISO;
           const isSelected = selectedDate === cell.iso;
           const isDisabled = !allowSelectBooked && (isPast || status === 'Booked');
@@ -137,7 +141,7 @@ export function StudioCalendar({
               <button
                 key={cell.iso}
                 type="button"
-                onClick={() => onSelectDate(cell.iso, entry)}
+                onClick={() => onSelectDate(cell.iso, undefined)}
                 className={cn(
                   'group relative flex min-h-[88px] sm:min-h-[112px] flex-col justify-between rounded-xl border p-2 sm:p-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer',
                   isPast && !entry
@@ -174,13 +178,25 @@ export function StudioCalendar({
                 </div>
 
                 {entry ? (
-                  <div className="mt-1.5 space-y-0.5 w-full overflow-hidden">
-                    <p className="text-[11px] sm:text-xs font-medium text-white line-clamp-2 leading-snug">
-                      {entry.title}
-                    </p>
-                    {entry.venue && (
-                      <p className="hidden sm:block text-[10px] text-[#E6ECEB]/75 truncate">
-                        {entry.venue}
+                  <div className="mt-1.5 w-full space-y-1 overflow-hidden">
+                    {entry.slice(0, 3).map((dayEntry) => (
+                      <div
+                        key={dayEntry.id || `${dayEntry.date}-${dayEntry.title}`}
+                        className="rounded border border-white/10 bg-black/10 px-1.5 py-1"
+                      >
+                        <p className="text-[10px] sm:text-xs font-medium text-white truncate">
+                          {dayEntry.title}
+                        </p>
+                        {dayEntry.venue && (
+                          <p className="hidden sm:block text-[9px] text-[#E6ECEB]/75 truncate">
+                            {dayEntry.venue}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                    {entry.length > 3 && (
+                      <p className="text-[10px] font-semibold text-[#D8C78E]">
+                        +{entry.length - 3} more
                       </p>
                     )}
                   </div>
@@ -198,8 +214,8 @@ export function StudioCalendar({
               key={cell.iso}
               type="button"
               disabled={isDisabled}
-              onClick={() => onSelectDate(cell.iso, entry)}
-              title={entry ? `${status}: ${entry.title}` : `${cell.iso} · Available`}
+              onClick={() => onSelectDate(cell.iso, entry?.[0])}
+              title={entry ? `${status}: ${entry[0].title}` : `${cell.iso} · Available`}
               className={cn(
                 'relative flex flex-col items-center justify-center rounded-lg border text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E]',
                 size === 'compact' ? 'h-11' : 'h-12 sm:h-14',

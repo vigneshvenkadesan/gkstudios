@@ -63,7 +63,7 @@ interface StudioContextValue {
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
   processBookingAction: (input: AcknowledgeBookingInput) => Promise<void>;
   upsertCalendarEntry: (entry: CalendarDayEntry) => Promise<void>;
-  removeCalendarEntry: (date: string) => Promise<void>;
+  removeCalendarEntry: (date: string, entryId?: string) => Promise<void>;
   addPortfolioItem: (item: Omit<PortfolioItem, 'id'>) => Promise<PortfolioItem>;
   updatePortfolioItem: (id: string, patch: Partial<PortfolioItem>) => Promise<void>;
   deletePortfolioItem: (id: string) => Promise<void>;
@@ -173,13 +173,18 @@ export function StudioProvider({
     setState(nextState);
   }, []);
 
-  const removeCalendarEntry = useCallback(async (date: string) => {
-    const nextState = await requestJson<StudioState>(
-      `/api/schedule?date=${encodeURIComponent(date)}`,
-      { method: 'DELETE' }
-    );
-    setState(nextState);
-  }, []);
+  const removeCalendarEntry = useCallback(
+    async (date: string, entryId?: string) => {
+      const params = new URLSearchParams({ date });
+      if (entryId) params.set('id', entryId);
+      const nextState = await requestJson<StudioState>(
+        `/api/schedule?${params.toString()}`,
+        { method: 'DELETE' }
+      );
+      setState(nextState);
+    },
+    []
+  );
 
   const addPortfolioItem = useCallback(
     async (item: Omit<PortfolioItem, 'id'>): Promise<PortfolioItem> => {
