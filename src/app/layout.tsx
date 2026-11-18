@@ -1,5 +1,10 @@
 import type { Metadata } from 'next';
-import { Cormorant_Garamond, JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google';
+import {
+  Cormorant_Garamond,
+  JetBrains_Mono,
+  Noto_Serif_Tamil,
+  Plus_Jakarta_Sans,
+} from 'next/font/google';
 import { StudioProvider } from '@/src/context/StudioContext';
 import { StudioToaster } from '@/src/components/StudioToaster';
 import { getStudioState } from '@/src/server/studioStore';
@@ -23,6 +28,12 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains',
 });
 
+const notoSerifTamil = Noto_Serif_Tamil({
+  subsets: ['latin', 'tamil'],
+  weight: ['500', '600', '700'],
+  variable: '--font-tamil-serif',
+});
+
 export const metadata: Metadata = {
   title: 'GK STUDIOS — Creating Memories | South Indian Wedding & Event Photography',
   description:
@@ -35,6 +46,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
+  },
+  icons: {
+    icon: '/gk-favicon.svg',
+    shortcut: '/gk-favicon.svg',
+    apple: '/gk-favicon.svg',
   },
 };
 
@@ -50,7 +66,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${plusJakarta.variable} ${cormorant.variable} ${jetbrainsMono.variable}`}
+      className={`${plusJakarta.variable} ${cormorant.variable} ${jetbrainsMono.variable} ${notoSerifTamil.variable}`}
     >
       <body className="bg-[#092E2B] text-[#E6ECEB] antialiased selection:bg-[#C5B378]/30 selection:text-white">
         <StudioProvider initialState={initialState}>

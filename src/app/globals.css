@@ -51,3 +51,7 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #C5B378;
 }
+
+.font-tamil-serif {
+  font-family: var(--font-tamil-serif), "Noto Serif Tamil", serif;
+}

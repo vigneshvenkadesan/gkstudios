@@ -58,6 +58,14 @@ export function PortfolioSection({ onBookCategory }: PortfolioSectionProps) {
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
             Stories Across South Indian Traditions
           </h2>
+          <div className="pt-1">
+            <p className="font-tamil-serif text-xl font-semibold text-[#D8C78E] sm:text-2xl">
+              நினைவுகளின் அழகிய பயணம்
+            </p>
+            <p className="mt-1 text-xs tracking-[0.12em] text-[#E6ECEB]/55">
+              Beautiful journeys of memories
+            </p>
+          </div>
           <p className="text-base text-[#E6ECEB]/80">
             Explore authentic moments across Iyer weddings, sacred temple vows, multi-faith unions,
             Kaathu Kuthi blessings, milestone birthdays, and golden-hour outdoor portraits.
@@ -65,7 +73,7 @@ export function PortfolioSection({ onBookCategory }: PortfolioSectionProps) {
         </div>
 
         {/* Category Filter Tabs */}
-        <div className="mt-8 flex flex-wrap items-center gap-2 rounded-xl border border-[#C5B378]/20 bg-[#092E2B] p-2">
+        <div className="mt-8 flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-[#C5B378]/20 bg-[#092E2B] p-2">
           {FILTER_OPTIONS.map((category) => {
             const isActive = selectedCategory === category;
             return (
