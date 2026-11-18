@@ -65,7 +65,7 @@ export function PortfolioSection({ onBookCategory }: PortfolioSectionProps) {
         </div>
 
         {/* Category Filter Tabs */}
-        <div className="mt-8 flex flex-wrap items-center gap-2 rounded-xl border border-[#C5B378]/20 bg-[#092E2B] p-2">
+        <div className="mt-8 flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-[#C5B378]/20 bg-[#092E2B] p-2">
           {FILTER_OPTIONS.map((category) => {
             const isActive = selectedCategory === category;
             return (

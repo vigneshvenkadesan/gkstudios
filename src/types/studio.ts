@@ -2,17 +2,31 @@ export type EventCategory =
   | 'Iyer Weddings'
   | 'Temple Weddings'
   | 'Hindu, Christian & Muslim Weddings'
+  | 'Pre-Wedding & Engagement Shoots'
+  | 'Seemantham / Baby Shower'
   | 'Kaathu Kuthi'
+  | 'Puberty Ceremony'
+  | 'Nool Punal / Upanayanam'
+  | 'Griha Pravesam (Housewarming)'
   | 'Birthdays & Milestones'
-  | 'Outdoor Shoots';
+  | 'Maternity & Newborn Shoots'
+  | 'Outdoor Shoots'
+  | 'Corporate & Social Events';
 
 export const EVENT_CATEGORIES: EventCategory[] = [
   'Iyer Weddings',
   'Temple Weddings',
   'Hindu, Christian & Muslim Weddings',
+  'Pre-Wedding & Engagement Shoots',
+  'Seemantham / Baby Shower',
   'Kaathu Kuthi',
+  'Puberty Ceremony',
+  'Nool Punal / Upanayanam',
+  'Griha Pravesam (Housewarming)',
   'Birthdays & Milestones',
+  'Maternity & Newborn Shoots',
   'Outdoor Shoots',
+  'Corporate & Social Events',
 ];
 
 export type BookingStatus = 'Pending' | 'Acknowledged' | 'Confirmed' | 'Declined';
