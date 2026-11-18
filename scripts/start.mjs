@@ -22,8 +22,8 @@ for (let i = 0; i < rawArgs.length; i++) {
   }
 }
 
-const nextBin = path.resolve(process.cwd(), 'node_modules', '.bin', 'next');
-const child = spawn(nextBin, ['start', '-p', port, '-H', hostname], {
+const nextCli = path.resolve(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
+const child = spawn(process.execPath, [nextCli, 'start', '-p', port, '-H', hostname], {
   stdio: 'inherit',
   env: process.env,
 });
