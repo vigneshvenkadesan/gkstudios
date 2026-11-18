@@ -314,9 +314,9 @@ export function AdminScheduleModule() {
             </p>
           ) : (
             <div className="divide-y divide-[#C5B378]/15">
-              {sortedEntries.map((entry) => (
+              {sortedEntries.map((entry, index) => (
                 <div
-                  key={entry.date}
+                  key={entry.id || `${entry.date}-${entry.title}-${index}`}
                   className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="space-y-1">
