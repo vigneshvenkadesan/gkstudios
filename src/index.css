@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-emerald-deep: #092E2B;
+  --color-emerald-royal: #0E423E;
+  --color-emerald-elevated: #134E49;
+  --color-gold-antique: #C5B378;
+  --color-gold-champagne: #D8C78E;
+  --color-ink-light: #FFFFFF;
+  --color-ink-muted: #E6ECEB;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: #092E2B;
+    color: #E6ECEB;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle studio camera & lens line-art background pattern matching the GK Studios banner */
+.studio-pattern-bg {
+  background-image: url("data:image/svg+xml,%3Csvg width='180' height='180' viewBox='0 0 180 180' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23C5B378' stroke-opacity='0.06' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='24' y='32' width='36' height='26' rx='4'/%3E%3Cpath d='M34 32l3-5h10l3 5'/%3E%3Ccircle cx='42' cy='45' r='7'/%3E%3Ccircle cx='130' cy='42' r='13'/%3E%3Ccircle cx='130' cy='42' r='6'/%3E%3Cpath d='M122 25h16'/%3E%3Cpath d='M86 108l-14 36M86 108l14 36M86 108v38M76 108h20'/%3E%3Crect x='78' y='96' width='16' height='12' rx='2'/%3E%3Crect x='128' y='118' width='28' height='20' rx='3'/%3E%3Ccircle cx='142' cy='128' r='5'/%3E%3Cpath d='M28 118h20v24H28zM33 123h10M33 130h10M33 137h10'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 220px 220px;
+}
+
+/* Custom scrollbar for studio emerald aesthetic */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #072421;
+}
+::-webkit-scrollbar-thumb {
+  background: #1C5853;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C5B378;
+}
