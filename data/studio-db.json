@@ -1,0 +1,437 @@
+{
+  "portfolio": [
+    {
+      "id": "pf-iyer-oonjal",
+      "title": "Kaveri & Subramanian — Oonjal & Muhurtham",
+      "category": "Iyer Weddings",
+      "location": "Kumbakonam & Kandarakkottai Mandapam",
+      "imageUrl": "/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg",
+      "shootNotes": "Full 2-day Iyer wedding documentation covering Vratham, Kashi Yatra, Oonjal songs, and sunrise Muhurtham with dual candid cameras and ambient kuthuvilakku lighting.",
+      "exif": "35mm · f/1.8 · 1/250s · ISO 640",
+      "dateLabel": "October 2026",
+      "isHeroFeatured": true,
+      "isVisible": true,
+      "aspect": "wide"
+    },
+    {
+      "id": "pf-temple-wedding",
+      "title": "Meenakshi & Karthik — Temple Mandapam Vows",
+      "category": "Temple Weddings",
+      "location": "Thiruvakkarai Ancient Stone Temple",
+      "imageUrl": "/images/portfolio/temple_wedding_gopuram_1794972485937.jpg",
+      "shootNotes": "Early morning sacred temple wedding amidst carved granite pillars. Natural golden sunbeams preserved without harsh strobes to honor the quiet sanctity of the shrine.",
+      "exif": "50mm · f/1.4 · 1/400s · ISO 400",
+      "dateLabel": "September 2026",
+      "isHeroFeatured": true,
+      "isVisible": true,
+      "aspect": "standard"
+    },
+    {
+      "id": "pf-multifaith-heritage",
+      "title": "Ananya & Siddharth — Heritage Courtyard Union",
+      "category": "Hindu, Christian & Muslim Weddings",
+      "location": "Chennai East Coast Heritage Courtyard",
+      "imageUrl": "/images/portfolio/multifaith_south_wedding_1794972486248.jpg",
+      "shootNotes": "Cross-cultural South Indian celebration blending church blessings and traditional silk ceremonial portraits. Warm editorial color science with 4K cinematic film reel.",
+      "exif": "85mm · f/1.8 · 1/500s · ISO 200",
+      "dateLabel": "August 2026",
+      "isHeroFeatured": false,
+      "isVisible": true,
+      "aspect": "standard"
+    },
+    {
+      "id": "pf-kaathu-kuthi",
+      "title": "Little Aaradhya — Kaathu Kuthi Ceremony",
+      "category": "Kaathu Kuthi",
+      "location": "Villupuram Ancestral Residence",
+      "imageUrl": "/images/portfolio/kaathu_kuthi_ceremony_1794972491963.jpg",
+      "shootNotes": "Heartfelt documentary coverage of the traditional ear-piercing blessing, capturing maternal laughter, pattu pavadai silk details, and ancestral banana leaf rituals.",
+      "exif": "35mm · f/2.0 · 1/200s · ISO 800",
+      "dateLabel": "October 2026",
+      "isHeroFeatured": false,
+      "isVisible": true,
+      "aspect": "standard"
+    },
+    {
+      "id": "pf-birthday-milestone",
+      "title": "Vihaan Turns One — Family Milestone",
+      "category": "Birthdays & Milestones",
+      "location": "Kandarakkottai Celebration Hall",
+      "imageUrl": "/images/portfolio/birthday_milestone_celebration_1794972489472.jpg",
+      "shootNotes": "Candid first-birthday family celebration framed around marigold floral arches, warm fairy-light bokeh, and natural unposed family laughter.",
+      "exif": "50mm · f/1.8 · 1/320s · ISO 500",
+      "dateLabel": "November 2026",
+      "isHeroFeatured": false,
+      "isVisible": true,
+      "aspect": "standard"
+    },
+    {
+      "id": "pf-outdoor-couple",
+      "title": "Divya & Praveen — Sunset Palm Pavilion",
+      "category": "Outdoor Shoots",
+      "location": "Pondicherry Coastal Heritage Trail",
+      "imageUrl": "/images/portfolio/outdoor_couple_shoot_1794972488329.jpg",
+      "shootNotes": "Golden hour pre-wedding couple session pairing emerald Kanjeevaram silk against ancient stone mandapam architecture and coconut groves.",
+      "exif": "50mm · f/1.4 · 1/640s · ISO 160",
+      "dateLabel": "November 2026",
+      "isHeroFeatured": true,
+      "isVisible": true,
+      "aspect": "wide"
+    }
+  ],
+  "packages": [
+    {
+      "id": "pkg-essential",
+      "name": "Essential Ceremony",
+      "audience": "For Temple Weddings & Kaathu Kuthi",
+      "price": 24000,
+      "priceLabel": "₹24,000",
+      "duration": "Single Day · Up to 6 Hours",
+      "deliverables": [
+        "1 Lead Candid Photographer + 1 Traditional Photographer",
+        "1 Full-HD Traditional Videographer",
+        "250+ Color-Graded High-Res Digital Stills",
+        "30-Sheet Layflat Karizma Photo Album",
+        "Full Event Edited Video + Complete Raw Footage"
+      ]
+    },
+    {
+      "id": "pkg-grand",
+      "name": "Traditional Grand Wedding",
+      "audience": "For Muhurtham & Reception Coverage",
+      "price": 52000,
+      "priceLabel": "₹52,000",
+      "duration": "1.5 Days · Eve & Muhurtham",
+      "highlighted": true,
+      "deliverables": [
+        "2 Candid Photographers + 1 Traditional Photographer",
+        "1 Traditional Videographer + 1 Cinema Gimbal Operator",
+        "4K Cinematic Wedding Teaser (3–4 Minutes)",
+        "50-Sheet Premium Metallic Karizma Photo Album + 2 Mini Books",
+        "500+ Curated Digital Gallery & Complete Raw Footage Drive"
+      ]
+    },
+    {
+      "id": "pkg-royal",
+      "name": "Royal Cinematic Complete",
+      "audience": "For Full 2-Day Iyer & Grand Weddings",
+      "price": 88000,
+      "priceLabel": "₹88,000",
+      "duration": "2 Full Days + Pre-Wedding Shoot",
+      "deliverables": [
+        "Full Ritual Coverage: Janavasam, Vratham, Kashi Yatra, Oonjal & Muhurtham",
+        "2 Candid Photographers + 2 Traditional Photographers",
+        "4K Dual-Camera Cinema Team + Licensed Aerial Drone Coverage",
+        "Complimentary Half-Day Outdoor Pre-Wedding Couple Shoot",
+        "70-Sheet Signature Velvet Box Karizma Album + 4K Highlight Film"
+      ]
+    },
+    {
+      "id": "pkg-custom",
+      "name": "Outdoor & Milestone",
+      "audience": "For Pre-Weddings, Birthdays & Portraits",
+      "price": 16500,
+      "priceLabel": "₹16,500",
+      "duration": "Half Day · 4 Hours Session",
+      "deliverables": [
+        "1 Lead Portrait & Candid Photographer",
+        "120+ Signature Retouched High-Resolution Photographs",
+        "90-Second Vertical & 4K Reel Cut for Social Sharing",
+        "20-Sheet Compact Keepsake Album (Optional Upgrade)",
+        "Same-Week Express Cloud Preview Link"
+      ]
+    }
+  ],
+  "bookings": [
+    {
+      "id": "bk-101",
+      "referenceCode": "GK-2611-01",
+      "clientName": "Srinivasan & Lakshmi Narayanan",
+      "phone": "9840112233",
+      "eventType": "Iyer Weddings",
+      "preferredDate": "2026-11-29",
+      "endDate": "2026-11-30",
+      "venue": "Sri Krishna Mahal, Villupuram",
+      "packageId": "pkg-royal",
+      "packageName": "Royal Cinematic Complete",
+      "quotedAmount": 88000,
+      "notes": "Need dedicated coverage for Oonjal, Kashi Yatra, and morning Muhurtham at 6:15 AM.",
+      "status": "Pending",
+      "createdAt": "2026-11-16T10:30:00Z"
+    },
+    {
+      "id": "bk-102",
+      "referenceCode": "GK-2611-02",
+      "clientName": "Priyadharshini Mohan",
+      "phone": "9443298765",
+      "eventType": "Kaathu Kuthi",
+      "preferredDate": "2026-12-06",
+      "venue": "Kandarakkottai Family Residence",
+      "packageId": "pkg-essential",
+      "packageName": "Essential Ceremony",
+      "quotedAmount": 24000,
+      "notes": "Morning ear-piercing ceremony followed by family portraits with grandparents.",
+      "status": "Acknowledged",
+      "assignedCrew": "G Krishna + Mani (Video)",
+      "acknowledgementNote": "Sent quote and confirmed availability for morning Muhurtham window.",
+      "createdAt": "2026-11-14T15:10:00Z"
+    },
+    {
+      "id": "bk-103",
+      "referenceCode": "GK-2611-03",
+      "clientName": "Aishwarya & Vigneshwaran",
+      "phone": "9789054321",
+      "eventType": "Temple Weddings",
+      "preferredDate": "2026-11-22",
+      "venue": "Thiruvakkarai Chandramouleeswarar Temple",
+      "packageId": "pkg-grand",
+      "packageName": "Traditional Grand Wedding",
+      "quotedAmount": 52000,
+      "notes": "Temple permission arranged. Need sunrise portraits before 7:30 AM Muhurtham.",
+      "status": "Confirmed",
+      "assignedCrew": "G Krishna, Karthik (Candid), Bala (Cinema)",
+      "createdAt": "2026-11-05T09:15:00Z"
+    },
+    {
+      "id": "bk-104",
+      "referenceCode": "GK-2611-04",
+      "clientName": "Imran & Ayesha Begum",
+      "phone": "9003145678",
+      "eventType": "Hindu, Christian & Muslim Weddings",
+      "preferredDate": "2026-12-13",
+      "venue": "Grand Palace Convention Hall, Tindivanam",
+      "packageId": "pkg-grand",
+      "packageName": "Traditional Grand Wedding",
+      "quotedAmount": 52000,
+      "notes": "Nikah morning coverage and evening Valima reception with 4K teaser.",
+      "status": "Pending",
+      "createdAt": "2026-11-17T08:45:00Z"
+    }
+  ],
+  "calendarEntries": [
+    {
+      "date": "2026-11-22",
+      "status": "Booked",
+      "title": "Aishwarya & Vigneshwaran — Temple Wedding",
+      "eventType": "Temple Weddings",
+      "clientName": "Aishwarya & Vigneshwaran",
+      "venue": "Thiruvakkarai Temple",
+      "assignedCrew": "G Krishna, Karthik, Bala",
+      "bookingId": "bk-103"
+    },
+    {
+      "date": "2026-11-25",
+      "status": "Limited",
+      "title": "Muhurtham Peak Day — Afternoon Slot Open",
+      "eventType": "Muhurtham Rush",
+      "notes": "Morning crew booked in Villupuram; afternoon outdoor/reception unit available."
+    },
+    {
+      "date": "2026-11-29",
+      "status": "Limited",
+      "title": "Suba Muhurtham — 1 Team Remaining",
+      "eventType": "Muhurtham Rush",
+      "notes": "High demand auspicious date. Pending inquiry under review."
+    },
+    {
+      "date": "2026-12-03",
+      "status": "Booked",
+      "title": "Studio Camera Calibration & Lens Service",
+      "eventType": "Studio Maintenance",
+      "assignedCrew": "Studio Lab",
+      "notes": "Annual sensor cleaning and cinema gimbal calibration."
+    },
+    {
+      "date": "2026-12-06",
+      "status": "Limited",
+      "title": "Priyadharshini — Kaathu Kuthi (Morning Hold)",
+      "eventType": "Kaathu Kuthi",
+      "clientName": "Priyadharshini Mohan",
+      "venue": "Kandarakkottai",
+      "assignedCrew": "G Krishna + Mani",
+      "bookingId": "bk-102"
+    },
+    {
+      "date": "2026-12-11",
+      "status": "Booked",
+      "title": "Raghavan & Deepika — Iyer Wedding Day 1",
+      "eventType": "Iyer Weddings",
+      "clientName": "Raghavan Family",
+      "venue": "Chennai Mylapore Mandapam",
+      "assignedCrew": "Full Cinema Unit"
+    },
+    {
+      "date": "2026-12-12",
+      "status": "Booked",
+      "title": "Raghavan & Deepika — Muhurtham Day 2",
+      "eventType": "Iyer Weddings",
+      "clientName": "Raghavan Family",
+      "venue": "Chennai Mylapore Mandapam",
+      "assignedCrew": "Full Cinema Unit"
+    },
+    {
+      "date": "2026-12-20",
+      "status": "Booked",
+      "title": "Joseph & Maria — Church Wedding & Reception",
+      "eventType": "Hindu, Christian & Muslim Weddings",
+      "clientName": "Joseph Family",
+      "venue": "Pondicherry Sacred Heart Basilica",
+      "assignedCrew": "G Krishna + 3 Crew"
+    }
+  ],
+  "eventProjects": [
+    {
+      "id": "ev-101",
+      "bookingId": "bk-103",
+      "referenceCode": "GK-2611-03",
+      "clientName": "Aishwarya & Vigneshwaran",
+      "phone": "9789054321",
+      "eventType": "Temple Weddings",
+      "eventDate": "2026-11-22",
+      "venue": "Thiruvakkarai Chandramouleeswarar Temple",
+      "packageName": "Traditional Grand Wedding",
+      "assignedCrew": "G Krishna, Karthik (Candid), Bala (Cinema)",
+      "currentStage": "Pre-Shoot Briefing",
+      "stageUpdates": {
+        "Booking Confirmed": {
+          "completedAt": "2026-11-05",
+          "note": "Advance received via UPI. Temple slot locked."
+        },
+        "Pre-Shoot Briefing": {
+          "completedAt": "2026-11-16",
+          "note": "6:00 AM arrival finalized; sunrise portraits planned at outer mandapam."
+        }
+      },
+      "agreedAmount": 52000,
+      "extraCharges": 0,
+      "discount": 0,
+      "payments": [
+        {
+          "id": "pay-1",
+          "date": "2026-11-05",
+          "label": "Booking Advance (30%)",
+          "amount": 16000,
+          "method": "UPI / GPay",
+          "referenceNote": "GPay Ref #442910"
+        }
+      ],
+      "deliveryNotes": "50-Sheet Metallic Karizma Album + 4K Teaser due within 25 days post-wedding."
+    },
+    {
+      "id": "ev-102",
+      "referenceCode": "GK-2610-14",
+      "clientName": "Kaveri & Subramanian",
+      "phone": "9842211900",
+      "eventType": "Iyer Weddings",
+      "eventDate": "2026-10-28",
+      "endDate": "2026-10-29",
+      "venue": "Kumbakonam & Kandarakkottai Mandapam",
+      "packageName": "Royal Cinematic Complete",
+      "assignedCrew": "G Krishna, Karthik, Bala, Drone Unit",
+      "currentStage": "Album & Film Ready",
+      "stageUpdates": {
+        "Booking Confirmed": {
+          "completedAt": "2026-09-12",
+          "note": "2-day Iyer ritual booking locked."
+        },
+        "Pre-Shoot Briefing": {
+          "completedAt": "2026-10-22",
+          "note": "Vratham, Kashi Yatra & Oonjal timeline signed off."
+        },
+        "Shoot Completed": {
+          "completedAt": "2026-10-29",
+          "note": "1,840 RAW stills & 4K footage backed up to dual NAS."
+        },
+        "Editing & Selection": {
+          "completedAt": "2026-11-08",
+          "note": "Couple approved 70-sheet album selection."
+        },
+        "Album & Film Ready": {
+          "completedAt": "2026-11-15",
+          "note": "Velvet Karizma album printed; 4K highlight master exported."
+        }
+      },
+      "agreedAmount": 88000,
+      "extraCharges": 6000,
+      "discount": 2000,
+      "payments": [
+        {
+          "id": "pay-2",
+          "date": "2026-09-12",
+          "label": "Booking Advance",
+          "amount": 30000,
+          "method": "Bank Transfer",
+          "referenceNote": "NEFT Axis Bank"
+        },
+        {
+          "id": "pay-3",
+          "date": "2026-10-29",
+          "label": "Muhurtham Day Installment",
+          "amount": 40000,
+          "method": "Cash",
+          "referenceNote": "Collected at Mandapam"
+        }
+      ],
+      "deliveryNotes": "Extra 2 parent mini-albums added (₹6,000). Balance due on album handover."
+    },
+    {
+      "id": "ev-103",
+      "referenceCode": "GK-2610-08",
+      "clientName": "Little Aaradhya Family",
+      "phone": "9443088122",
+      "eventType": "Kaathu Kuthi",
+      "eventDate": "2026-10-14",
+      "venue": "Villupuram Ancestral Residence",
+      "packageName": "Essential Ceremony",
+      "assignedCrew": "G Krishna + Mani",
+      "currentStage": "Delivered",
+      "stageUpdates": {
+        "Booking Confirmed": {
+          "completedAt": "2026-09-25",
+          "note": "Advance settled."
+        },
+        "Pre-Shoot Briefing": {
+          "completedAt": "2026-10-11",
+          "note": "Morning 8 AM ritual schedule confirmed."
+        },
+        "Shoot Completed": {
+          "completedAt": "2026-10-14",
+          "note": "Full candid + traditional video captured."
+        },
+        "Editing & Selection": {
+          "completedAt": "2026-10-19",
+          "note": "Color graded gallery delivered on cloud."
+        },
+        "Album & Film Ready": {
+          "completedAt": "2026-10-26",
+          "note": "30-sheet layflat album & edited video ready."
+        },
+        "Delivered": {
+          "completedAt": "2026-10-30",
+          "note": "Handed over Karizma album + 64GB USB drive at studio."
+        }
+      },
+      "agreedAmount": 24000,
+      "extraCharges": 0,
+      "discount": 0,
+      "payments": [
+        {
+          "id": "pay-4",
+          "date": "2026-09-25",
+          "label": "Advance",
+          "amount": 8000,
+          "method": "UPI / GPay"
+        },
+        {
+          "id": "pay-5",
+          "date": "2026-10-30",
+          "label": "Final Settlement on Delivery",
+          "amount": 16000,
+          "method": "UPI / GPay",
+          "referenceNote": "Settled in full"
+        }
+      ],
+      "deliveryNotes": "Delivered complete album box and raw drive. 5-star Google review received."
+    }
+  ]
+}
