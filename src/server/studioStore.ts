@@ -10,8 +10,8 @@ import {
   PaymentRecord,
   PortfolioItem,
   StudioState,
-} from '@/src/types/studio';
-import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '@/src/data/initialStudioData';
+} from '../types/studio';
+import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '../data/initialStudioData';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 const FALLBACK_DB_PATH = '/tmp/gk-studios-db.json';
