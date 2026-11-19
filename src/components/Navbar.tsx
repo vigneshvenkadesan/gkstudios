@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, Moon, Sun, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { GKCameraMark } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
+import { useOptionalPublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { PublicLocale, TranslationKey, translate } from '@/src/i18n/translations';
 
 interface NavbarProps {
   activeView: 'public' | 'admin';
@@ -13,11 +15,11 @@ interface NavbarProps {
 }
 
 const NAV_LINKS = [
-  { label: 'Home', id: 'hero' },
-  { label: 'Our Work', id: 'portfolio' },
-  { label: 'Packages', id: 'packages' },
-  { label: 'About', id: 'studio-story' },
-  { label: 'Contact', id: 'contact' },
+  { key: 'nav.home', id: 'hero' },
+  { key: 'nav.work', id: 'portfolio' },
+  { key: 'nav.packages', id: 'packages' },
+  { key: 'nav.about', id: 'studio-story' },
+  { key: 'nav.contact', id: 'contact' },
 ] as const;
 
 const TRACKED_SECTIONS = ['hero', 'portfolio', 'packages', 'studio-story', 'availability', 'contact'];
@@ -26,6 +28,9 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('hero');
+  const preferences = useOptionalPublicPreferences();
+  const locale: PublicLocale = preferences?.locale ?? 'en';
+  const t = (key: TranslationKey) => translate(locale, key);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -88,23 +93,29 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
           : 'bg-[#092E2B]/95 backdrop-blur-md border-b border-[#C5B378]/20 shadow-[0_8px_30px_rgba(4,20,18,0.35)]'
       }`}
     >
-      <div className="mx-auto flex h-16 sm:h-[72px] max-w-7xl items-center justify-between gap-8 px-4 sm:px-6 lg:px-8">
+      <div
+        className={`mx-auto flex h-16 sm:h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 ${
+          activeView === 'public'
+            ? 'gap-2 sm:gap-3 lg:gap-4'
+            : 'gap-8'
+        }`}
+      >
         {/* Zone 1: Single-line Brand Wordmark */}
         <button
           type="button"
           onClick={() => handleLink('hero')}
-          className="flex items-center gap-2.5 text-left whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] rounded-sm py-1"
+          className="flex items-center gap-1.5 sm:gap-2.5 text-left whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] rounded-sm py-1"
         >
-          <GKCameraMark className="h-7 w-10 shrink-0" />
-          <span className="text-base sm:text-lg font-bold tracking-[0.2em] text-white whitespace-nowrap shrink-0">
+          <GKCameraMark className="h-6 w-8 sm:h-7 sm:w-10 shrink-0" />
+          <span className="text-sm sm:text-lg font-bold tracking-[0.12em] sm:tracking-[0.2em] text-white whitespace-nowrap shrink-0">
             GK STUDIOS
           </span>
         </button>
 
         {/* Zone 2: 5 clean single-line navigation links */}
         <nav
-          aria-label="Primary navigation"
-          className="hidden md:flex items-center gap-7 text-sm font-medium"
+          aria-label={activeView === 'public' ? t('nav.primary') : 'Primary navigation'}
+          className={`hidden ${activeView === 'public' ? 'lg:flex items-center gap-3 xl:gap-5 text-xs xl:text-sm' : 'md:flex items-center gap-7 text-sm'} font-medium`}
         >
           {NAV_LINKS.map((link) => {
             const isActive = activeView === 'public' && activeSection === link.id;
@@ -117,7 +128,7 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
                   isActive ? 'text-white' : 'text-[#E6ECEB]/80 hover:text-white'
                 }`}
               >
-                {link.label}
+                {activeView === 'public' ? t(link.key) : translate('en', link.key)}
                 <span
                   aria-hidden="true"
                   className={`absolute inset-x-0 -bottom-0.5 h-[1.5px] bg-[#D8C78E] transition-transform duration-200 origin-left ${
@@ -129,21 +140,56 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
           })}
         </nav>
 
-        {/* Zone 3: 1 Primary CTA + Mobile Menu Trigger */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className={`flex items-center shrink-0 ${activeView === 'public' ? 'gap-2' : 'gap-3'}`}>
           <Button
             size="sm"
             onClick={() => handleLink('availability')}
-            className="hidden sm:inline-flex"
+            className={activeView === 'public' ? 'hidden xl:inline-flex' : 'hidden sm:inline-flex'}
           >
-            Check Availability
+            {activeView === 'public' ? t('nav.checkAvailability') : 'Check Availability'}
           </Button>
+          {activeView === 'public' && preferences && (
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={preferences.toggleTheme}
+                aria-label={t(preferences.theme === 'dark' ? 'nav.switchToLight' : 'nav.switchToDark')}
+                title={t(preferences.theme === 'dark' ? 'nav.switchToLight' : 'nav.switchToDark')}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-[#C5B378]/30 bg-[#092E2B]/70 text-[#D8C78E] transition-colors hover:border-[#D8C78E] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E]"
+              >
+                {preferences.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+              <div role="group" aria-label={t('nav.language')} className="flex items-center gap-1 text-[10px] sm:text-xs">
+                <button
+                  type="button"
+                  aria-pressed={locale === 'en'}
+                  onClick={() => preferences.setLocale('en')}
+                  className={`rounded-sm px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D8C78E] ${locale === 'en' ? 'font-semibold text-[#D8C78E]' : 'text-[#E6ECEB]/70 hover:text-white'}`}
+                >
+                  EN
+                </button>
+                <span aria-hidden="true" className="text-[#C5B378]/55">|</span>
+                <button
+                  type="button"
+                  aria-pressed={locale === 'ta'}
+                  onClick={() => preferences.setLocale('ta')}
+                  className={`whitespace-nowrap rounded-sm px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D8C78E] ${locale === 'ta' ? 'font-semibold text-[#D8C78E]' : 'text-[#E6ECEB]/70 hover:text-white'}`}
+                >
+                  தமிழ்
+                </button>
+              </div>
+            </div>
+          )}
           <button
             type="button"
-            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-label={activeView === 'public'
+              ? t(mobileOpen ? 'nav.closeMenu' : 'nav.openMenu')
+              : mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((prev) => !prev)}
-            className="inline-flex md:hidden h-11 w-11 items-center justify-center rounded-sm border border-[#C5B378]/35 bg-[#092E2B]/70 text-[#E6ECEB] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
+            className={`inline-flex items-center justify-center rounded-sm border border-[#C5B378]/35 bg-[#092E2B]/70 text-[#E6ECEB] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer ${
+              activeView === 'public' ? 'lg:hidden h-10 w-10' : 'md:hidden h-11 w-11'
+            }`}
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -158,9 +204,9 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="md:hidden border-t border-[#C5B378]/20 bg-[#072421]/98 backdrop-blur-lg px-4 py-5"
+            className={`${activeView === 'public' ? 'lg:hidden' : 'md:hidden'} border-t border-[#C5B378]/20 bg-[#072421]/98 backdrop-blur-lg px-4 py-5`}
           >
-            <nav aria-label="Mobile navigation" className="space-y-1">
+            <nav aria-label={activeView === 'public' ? t('nav.mobile') : 'Mobile navigation'} className="space-y-1">
               {NAV_LINKS.map((item) => {
                 const isActive = activeView === 'public' && activeSection === item.id;
                 return (
@@ -174,7 +220,7 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
                         : 'text-[#E6ECEB] hover:bg-[#0E423E]/70 hover:text-white'
                     }`}
                   >
-                    <span>{item.label}</span>
+                    <span>{activeView === 'public' ? t(item.key) : translate('en', item.key)}</span>
                     {isActive && <span className="h-1.5 w-1.5 rounded-full bg-[#D8C78E]" />}
                   </button>
                 );
@@ -182,12 +228,8 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
             </nav>
 
             <div className="mt-4 pt-4 border-t border-[#C5B378]/15">
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={() => handleLink('availability')}
-              >
-                Check Availability
+              <Button className="w-full" size="lg" onClick={() => handleLink('availability')}>
+                {activeView === 'public' ? t('nav.checkAvailability') : 'Check Availability'}
               </Button>
             </div>
           </motion.div>

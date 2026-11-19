@@ -13,6 +13,14 @@ import {
 } from '@/src/types/studio';
 import { MandalaDivider } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
+import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
+import {
+  formatLocalizedMonthLabel,
+  localizePortfolioText,
+  translate,
+  translateCategory,
+  TranslationKey,
+} from '@/src/i18n/translations';
 import {
   Dialog,
   DialogContent,
@@ -30,13 +38,13 @@ type FilterOption = 'All Events' | CoreEventCategory;
 
 const FILTER_OPTIONS: FilterOption[] = ['All Events', ...EVENT_CATEGORIES];
 
-const FILTER_SHORT_LABELS: Record<FilterOption, string> = {
-  'All Events': 'All',
-  Weddings: 'Weddings',
-  'Traditional Ceremonies': 'Ceremonies',
-  'Family Celebrations': 'Family',
-  'Portraits & Outdoor Shoots': 'Outdoor',
-  'Corporate Events': 'Corporate',
+const FILTER_LABEL_KEYS: Record<FilterOption, TranslationKey> = {
+  'All Events': 'portfolio.all',
+  Weddings: 'portfolio.weddings',
+  'Traditional Ceremonies': 'portfolio.ceremonies',
+  'Family Celebrations': 'portfolio.family',
+  'Portraits & Outdoor Shoots': 'portfolio.outdoor',
+  'Corporate Events': 'portfolio.corporate',
 };
 
 export function PortfolioSection({
@@ -44,6 +52,9 @@ export function PortfolioSection({
   externalCategoryFilter,
 }: PortfolioSectionProps) {
   const { portfolio } = useStudio();
+  const { locale } = usePublicPreferences();
+  const t = (key: TranslationKey, params?: Record<string, string | number>) =>
+    translate(locale, key, params);
   const prefersReducedMotion = Boolean(useReducedMotion());
 
   const [selectedCategory, setSelectedCategory] = useState<FilterOption>('All Events');
@@ -138,13 +149,13 @@ export function PortfolioSection({
         >
           <div className="space-y-3">
             <p className="text-xs font-semibold tracking-[0.24em] text-[#D8C78E]">
-              THE ART OF CELEBRATION
+              {t('portfolio.eyebrow')}
             </p>
             <h2 className="font-serif text-4xl sm:text-5xl lg:text-[3.4rem] font-semibold tracking-[-0.015em] text-white leading-[1.06]">
-              Stories Worth Remembering.
+              {t('portfolio.heading')}
             </h2>
             <p className="text-sm sm:text-base text-[#E6ECEB]/78">
-              Every tradition. Every emotion. Beautifully preserved.
+              {t('portfolio.subtitle')}
             </p>
           </div>
 
@@ -153,7 +164,7 @@ export function PortfolioSection({
         {/* Compact Category Filter Bar */}
         <div
           role="tablist"
-          aria-label="Filter portfolio by event category"
+          aria-label={t('portfolio.filterLabel')}
           className="mt-10 flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-[#C5B378]/15"
         >
           {FILTER_OPTIONS.map((category) => {
@@ -176,7 +187,7 @@ export function PortfolioSection({
                     : 'text-[#E6ECEB]/75 hover:bg-[#0E423E] hover:text-white'
                 }`}
               >
-                <span>{FILTER_SHORT_LABELS[category]}</span>
+                <span>{t(FILTER_LABEL_KEYS[category])}</span>
                 {count > 0 && (
                   <span
                     className={`ml-1.5 font-mono text-[11px] tabular-nums ${
@@ -196,7 +207,12 @@ export function PortfolioSection({
           <div className="mt-12 rounded-sm border border-[#C5B378]/20 bg-[#072421] p-12 text-center">
             <Camera className="mx-auto h-8 w-8 text-[#C5B378]/75" />
             <h3 className="mt-4 font-serif text-2xl font-semibold text-white">
-              No stories published in {selectedCategory} yet.
+              {t('portfolio.empty', {
+                category:
+                  selectedCategory === 'All Events'
+                    ? t('portfolio.all')
+                    : translateCategory(locale, selectedCategory),
+              })}
             </h3>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Button
@@ -204,11 +220,11 @@ export function PortfolioSection({
                 size="sm"
                 onClick={() => setSelectedCategory('All Events')}
               >
-                View All
+                {t('portfolio.viewAll')}
               </Button>
               {selectedCategory !== 'All Events' && (
                 <Button size="sm" onClick={() => onBookCategory(selectedCategory)}>
-                  Inquire Now
+                  {t('portfolio.inquire')}
                 </Button>
               )}
             </div>
@@ -236,7 +252,7 @@ export function PortfolioSection({
                 {!failedImages[item.id] ? (
                   <img
                     src={item.imageUrl}
-                    alt={`${item.title} — ${item.category} at ${item.location}`}
+                    alt={`${localizePortfolioText(locale, item.id, 'title', item.title)} — ${translateCategory(locale, item.category)} · ${localizePortfolioText(locale, item.id, 'location', item.location)}`}
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={() =>
@@ -247,7 +263,9 @@ export function PortfolioSection({
                 ) : (
                   <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0E423E] to-[#061E1C] p-6 text-center">
                     <Camera className="h-8 w-8 text-[#C5B378]" />
-                    <span className="font-serif text-base text-white">{item.title}</span>
+                    <span className="font-serif text-base text-white">
+                      {localizePortfolioText(locale, item.id, 'title', item.title)}
+                    </span>
                   </div>
                 )}
 
@@ -262,10 +280,10 @@ export function PortfolioSection({
                 {/* Short Editorial Caption */}
                 <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
                   <p className="text-xs font-medium text-[#D8C78E] truncate">
-                    {item.category} · {item.location}
+                    {translateCategory(locale, item.category)} · {localizePortfolioText(locale, item.id, 'location', item.location)}
                   </p>
                   <h3 className="mt-1 font-serif text-xl sm:text-2xl font-semibold text-white leading-snug">
-                    {item.title}
+                    {localizePortfolioText(locale, item.id, 'title', item.title)}
                   </h3>
                 </div>
               </motion.button>
@@ -278,7 +296,10 @@ export function PortfolioSection({
 
       {/* Fullscreen Editorial Lightbox Modal */}
       <Dialog open={Boolean(lightboxItem)} onOpenChange={(open) => !open && setLightboxItem(null)}>
-        <DialogContent className="h-[100dvh] max-h-none w-screen max-w-none gap-0 overflow-hidden rounded-none border-0 bg-[#061E1C] p-0">
+        <DialogContent
+          closeLabel={t('common.close')}
+          className="h-[100dvh] max-h-none w-screen max-w-none gap-0 overflow-hidden rounded-none border-0 bg-[#061E1C] p-0"
+        >
           {lightboxItem && (
             <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
               <div className="relative min-h-0 w-full bg-[#041412]">
@@ -300,7 +321,7 @@ export function PortfolioSection({
                     <button
                       type="button"
                       onClick={() => navigateLightbox(-1)}
-                      aria-label="Previous photograph"
+                      aria-label={t('portfolio.previous')}
                       className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-sm border border-[#C5B378]/40 bg-[#061E1C]/85 text-white hover:border-[#D8C78E] hover:bg-[#0E423E] transition-colors cursor-pointer"
                     >
                       <ChevronLeft className="h-5 w-5" />
@@ -308,7 +329,7 @@ export function PortfolioSection({
                     <button
                       type="button"
                       onClick={() => navigateLightbox(1)}
-                      aria-label="Next photograph"
+                      aria-label={t('portfolio.next')}
                       className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-sm border border-[#C5B378]/40 bg-[#061E1C]/85 text-white hover:border-[#D8C78E] hover:bg-[#0E423E] transition-colors cursor-pointer"
                     >
                       <ChevronRight className="h-5 w-5" />
@@ -325,13 +346,13 @@ export function PortfolioSection({
               <div className="max-h-[34dvh] overflow-y-auto px-5 py-4 sm:px-8 sm:py-5">
                 <DialogHeader>
                   <p className="text-xs font-medium text-[#D8C78E]">
-                    {lightboxItem.category} · {lightboxItem.dateLabel}
+                    {translateCategory(locale, lightboxItem.category)} · {formatLocalizedMonthLabel(lightboxItem.dateLabel, locale)}
                   </p>
                   <DialogTitle className="font-serif text-xl font-semibold text-white sm:text-2xl">
-                    {lightboxItem.title}
+                    {localizePortfolioText(locale, lightboxItem.id, 'title', lightboxItem.title)}
                   </DialogTitle>
                   <DialogDescription className="hidden text-sm leading-relaxed text-[#E6ECEB]/82 pt-1 sm:block">
-                    {lightboxItem.shootNotes}
+                    {localizePortfolioText(locale, lightboxItem.id, 'notes', lightboxItem.shootNotes)}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -339,7 +360,7 @@ export function PortfolioSection({
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#E6ECEB]/75">
                     <span className="inline-flex items-center gap-1.5">
                       <MapPin className="h-3.5 w-3.5 text-[#D8C78E]" />
-                      {lightboxItem.location}
+                      {localizePortfolioText(locale, lightboxItem.id, 'location', lightboxItem.location)}
                     </span>
                     <span className="font-mono tabular-nums text-[#D8C78E]/90">
                       {lightboxItem.exif}
@@ -354,7 +375,7 @@ export function PortfolioSection({
                       onBookCategory(cat);
                     }}
                   >
-                    Book Similar Shoot
+                    {t('portfolio.bookSimilar')}
                   </Button>
                 </div>
               </div>

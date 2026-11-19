@@ -7,6 +7,8 @@ import { useStudio } from '@/src/context/StudioContext';
 import { StudioPackage } from '@/src/types/studio';
 import { formatINR } from '@/src/lib/utils';
 import { Button } from '@/src/components/ui/button';
+import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { localizePackage, translate } from '@/src/i18n/translations';
 
 interface PackagesSectionProps {
   selectedPackageId: string;
@@ -15,6 +17,8 @@ interface PackagesSectionProps {
 
 export function PackagesSection({ selectedPackageId, onSelectPackage }: PackagesSectionProps) {
   const { packages } = useStudio();
+  const { locale } = usePublicPreferences();
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const prefersReducedMotion = Boolean(useReducedMotion());
 
   return (
@@ -33,21 +37,22 @@ export function PackagesSection({ selectedPackageId, onSelectPackage }: Packages
         >
           <div className="space-y-3">
             <p className="text-xs font-semibold tracking-[0.24em] text-[#D8C78E]">
-              COLLECTIONS
+              {t('packages.eyebrow')}
             </p>
             <h2 className="font-serif text-4xl sm:text-5xl font-semibold tracking-[-0.015em] text-white leading-[1.06]">
-              Photography &amp; Film Packages
+              {t('packages.heading')}
             </h2>
           </div>
 
           <p className="text-xs sm:text-sm text-[#E6ECEB]/72 lg:pb-1">
-            Color grading, Karizma albums &amp; raw footage included.
+            {t('packages.included')}
           </p>
         </motion.div>
 
         {/* Clean 4-Column Collection Grid — All Prices & Deliverables Intact */}
         <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           {packages.map((pkg, idx) => {
+            const copy = localizePackage(locale, pkg);
             const isSelected = selectedPackageId === pkg.id;
             const isComprehensive = pkg.id === 'pkg-royal';
             const isElevated = isComprehensive || isSelected;
@@ -89,20 +94,20 @@ export function PackagesSection({ selectedPackageId, onSelectPackage }: Packages
                     </span>
                     {isComprehensive ? (
                       <span className="font-medium tracking-[0.12em] text-[#D8C78E]">
-                        Flagship
+                        {t('packages.flagship')}
                       </span>
                     ) : pkg.highlighted ? (
                       <span className="font-medium tracking-[0.08em] text-[#E6ECEB]/70">
-                        Popular
+                        {t('packages.popular')}
                       </span>
                     ) : null}
                   </div>
 
                   <div className="mt-4 space-y-1">
                     <h3 className="font-serif text-2xl font-semibold text-white leading-snug">
-                      {pkg.name}
+                      {copy.name}
                     </h3>
-                    <p className="text-xs text-[#D8C78E]/90">{pkg.audience}</p>
+                    <p className="text-xs text-[#D8C78E]/90">{copy.audience}</p>
                   </div>
 
                   <div className="mt-5 pb-5 border-b border-[#C5B378]/16">
@@ -110,13 +115,13 @@ export function PackagesSection({ selectedPackageId, onSelectPackage }: Packages
                       <span className="font-serif text-4xl font-semibold text-white tabular-nums tracking-tight">
                         {formatINR(pkg.price)}
                       </span>
-                      <span className="text-xs text-[#E6ECEB]/60">starting</span>
+                      <span className="text-xs text-[#E6ECEB]/60">{t('packages.starting')}</span>
                     </div>
-                    <p className="mt-1.5 text-xs text-[#E6ECEB]/75">{pkg.duration}</p>
+                    <p className="mt-1.5 text-xs text-[#E6ECEB]/75">{copy.duration}</p>
                   </div>
 
                   <ul className="mt-5 flex-1 space-y-3">
-                    {pkg.deliverables.map((item) => (
+                    {copy.deliverables.map((item) => (
                       <li
                         key={item}
                         className="flex items-start gap-2.5 text-[13px] sm:text-sm text-[#E6ECEB]/86"
@@ -133,7 +138,7 @@ export function PackagesSection({ selectedPackageId, onSelectPackage }: Packages
                       variant={isElevated ? 'default' : 'outline'}
                       onClick={() => onSelectPackage(pkg)}
                     >
-                      <span>{isSelected ? 'Selected' : 'Select Package'}</span>
+                      <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
                       <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                     </Button>
                   </div>

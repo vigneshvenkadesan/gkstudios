@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import {
   Cormorant_Garamond,
   JetBrains_Mono,
@@ -66,8 +67,23 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${plusJakarta.variable} ${cormorant.variable} ${jetbrainsMono.variable} ${notoSerifTamil.variable}`}
     >
+      <head>
+        <Script id="gk-public-theme-init" strategy="beforeInteractive">
+          {`if (location.pathname === '/') {
+            try {
+              const stored = localStorage.getItem('gk-studios-public-preferences');
+              if (stored && JSON.parse(stored).theme === 'light') {
+                document.documentElement.dataset.gkPublicTheme = 'light';
+              }
+            } catch (error) {
+              console.error('Unable to restore the public theme before rendering.', error);
+            }
+          }`}
+        </Script>
+      </head>
       <body className="bg-[#092E2B] text-[#E6ECEB] antialiased selection:bg-[#C5B378]/30 selection:text-white">
         <StudioProvider initialState={initialState}>
           <StudioToaster />

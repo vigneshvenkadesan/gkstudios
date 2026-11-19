@@ -4,6 +4,7 @@ import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { AvailabilityStatus, CalendarDayEntry } from '@/src/types/studio';
 import { cn, toISODate } from '@/src/lib/utils';
+import { PublicLocale, translate } from '@/src/i18n/translations';
 
 interface StudioCalendarProps {
   monthDate: Date;
@@ -13,9 +14,8 @@ interface StudioCalendarProps {
   onSelectDate: (isoDate: string, entry?: CalendarDayEntry) => void;
   allowSelectBooked?: boolean;
   size?: 'compact' | 'standard' | 'large';
+  locale?: PublicLocale;
 }
-
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function StudioCalendar({
   monthDate,
@@ -25,6 +25,7 @@ export function StudioCalendar({
   onSelectDate,
   allowSelectBooked = false,
   size = 'standard',
+  locale = 'en',
 }: StudioCalendarProps) {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -54,10 +55,25 @@ export function StudioCalendar({
     cells.push({ day: d, iso });
   }
 
-  const monthLabel = monthDate.toLocaleDateString('en-IN', {
+  const monthLabel = monthDate.toLocaleDateString(locale === 'ta' ? 'ta-IN' : 'en-IN', {
     month: 'long',
     year: 'numeric',
+    numberingSystem: 'latn',
   });
+  const weekdays = Array.from({ length: 7 }, (_, index) =>
+    new Intl.DateTimeFormat(locale === 'ta' ? 'ta-IN' : 'en-IN', { weekday: 'short' }).format(
+      new Date(Date.UTC(2023, 0, index + 1))
+    )
+  );
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+  const statusLabel = (status: AvailabilityStatus) =>
+    t(
+      status === 'Booked'
+        ? 'calendar.booked'
+        : status === 'Limited'
+          ? 'calendar.limited'
+          : 'calendar.open'
+    );
 
   const handlePrev = () => onMonthChange(new Date(year, month - 1, 1));
   const handleNext = () => onMonthChange(new Date(year, month + 1, 1));
@@ -84,7 +100,7 @@ export function StudioCalendar({
               onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
               className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
             >
-              Current Month
+              {t('calendar.currentMonth')}
             </button>
           ) : (
             <button
@@ -92,13 +108,13 @@ export function StudioCalendar({
               onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
               className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#072421] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
             >
-              Today
+              {t('calendar.today')}
             </button>
           )}
           <button
             type="button"
             onClick={handlePrev}
-            aria-label="Previous month"
+            aria-label={t('calendar.previousMonth')}
             className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -106,7 +122,7 @@ export function StudioCalendar({
           <button
             type="button"
             onClick={handleNext}
-            aria-label="Next month"
+            aria-label={t('calendar.nextMonth')}
             className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
           >
             <ChevronRight className="h-4 w-4" />
@@ -115,7 +131,7 @@ export function StudioCalendar({
       </div>
 
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center pt-4 pb-2">
-        {WEEKDAYS.map((day) => (
+        {weekdays.map((day) => (
           <div
             key={day}
             className={cn(
@@ -189,7 +205,7 @@ export function StudioCalendar({
                         : 'text-emerald-300/80'
                     )}
                   >
-                    {status === 'Booked' ? 'Booked' : status === 'Limited' ? 'Limited' : 'Open'}
+                    {statusLabel(status)}
                   </span>
                 </div>
 
@@ -231,9 +247,9 @@ export function StudioCalendar({
               type="button"
               disabled={isDisabled}
               aria-pressed={isSelected}
-              aria-label={`${cell.iso} ${isPast ? 'Past date' : status}${entry?.[0]?.title ? ` — ${entry[0].title}` : ''}`}
+              aria-label={`${cell.iso} ${isPast ? t('calendar.pastDate') : locale === 'en' ? status : statusLabel(status)}${entry?.[0]?.title ? ` — ${entry[0].title}` : ''}`}
               onClick={() => onSelectDate(cell.iso, entry?.[0])}
-              title={entry ? `${status}: ${entry[0].title}` : `${cell.iso} · Available`}
+              title={entry ? `${locale === 'en' ? status : statusLabel(status)}: ${entry[0].title}` : `${cell.iso} · ${t('calendar.available')}`}
               className={cn(
                 'relative flex flex-col items-center justify-center rounded-sm border text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E]',
                 size === 'compact' ? 'h-11' : 'h-12 sm:h-14',
@@ -271,7 +287,7 @@ export function StudioCalendar({
                       : 'text-[#D8C78E]/75'
                   )}
                 >
-                  {status === 'Booked' ? 'Booked' : status === 'Limited' ? 'Limited' : 'Open'}
+                  {statusLabel(status)}
                 </span>
               )}
             </button>
@@ -283,19 +299,19 @@ export function StudioCalendar({
       <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#C5B378]/15 pt-4 text-xs text-[#E6ECEB]/80">
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-[2px] border border-[#C5B378]/45 bg-[#072421]" />
-          <span>Open · Available</span>
+          <span>{t('calendar.openAvailable')}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-[2px] border border-amber-400/60 bg-amber-500/20" />
-          <span>Limited · 1 Crew Slot</span>
+          <span>{t('calendar.limitedSlot')}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-[2px] border border-rose-400/50 bg-rose-950/80" />
-          <span>Booked · Unavailable</span>
+          <span>{t('calendar.bookedUnavailable')}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-[2px] border border-[#D8C78E] bg-[#C5B378]" />
-          <span>Selected</span>
+          <span>{t('calendar.selected')}</span>
         </div>
       </div>
     </div>
