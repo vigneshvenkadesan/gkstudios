@@ -101,7 +101,11 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                 {t('about.eyebrow')}
               </p>
 
-              <h2 className="font-serif text-4xl sm:text-5xl lg:text-[3.5rem] font-semibold tracking-[-0.015em] text-white leading-[1.06]">
+              <h2
+                className={`font-serif text-4xl sm:text-5xl lg:text-[3.5rem] font-semibold tracking-[-0.015em] text-white ${
+                  locale === 'ta' ? 'leading-[1.35]' : 'leading-[1.06]'
+                }`}
+              >
                 {t('about.heading')}
               </h2>
 

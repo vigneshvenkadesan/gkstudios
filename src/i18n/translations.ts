@@ -65,7 +65,10 @@ const translations = {
   'packages.selectedToast': { en: '{name} selected — complete your date inquiry below.', ta: '{name} தேர்ந்தெடுக்கப்பட்டது — கீழே தேதி விவரத்தைச் சொல்லுங்கள்.' },
   'portfolio.eventTypeToast': { en: 'Event type set to {category}. Choose an open date below.', ta: 'நிகழ்வு {category} எனச் சேர்க்கப்பட்டது. கீழே ஒரு நாள் தேர்வு செய்யுங்கள்.' },
   'about.eyebrow': { en: 'OUR STORY', ta: 'எங்கள் கதை' },
-  'about.heading': { en: 'Every Ritual. Every Emotion. Every Forever.', ta: 'ஒவ்வொரு சடங்கும். ஒவ்வொரு நெஞ்சும். என்றும் நிலைக்கும் நினைவுகள்.' },
+  'about.heading': {
+    en: 'Every Ritual. Every Emotion. Every Forever.',
+    ta: 'கடந்து போகும் தருணங்கள்; காலமெல்லாம் பேசும் நினைவுகள்.',
+  },
   'about.description': {
     en: 'Rooted in South Indian tradition, we preserve the rituals and quiet in-between moments that make each celebration yours.',
     ta: 'தென்னிந்திய மரபோடு, விழாவைச் சிறப்பாக்கும் சடங்குகளையும் சொல்லாத நிமிடங்களையும் காதலுடன் படமாகப் பதிக்கிறோம்.',

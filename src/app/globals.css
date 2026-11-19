@@ -223,13 +223,90 @@
     background: #b6a36d;
   }
 
+  :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) {
+    --text-xs: 0.6rem;
+    --text-sm: 0.7rem;
+    --text-base: 0.8rem;
+    --text-lg: 0.9rem;
+    --text-xl: 1rem;
+    --text-2xl: 1.2rem;
+    --text-3xl: 1.5rem;
+    --text-4xl: 1.8rem;
+    --text-5xl: 2.4rem;
+    --text-6xl: 3rem;
+    --text-7xl: 3.6rem;
+    --text-8xl: 4.8rem;
+    --text-9xl: 6.4rem;
+  }
+
   .public-site[lang='ta'] {
     font-family: var(--font-tamil-serif), "Noto Serif Tamil", serif;
     line-height: 1.75;
   }
 
+  body:has(.public-site[lang='ta']) {
+    font-size: 80%;
+  }
+
   .public-site[lang='ta'] :where(*) {
     font-family: var(--font-tamil-serif), "Noto Serif Tamil", serif;
+  }
+
+  :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[9px]']) {
+    font-size: 7.2px;
+  }
+
+  :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[10px]']) {
+    font-size: 8px;
+  }
+
+  :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[11px]']) {
+    font-size: 8.8px;
+  }
+
+  :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[13px]']) {
+    font-size: 10.4px;
+  }
+
+  @media (min-width: 40rem) {
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[10px]'][class*='sm:text-xs']),
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[11px]'][class*='sm:text-xs']) {
+      font-size: 0.6rem;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='text-[13px]'][class*='sm:text-sm']) {
+      font-size: 0.7rem;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='sm:text-[10px]']) {
+      font-size: 8px;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='sm:text-[1.7rem]']) {
+      font-size: 1.36rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='lg:text-[6.25rem]']) {
+      font-size: 5rem;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='lg:text-[3.4rem]']) {
+      font-size: 2.72rem;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='lg:text-[2.6rem]']) {
+      font-size: 2.08rem;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='lg:text-[3.5rem]']) {
+      font-size: 2.8rem;
+    }
+
+    :is(html:has(.public-site[lang='ta']), .public-site[lang='ta']) :where([class~='lg:text-[1.75rem]']) {
+      font-size: 1.4rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
