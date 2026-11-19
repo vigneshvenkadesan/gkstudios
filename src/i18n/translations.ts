@@ -173,23 +173,27 @@ const translations = {
   },
   'promise.selectionTimeframe': { en: 'NEXT DAY', ta: 'அடுத்த நாள்' },
   'promise.deliveryTimeframe': { en: 'WITHIN 90 DAYS', ta: '90 நாட்களுக்குள்' },
-  'promise.selectionTitle': { en: 'Photo Selection', ta: 'புகைப்படத் தேர்வு' },
-  'promise.deliveryTitle': { en: 'Final Delivery', ta: 'இறுதி வழங்கல்' },
+  'promise.selectionTitle': { en: 'Home Photo Selection', ta: 'வீட்டில் புகைப்படத் தேர்வு' },
+  'promise.deliveryTitle': { en: 'Album & Film Delivery', ta: 'ஆல்பம் & திரைப்பட வழங்கல்' },
   'promise.selectionDescription': {
-    en: "We visit your home the very next day and help you choose your favourite photographs.",
-    ta: 'மறுநாளே உங்கள் வீட்டிற்கு வந்து, உங்களுக்கு விருப்பமான புகைப்படங்களைத் தேர்வு செய்ய உதவுவோம்.',
+    en: 'The next day after your event is captured, we visit your home to help you select your favourite photos.',
+    ta: 'நிகழ்வு படம்பிடிக்கப்பட்ட மறுநாள், உங்களுக்கு விருப்பமான புகைப்படங்களைத் தேர்வு செய்ய உங்கள் வீட்டிற்கு வருவோம்.',
   },
   'promise.homeVisit': {
-    en: 'Personal photo selection at your home',
-    ta: 'உங்கள் இல்லத்தில் நேரடி புகைப்படத் தேர்வு',
+    en: 'Home visit',
+    ta: 'வீட்டு வருகை',
   },
   'promise.deliveryDescription': {
-    en: 'Your beautifully finished wedding album and film, delivered within 90 days from your event date.',
-    ta: 'நிகழ்வு தேதியிலிருந்து 90 நாட்களுக்குள், அழகாக நிறைவு செய்யப்பட்ட உங்கள் திருமண ஆல்பமும் திரைப்படமும் உங்களை வந்தடையும்.',
+    en: 'Your wedding album and film, beautifully finished and delivered within 90 days of your event.',
+    ta: 'உங்கள் திருமண ஆல்பமும் திரைப்படமும் அழகாக நிறைவுசெய்யப்பட்டு, நிகழ்வுக்கு 90 நாட்களுக்குள் வழங்கப்படும்.',
   },
   'promise.workflowEyebrow': {
     en: 'YOUR MEMORIES, STEP BY STEP',
     ta: 'உங்கள் நினைவுகள், ஒவ்வொரு படியாக',
+  },
+  'promise.workflowHeading': {
+    en: 'A simple journey to something timeless.',
+    ta: 'என்றென்றும் நிலைக்க ஒரு எளிய பயணம்.',
   },
   'promise.stageCaptureTitle': { en: 'Event Captured', ta: 'நிகழ்வு பதிவு' },
   'promise.stageCaptureDescription': {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -6,13 +7,14 @@ import {
   House,
   Images,
   PackageCheck,
+  ArrowRight,
   type LucideIcon,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { translate, type TranslationKey } from '@/src/i18n/translations';
 
-const DELIVERY_PROMISES: {
+const PROMISES: {
   icon: LucideIcon;
   timeframeKey: TranslationKey;
   titleKey: TranslationKey;
@@ -34,30 +36,25 @@ const DELIVERY_PROMISES: {
   },
 ];
 
-const WORKFLOW_STAGES: {
+const STAGES: {
   icon: LucideIcon;
   titleKey: TranslationKey;
-  descriptionKey: TranslationKey;
 }[] = [
   {
     icon: Camera,
     titleKey: 'promise.stageCaptureTitle',
-    descriptionKey: 'promise.stageCaptureDescription',
   },
   {
     icon: Images,
     titleKey: 'promise.stageSelectionTitle',
-    descriptionKey: 'promise.stageSelectionDescription',
   },
   {
     icon: BookOpen,
     titleKey: 'promise.stageDesignTitle',
-    descriptionKey: 'promise.stageDesignDescription',
   },
   {
     icon: PackageCheck,
     titleKey: 'promise.stageDeliveryTitle',
-    descriptionKey: 'promise.stageDeliveryDescription',
   },
 ];
 
@@ -66,153 +63,145 @@ export function DeliveryPromiseSection() {
   const t = (key: TranslationKey) => translate(locale, key);
   const prefersReducedMotion = Boolean(useReducedMotion());
 
+  const reveal = {
+    initial: prefersReducedMotion ? false : { opacity: 0, y: 16 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true, amount: 0.2 },
+    transition: {
+      duration: 0.5,
+      ease: [0.16, 1, 0.3, 1] as const,
+    },
+  };
+
   return (
     <section
       aria-labelledby="promise-heading"
-      className="scroll-mt-16 relative overflow-hidden border-b border-[#C5B378]/18 bg-[#072421] py-12 sm:scroll-mt-[72px] sm:py-16"
+      className="relative overflow-hidden border-b border-[#C5B378]/15 bg-[#072421] py-14 sm:py-20"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
+        {/* Header */}
         <motion.header
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-8 text-center sm:mb-10"
+          {...reveal}
+          className="mx-auto mb-10 max-w-2xl text-center sm:mb-14"
         >
-          <p className="mb-3 text-[10px] font-semibold tracking-[0.28em] text-[#D8C78E] sm:text-xs">
+          <p className="mb-3 text-[10px] font-semibold tracking-[0.3em] text-[#D8C78E] sm:text-xs">
             {t('promise.eyebrow')}
           </p>
+
           <h2
             id="promise-heading"
-            className="font-serif text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-5xl"
+            className="font-serif text-3xl font-semibold text-white sm:text-4xl lg:text-5xl"
           >
             {t('promise.heading')}
           </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-[#E6ECEB]/75 sm:text-base">
+
+          <p className="mt-3 text-sm text-[#E6ECEB]/65 sm:text-base">
             {t('promise.subtitle')}
           </p>
         </motion.header>
 
-        <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-2 md:gap-6">
-          {DELIVERY_PROMISES.map(
-            ({ icon: Icon, timeframeKey, titleKey, descriptionKey, homeVisit }, index) => (
+        {/* Delivery promises */}
+        <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-2 sm:gap-5">
+          {PROMISES.map((item, index) => {
+            const Icon = item.icon;
+
+            return (
               <motion.article
-                key={titleKey}
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
+                key={item.titleKey}
+                {...reveal}
                 transition={{
-                  duration: 0.55,
-                  delay: index * 0.1,
-                  ease: [0.16, 1, 0.3, 1],
+                  ...reveal.transition,
+                  delay: index * 0.12,
                 }}
-                className="rounded-sm border border-[#C5B378]/22 bg-[#0E423E]/70 p-5 sm:p-6"
+                className="group relative overflow-hidden rounded-xl border border-[#C5B378]/20 bg-[#0E423E]/55 p-6 transition-colors duration-300 hover:border-[#C5B378]/45 sm:p-8"
               >
-                <div className="flex items-start gap-4">
-                  <Icon
-                    aria-hidden="true"
-                    className="mt-1 h-5 w-5 shrink-0 text-[#D8C78E]"
-                    strokeWidth={1.6}
-                  />
-                  <div className="min-w-0">
-                    <p className="font-serif text-2xl font-semibold leading-tight text-[#D8C78E] sm:text-3xl">
-                      {t(timeframeKey)}
-                    </p>
-                    <h3 className="mt-1 text-xs font-semibold tracking-[0.16em] text-white">
-                      {t(titleKey)}
-                    </h3>
-                    <p className="mt-3 text-sm leading-relaxed text-[#E6ECEB]/80 sm:text-base">
-                      {t(descriptionKey)}
-                    </p>
-                    {homeVisit && (
-                      <p className="mt-4 inline-flex items-center gap-2 border-t border-[#C5B378]/18 pt-3 text-xs font-medium tracking-[0.04em] text-[#D8C78E]">
-                        <House aria-hidden="true" className="h-4 w-4 shrink-0" strokeWidth={1.6} />
-                        {t('promise.homeVisit')}
-                      </p>
-                    )}
+                <div className="flex items-start justify-between">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#C5B378]/25 bg-[#D8C78E]/10 text-[#D8C78E]">
+                    <Icon size={21} strokeWidth={1.5} />
                   </div>
+
+                  {item.homeVisit && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#C5B378]/25 px-3 py-1.5 text-[10px] font-medium text-[#D8C78E]">
+                      <House size={12} />
+                      {t('promise.homeVisit')}
+                    </span>
+                  )}
                 </div>
+
+                <p className="mt-7 font-serif text-3xl font-semibold text-[#D8C78E] sm:text-4xl">
+                  {t(item.timeframeKey)}
+                </p>
+
+                <h3 className="mt-2 text-sm font-semibold tracking-wide text-white sm:text-base">
+                  {t(item.titleKey)}
+                </h3>
+
+                <p className="mt-2 text-sm leading-relaxed text-[#E6ECEB]/65">
+                  {t(item.descriptionKey)}
+                </p>
+
+                <div className="absolute -bottom-12 -right-8 h-32 w-32 rounded-full border border-[#C5B378]/10 transition-transform duration-500 group-hover:scale-125" />
               </motion.article>
-            )
-          )}
+            );
+          })}
         </div>
 
+        {/* Workflow */}
         <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-auto mb-7 mt-12 max-w-5xl text-center sm:mb-9 sm:mt-16"
+          {...reveal}
+          className="mb-10 mt-16 text-center sm:mt-20"
         >
-          <p className="text-[10px] font-semibold tracking-[0.24em] text-[#D8C78E] sm:text-xs">
+          <p className="text-[10px] font-semibold tracking-[0.3em] text-[#D8C78E] sm:text-xs">
             {t('promise.workflowEyebrow')}
           </p>
+          <h3 className="mt-3 font-serif text-2xl font-semibold text-white sm:text-3xl">
+            {t('promise.workflowHeading')}
+          </h3>
         </motion.div>
 
-        <div className="relative mx-auto max-w-6xl">
-          <motion.div
-            aria-hidden="true"
-            initial={prefersReducedMotion ? false : { scaleY: 0 }}
-            whileInView={{ scaleY: 1 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-6 left-6 top-6 w-px origin-top bg-[#C5B378]/35 md:hidden"
-          />
-          <motion.div
-            aria-hidden="true"
-            initial={prefersReducedMotion ? false : { scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-[12.5%] right-[12.5%] top-6 hidden h-px origin-left bg-[#C5B378]/35 md:block"
-          />
-          <ol className="relative grid gap-6 md:grid-cols-4 md:gap-5">
-            {WORKFLOW_STAGES.map(({ icon: Icon, titleKey, descriptionKey }, index) => (
-              <motion.li
+        <div className="mx-auto max-w-5xl">
+          <div className="grid grid-cols-2 gap-5 sm:grid-cols-4 sm:gap-4">
+            {STAGES.map(({ icon: Icon, titleKey }, index) => (
+              <motion.div
                 key={titleKey}
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.15 }}
+                {...reveal}
                 transition={{
-                  duration: 0.5,
+                  ...reveal.transition,
                   delay: index * 0.1,
-                  ease: [0.16, 1, 0.3, 1],
                 }}
-                className="relative flex items-start gap-4 md:flex-col md:items-center md:gap-4 md:text-center"
+                className="relative flex flex-col items-center text-center"
               >
-                <div className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#C5B378]/45 bg-[#072421] text-[#D8C78E]">
-                  <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={1.5} />
+                <div className="relative mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-[#C5B378]/35 bg-[#0E423E] text-[#D8C78E] transition-all duration-300 hover:border-[#D8C78E] hover:bg-[#15544D] sm:h-20 sm:w-20">
+                  <Icon size={27} strokeWidth={1.4} />
+
+                  <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#D8C78E] text-[10px] font-bold text-[#072421]">
+                    {index + 1}
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1 pb-1 md:px-1">
-                  <p className="mb-1 text-[10px] font-medium tracking-[0.18em] text-[#D8C78E]/70">
-                    {String(index + 1).padStart(2, '0')}
-                  </p>
-                  <h3 className="font-serif text-lg font-semibold leading-snug text-white sm:text-xl">
-                    {t(titleKey)}
-                  </h3>
-                  <p className="mt-2 text-xs leading-relaxed text-[#E6ECEB]/70 sm:text-sm">
-                    {t(descriptionKey)}
-                  </p>
-                </div>
-              </motion.li>
+
+                <h4 className="font-serif text-base font-semibold text-white sm:text-lg">
+                  {t(titleKey)}
+                </h4>
+              </motion.div>
             ))}
-          </ol>
+          </div>
         </div>
 
+        {/* Closing */}
         <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-auto mt-12 border-t border-[#C5B378]/18 pt-7 text-center sm:mt-14 sm:pt-9"
+          {...reveal}
+          className="mt-16 border-t border-[#C5B378]/15 pt-9 text-center sm:mt-20"
         >
           <p className="font-serif text-xl italic text-white sm:text-2xl">
             &ldquo;{t('promise.closing')}&rdquo;
           </p>
-          <p className="mt-3 text-[10px] font-semibold tracking-[0.18em] text-[#D8C78E] sm:text-xs">
+
+          <p className="mt-3 text-[10px] font-semibold tracking-[0.25em] text-[#D8C78E]">
             {t('promise.signature')}
           </p>
         </motion.div>
+
       </div>
     </section>
   );
