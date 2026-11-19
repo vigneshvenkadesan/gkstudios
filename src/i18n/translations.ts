@@ -163,16 +163,59 @@ const translations = {
   'stats.albums': { en: 'Albums', ta: 'ஆல்பங்கள்' },
   'stats.aria': { en: 'Studio highlights', ta: 'ஸ்டுடியோ சிறப்புகள்' },
   'promise.eyebrow': { en: 'OUR PROMISE', ta: 'எங்கள் உறுதி' },
-  'promise.heading': { en: 'Your Moments, Delivered on Time', ta: 'உங்கள் நினைவுகள், சரியான நேரத்தில்' },
+  'promise.heading': { en: 'Memories, Delivered with Care.', ta: 'அக்கறையுடன் வழங்கப்படும் நினைவுகள்.' },
+  'promise.subtitle': {
+    en: 'From your special day to your hands, every step matters.',
+    ta: 'உங்கள் சிறப்பு நாளிலிருந்து உங்கள் கைகளுக்கு வரும் வரை, ஒவ்வொரு படியும் முக்கியம்.',
+  },
+  'promise.selectionTimeframe': { en: 'NEXT DAY', ta: 'அடுத்த நாள்' },
+  'promise.deliveryTimeframe': { en: 'WITHIN 90 DAYS', ta: '90 நாட்களுக்குள்' },
+  'promise.selectionTitle': { en: 'Photo Selection', ta: 'புகைப்படத் தேர்வு' },
+  'promise.deliveryTitle': { en: 'Final Delivery', ta: 'இறுதி வழங்கல்' },
   'promise.selectionDescription': {
-    en: 'Your photographs will be ready for selection within 15 days of the event.',
-    ta: 'நிகழ்வு முடிந்த 15 நாட்களுக்குள், உங்கள் புகைப்படங்களைத் தேர்வு செய்யலாம்.',
+    en: "We visit your home the very next day and help you choose your favourite photographs.",
+    ta: 'மறுநாளே உங்கள் வீட்டிற்கு வந்து, உங்களுக்கு விருப்பமான புகைப்படங்களைத் தேர்வு செய்ய உதவுவோம்.',
+  },
+  'promise.homeVisit': {
+    en: 'Personal photo selection at your home',
+    ta: 'உங்கள் இல்லத்தில் நேரடி புகைப்படத் தேர்வு',
   },
   'promise.deliveryDescription': {
-    en: 'Your completed wedding album and video will be delivered within 90 days of the event.',
-    ta: 'நிகழ்வு முடிந்த 90 நாட்களுக்குள், உங்கள் திருமண ஆல்பமும் காணொளியும் உங்களை வந்தடையும்.',
+    en: 'Your beautifully finished wedding album and film, delivered within 90 days from your event date.',
+    ta: 'நிகழ்வு தேதியிலிருந்து 90 நாட்களுக்குள், அழகாக நிறைவு செய்யப்பட்ட உங்கள் திருமண ஆல்பமும் திரைப்படமும் உங்களை வந்தடையும்.',
   },
-  'promise.days': { en: 'DAYS', ta: 'நாட்கள்' },
+  'promise.workflowEyebrow': {
+    en: 'YOUR MEMORIES, STEP BY STEP',
+    ta: 'உங்கள் நினைவுகள், ஒவ்வொரு படியாக',
+  },
+  'promise.stageCaptureTitle': { en: 'Event Captured', ta: 'நிகழ்வு பதிவு' },
+  'promise.stageCaptureDescription': {
+    en: 'Your special moments are captured.',
+    ta: 'உங்கள் சிறப்பு தருணங்கள் பதிவு செய்யப்படுகின்றன.',
+  },
+  'promise.stageSelectionTitle': { en: 'Photos Ready', ta: 'புகைப்படங்கள் தயார்' },
+  'promise.stageSelectionDescription': {
+    en: 'Your photographs are ready for selection. We visit your home to help you choose.',
+    ta: 'உங்கள் புகைப்படங்கள் தேர்வுக்குத் தயார். தேர்வு செய்ய உதவ நாங்கள் உங்கள் வீட்டிற்கு வருகிறோம்.',
+  },
+  'promise.stageDesignTitle': { en: 'Album in Design', ta: 'ஆல்பம் வடிவமைப்பில்' },
+  'promise.stageDesignDescription': {
+    en: 'Your selected photographs are being transformed into a beautiful album and wedding film.',
+    ta: 'நீங்கள் தேர்ந்தெடுத்த புகைப்படங்கள் அழகிய ஆல்பமாகவும் திருமணத் திரைப்படமாகவும் வடிவமைக்கப்படுகின்றன.',
+  },
+  'promise.stageDeliveryTitle': { en: 'Final Delivery', ta: 'இறுதி வழங்கல்' },
+  'promise.stageDeliveryDescription': {
+    en: 'Your completed album and video are ready to reach your hands.',
+    ta: 'முழுமையான உங்கள் ஆல்பமும் காணொளியும் உங்களை வந்தடையத் தயாராக உள்ளன.',
+  },
+  'promise.closing': {
+    en: 'Your moments deserve to be remembered beautifully.',
+    ta: 'உங்கள் தருணங்கள் அழகாக நினைவுகூரப்படத் தகுதியானவை.',
+  },
+  'promise.signature': {
+    en: 'GK STUDIOS — Capturing moments, creating memories.',
+    ta: 'GK STUDIOS — தருணங்களைப் படம் பிடித்து, நினைவுகளை உருவாக்குகிறோம்.',
+  },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

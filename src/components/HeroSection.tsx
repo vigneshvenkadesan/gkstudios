@@ -161,20 +161,30 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-wrap items-center gap-3.5 pt-2"
+            className="flex w-full max-w-xs flex-col items-stretch gap-3.5 pt-2 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center"
           >
             <a
               href="tel:+917418543123"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-sm bg-[#C5B378] px-7 text-sm font-semibold tracking-[0.02em] text-[#061E1C] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_0_24px_rgba(197,179,120,0.16)] transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-[#D8C78E] hover:shadow-[0_0_28px_rgba(216,199,142,0.28)] active:scale-[0.99] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#092E2B]"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-[#C5B378] px-7 text-sm font-semibold tracking-[0.02em] text-[#061E1C] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_0_24px_rgba(197,179,120,0.16)] transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-[#D8C78E] hover:shadow-[0_0_28px_rgba(216,199,142,0.28)] active:scale-[0.99] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#092E2B] sm:w-auto"
             >
               <Phone className="h-4 w-4" />
               Call GK Studios
             </a>
-            <Button size="lg" variant="secondary" onClick={onCheckAvailability}>
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={onCheckAvailability}
+              className="w-full sm:w-auto"
+            >
               <Calendar className="h-4 w-4" />
               Check Availability
             </Button>
-            <Button size="lg" variant="outline" onClick={onExploreWork}>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={onExploreWork}
+              className="w-full sm:w-auto"
+            >
               {t('hero.explore')}
               <ArrowRight className="h-4 w-4" />
             </Button>
