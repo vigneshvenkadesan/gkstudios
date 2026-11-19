@@ -164,7 +164,7 @@ export function BookingSection({
     }
 
     const dayEntry = calendarEntryMap.get(selectedDate);
-    if (dayEntry?.status === 'Booked') {
+    if (dayEntry?.eventType === 'Studio Maintenance') {
       const msg = t('booking.dateBooked', { date: displayDate(selectedDate) });
       setFormError(msg);
       toast.error(msg);

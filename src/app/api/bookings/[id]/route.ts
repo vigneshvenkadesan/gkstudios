@@ -18,7 +18,7 @@ export async function PATCH(
       quotedAmount?: number;
       assignedCrew?: string;
       acknowledgementNote?: string;
-      nextStatus?: Extract<BookingStatus, 'Acknowledged' | 'Confirmed'>;
+      nextStatus?: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
       blockCalendarDate?: boolean;
     };
 
@@ -43,6 +43,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid booking update payload' }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update booking';
-    return NextResponse.json({ error: message }, { status: 400 });
+    const status =
+      message === 'Booking request not found.'
+        ? 404
+        : error instanceof SyntaxError
+          ? 400
+          : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

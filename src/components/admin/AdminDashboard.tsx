@@ -56,7 +56,9 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     };
   }, []);
 
-  const pendingCount = bookings.filter((b) => b.status === 'Pending').length;
+  const activeLeadsCount = bookings.filter(
+    (b) => b.status === 'Pending' || b.status === 'In Discussion'
+  ).length;
   const activeEventsCount = eventProjects.filter((p) => p.currentStage !== 'Delivered').length;
   const blockedDatesCount = calendarEntries.length;
   const visiblePhotosCount = portfolio.filter((p) => p.isVisible).length;
@@ -199,7 +201,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     icon: React.ComponentType<{ className?: string }>;
     badgeCount?: number;
   }> = [
-    { id: 'bookings', label: 'Booking Inbox', icon: Inbox, badgeCount: pendingCount },
+    { id: 'bookings', label: 'Leads & Inquiries', icon: Inbox, badgeCount: activeLeadsCount },
     { id: 'schedule', label: 'Schedule & Calendar', icon: CalendarDays, badgeCount: blockedDatesCount },
     { id: 'timeline', label: 'Event Timeline & Payments', icon: GitCommitHorizontal, badgeCount: activeEventsCount },
     { id: 'gallery', label: 'Gallery Manager', icon: ImageIcon, badgeCount: visiblePhotosCount },
@@ -207,7 +209,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
 
   const activeTitle =
     activeTab === 'bookings'
-      ? 'Booking Requests & Acknowledgement Workflow'
+      ? 'Leads & Booking Inquiries'
       : activeTab === 'schedule'
       ? 'Studio Schedule & Master Calendar'
       : activeTab === 'timeline'

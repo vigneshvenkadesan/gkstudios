@@ -25,8 +25,13 @@ interface SubmitBookingInput {
   eventTime?: string;
   venue: string;
   packageId: string;
+  packageName?: string;
+  quotedAmount?: number;
   requestedServices?: BookingServiceOption[];
   notes: string;
+  status?: BookingStatus;
+  source?: string;
+  assignedCrew?: string;
 }
 
 interface AcknowledgeBookingInput {
@@ -35,7 +40,7 @@ interface AcknowledgeBookingInput {
   quotedAmount: number;
   assignedCrew?: string;
   acknowledgementNote: string;
-  nextStatus: Extract<BookingStatus, 'Acknowledged' | 'Confirmed'>;
+  nextStatus: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
   blockCalendarDate?: boolean;
 }
 

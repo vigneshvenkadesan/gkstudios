@@ -60,7 +60,12 @@ export function normalizeEventCategory(category?: string): CoreEventCategory {
   }
 }
 
-export type BookingStatus = 'Pending' | 'Acknowledged' | 'Confirmed' | 'Declined';
+export type BookingStatus =
+  | 'Pending'
+  | 'In Discussion'
+  | 'Acknowledged'
+  | 'Confirmed'
+  | 'Declined';
 
 export const CUSTOM_PACKAGE_ID = 'custom-package';
 export const CUSTOM_PACKAGE_NAME = 'Custom Package';
@@ -174,6 +179,7 @@ export interface BookingRequest {
   requestedServices?: BookingServiceOption[];
   notes: string;
   status: BookingStatus;
+  source?: string;
   assignedCrew?: string;
   acknowledgementNote?: string;
   createdAt: string;

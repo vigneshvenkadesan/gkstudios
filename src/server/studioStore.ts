@@ -15,7 +15,11 @@ import {
   StudioState,
 } from '../types/studio';
 import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '../data/initialStudioData';
-import { getBookingModel, getCalendarScheduleModel } from './mongodb';
+import {
+  getBookingModel,
+  getCalendarScheduleModel,
+  getEventProjectModel,
+} from './mongodb';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 
@@ -39,6 +43,14 @@ async function requireCalendarScheduleModel() {
     throw new Error('MongoDB is not configured. Calendar schedule cannot be stored.');
   }
   return schedule;
+}
+
+async function requireEventProjectModel() {
+  const projects = await getEventProjectModel();
+  if (!projects) {
+    throw new Error('MongoDB is not configured. Event projects cannot be stored.');
+  }
+  return projects;
 }
 
 function normalizeState(raw: Partial<StudioState>): StudioState {
@@ -69,11 +81,18 @@ async function readFromDisk(): Promise<StudioState> {
     const content = await fs.readFile(PRIMARY_DB_PATH, 'utf-8');
     const parsed = JSON.parse(content) as Partial<StudioState>;
     return normalizeState(parsed);
-  } catch {
-    const seed = cloneInitialState();
-    seed.bookings = [];
-    await writeToDisk(seed);
-    return seed;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ) {
+      const seed = cloneInitialState();
+      seed.bookings = [];
+      seed.calendarEntries = [];
+      return seed;
+    }
+    throw error;
   }
 }
 
@@ -81,7 +100,11 @@ async function writeToDisk(nextState: StudioState): Promise<void> {
   await fs.mkdir(path.dirname(PRIMARY_DB_PATH), { recursive: true });
   await fs.writeFile(
     PRIMARY_DB_PATH,
-    JSON.stringify({ ...nextState, bookings: [] }, null, 2),
+    JSON.stringify(
+      { ...nextState, bookings: [], calendarEntries: [], eventProjects: [] },
+      null,
+      2
+    ),
     'utf-8'
   );
 }
@@ -105,6 +128,7 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): Book
       : {}),
     notes: String(booking.notes || ''),
     status: booking.status,
+    ...(booking.source ? { source: String(booking.source) } : {}),
     ...(booking.assignedCrew ? { assignedCrew: String(booking.assignedCrew) } : {}),
     ...(booking.acknowledgementNote
       ? { acknowledgementNote: String(booking.acknowledgementNote) }
@@ -113,6 +137,29 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): Book
       typeof booking.createdAt === 'string'
         ? booking.createdAt
         : new Date(String(booking.createdAt)).toISOString(),
+  };
+}
+
+function toPlainEventProject(project: EventProject & { _id?: unknown }): EventProject {
+  return {
+    id: String(project.id),
+    ...(project.bookingId ? { bookingId: String(project.bookingId) } : {}),
+    referenceCode: String(project.referenceCode),
+    clientName: String(project.clientName),
+    phone: String(project.phone),
+    eventType: project.eventType,
+    eventDate: String(project.eventDate),
+    ...(project.endDate ? { endDate: String(project.endDate) } : {}),
+    venue: String(project.venue),
+    packageName: String(project.packageName),
+    assignedCrew: String(project.assignedCrew),
+    currentStage: project.currentStage,
+    stageUpdates: project.stageUpdates || {},
+    agreedAmount: Number(project.agreedAmount),
+    extraCharges: Number(project.extraCharges),
+    discount: Number(project.discount),
+    payments: Array.isArray(project.payments) ? project.payments : [],
+    deliveryNotes: String(project.deliveryNotes || ''),
   };
 }
 
@@ -145,10 +192,28 @@ export async function getStudioState(): Promise<StudioState> {
     } satisfies CalendarDayEntry;
   });
 
+  const eventProjects = await requireEventProjectModel();
+  let mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
+  if (mongoProjects.length === 0 && memoryCache.eventProjects.length > 0) {
+    await eventProjects.bulkWrite(
+      memoryCache.eventProjects.map((project) => ({
+        updateOne: {
+          filter: { id: project.id },
+          update: { $setOnInsert: project },
+          upsert: true,
+        },
+      }))
+    );
+    mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
+  }
+
   memoryCache = {
     ...memoryCache,
     bookings: plainBookings,
     calendarEntries: plainSchedule,
+    eventProjects: mongoProjects.map((project) =>
+      toPlainEventProject(project as unknown as EventProject & { _id?: unknown })
+    ),
   };
   return memoryCache;
 }
@@ -165,12 +230,17 @@ export async function saveStudioState(nextState: StudioState): Promise<StudioSta
 export async function resetStudioState(): Promise<StudioState> {
   const bookings = await requireBookingModel();
   const schedule = await requireCalendarScheduleModel();
+  const eventProjects = await requireEventProjectModel();
   await bookings.deleteMany({});
   await schedule.deleteMany({});
+  await eventProjects.deleteMany({});
 
   const seed = cloneInitialState();
   seed.bookings = [];
   seed.calendarEntries = [];
+  if (seed.eventProjects.length > 0) {
+    await eventProjects.insertMany(seed.eventProjects);
+  }
   return saveStudioState(seed);
 }
 
@@ -183,23 +253,31 @@ export async function createBookingOnServer(input: {
   eventTime?: string;
   venue: string;
   packageId: string;
+  packageName?: string;
+  quotedAmount?: number;
   requestedServices?: BookingServiceOption[];
   notes: string;
+  status?: BookingStatus;
+  source?: string;
+  assignedCrew?: string;
 }): Promise<BookingRequest> {
   const state = await getStudioState();
-  const blocked = state.calendarEntries.find(
-    (entry) => entry.date === input.preferredDate && entry.status === 'Booked'
-  );
-  if (blocked) {
-    throw new Error(`Selected date ${input.preferredDate} is already booked.`);
-  }
-
+  // Studio supports concurrent crews and multiple bookings/orders on the same date.
   const isCustomPackage = input.packageId === CUSTOM_PACKAGE_ID;
   const selectedPkg = isCustomPackage
     ? undefined
     : state.packages.find((p) => p.id === input.packageId) || state.packages[0];
   const now = new Date();
   const refNumber = String(Math.floor(100 + Math.random() * 900));
+
+  const resolvedPkgName =
+    input.packageName?.trim() ||
+    (isCustomPackage ? CUSTOM_PACKAGE_NAME : selectedPkg?.name || CUSTOM_PACKAGE_NAME);
+
+  const resolvedQuotedAmount =
+    typeof input.quotedAmount === 'number' && !isNaN(input.quotedAmount)
+      ? input.quotedAmount
+      : selectedPkg?.price || 0;
 
   const newBooking: BookingRequest = {
     id: `bk-${Date.now()}`,
@@ -214,13 +292,15 @@ export async function createBookingOnServer(input: {
     eventTime: input.eventTime?.trim() || undefined,
     venue: input.venue.trim(),
     packageId: selectedPkg?.id || CUSTOM_PACKAGE_ID,
-    packageName: selectedPkg?.name || CUSTOM_PACKAGE_NAME,
-    quotedAmount: selectedPkg?.price || 0,
+    packageName: resolvedPkgName,
+    quotedAmount: resolvedQuotedAmount,
     requestedServices: input.requestedServices?.length
       ? input.requestedServices
       : undefined,
     notes: input.notes.trim(),
-    status: 'Pending',
+    status: input.status || 'Pending',
+    source: input.source?.trim() || undefined,
+    assignedCrew: input.assignedCrew?.trim() || undefined,
     createdAt: now.toISOString(),
   };
 
@@ -266,7 +346,7 @@ export async function processBookingOnServer(input: {
   quotedAmount: number;
   assignedCrew?: string;
   acknowledgementNote: string;
-  nextStatus: Extract<BookingStatus, 'Acknowledged' | 'Confirmed'>;
+  nextStatus: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
   blockCalendarDate?: boolean;
 }): Promise<StudioState> {
   const state = await getStudioState();
@@ -352,9 +432,8 @@ export async function processBookingOnServer(input: {
     });
   }
 
-  let updatedProjects = [...state.eventProjects];
   if (input.nextStatus === 'Confirmed') {
-    const alreadyExists = updatedProjects.some((p) => p.bookingId === targetBooking.id);
+    const alreadyExists = state.eventProjects.some((p) => p.bookingId === targetBooking.id);
     if (!alreadyExists) {
       const todayIso = new Date().toISOString().slice(0, 10);
       const newProject: EventProject = {
@@ -382,7 +461,12 @@ export async function processBookingOnServer(input: {
         payments: [],
         deliveryNotes: targetBooking.notes || 'Standard album & 4K delivery workflow.',
       };
-      updatedProjects = [newProject, ...updatedProjects];
+      const eventProjects = await requireEventProjectModel();
+      await eventProjects.updateOne(
+        { bookingId: targetBooking.id },
+        { $setOnInsert: newProject },
+        { upsert: true }
+      );
     }
   }
 
@@ -411,12 +495,7 @@ export async function processBookingOnServer(input: {
     { upsert: true }
   );
 
-  return saveStudioState({
-    ...state,
-    bookings: updatedBookings,
-    calendarEntries: updatedCalendar,
-    eventProjects: updatedProjects,
-  });
+  return getStudioState();
 }
 
 export async function upsertCalendarEntryOnServer(
@@ -539,10 +618,13 @@ export async function createEventProjectOnServer(input: {
     deliveryNotes: input.deliveryNotes?.trim() || '',
   };
 
-  const nextState = await saveStudioState({
-    ...state,
-    eventProjects: [created, ...state.eventProjects],
-  });
+  const eventProjects = await requireEventProjectModel();
+  await eventProjects.updateOne(
+    { id: created.id },
+    { $set: created },
+    { upsert: true }
+  );
+  const nextState = await getStudioState();
 
   return { state: nextState, created };
 }
@@ -553,26 +635,27 @@ export async function updateEventStageOnServer(
   note?: string
 ): Promise<StudioState> {
   const state = await getStudioState();
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const project = state.eventProjects.find((item) => item.id === projectId);
+  if (!project) {
+    throw new Error('Event project not found.');
+  }
 
-  return saveStudioState({
-    ...state,
-    eventProjects: state.eventProjects.map((proj) => {
-      if (proj.id !== projectId) return proj;
-      const existing = proj.stageUpdates[stage] || {};
-      return {
-        ...proj,
-        currentStage: stage,
-        stageUpdates: {
-          ...proj.stageUpdates,
-          [stage]: {
-            completedAt: existing.completedAt || todayIso,
-            note: note !== undefined ? note : existing.note,
-          },
-        },
-      };
-    }),
-  });
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const existing = project.stageUpdates[stage] || {};
+  const updated: EventProject = {
+    ...project,
+    currentStage: stage,
+    stageUpdates: {
+      ...project.stageUpdates,
+      [stage]: {
+        completedAt: existing.completedAt || todayIso,
+        note: note !== undefined ? note : existing.note,
+      },
+    },
+  };
+  const projects = await requireEventProjectModel();
+  await projects.updateOne({ id: projectId }, { $set: updated });
+  return getStudioState();
 }
 
 export async function updateEventFinancialsOnServer(
@@ -586,12 +669,14 @@ export async function updateEventFinancialsOnServer(
   }
 ): Promise<StudioState> {
   const state = await getStudioState();
-  return saveStudioState({
-    ...state,
-    eventProjects: state.eventProjects.map((proj) =>
-      proj.id === projectId ? { ...proj, ...patch } : proj
-    ),
-  });
+  const project = state.eventProjects.find((item) => item.id === projectId);
+  if (!project) {
+    throw new Error('Event project not found.');
+  }
+
+  const projects = await requireEventProjectModel();
+  await projects.updateOne({ id: projectId }, { $set: { ...project, ...patch } });
+  return getStudioState();
 }
 
 export async function addEventPaymentOnServer(
@@ -603,15 +688,17 @@ export async function addEventPaymentOnServer(
     ...payment,
     id: `pay-${Date.now()}`,
   };
+  const project = state.eventProjects.find((item) => item.id === projectId);
+  if (!project) {
+    throw new Error('Event project not found.');
+  }
 
-  return saveStudioState({
-    ...state,
-    eventProjects: state.eventProjects.map((proj) =>
-      proj.id === projectId
-        ? { ...proj, payments: [...proj.payments, newPayment] }
-        : proj
-    ),
-  });
+  const projects = await requireEventProjectModel();
+  await projects.updateOne(
+    { id: projectId },
+    { $set: { payments: [...project.payments, newPayment] } }
+  );
+  return getStudioState();
 }
 
 export async function deleteEventPaymentOnServer(
@@ -619,12 +706,15 @@ export async function deleteEventPaymentOnServer(
   paymentId: string
 ): Promise<StudioState> {
   const state = await getStudioState();
-  return saveStudioState({
-    ...state,
-    eventProjects: state.eventProjects.map((proj) =>
-      proj.id === projectId
-        ? { ...proj, payments: proj.payments.filter((p) => p.id !== paymentId) }
-        : proj
-    ),
-  });
+  const project = state.eventProjects.find((item) => item.id === projectId);
+  if (!project) {
+    throw new Error('Event project not found.');
+  }
+
+  const projects = await requireEventProjectModel();
+  await projects.updateOne(
+    { id: projectId },
+    { $set: { payments: project.payments.filter((payment) => payment.id !== paymentId) } }
+  );
+  return getStudioState();
 }

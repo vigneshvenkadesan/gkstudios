@@ -3,6 +3,7 @@ import { createBookingOnServer } from '@/src/server/studioStore';
 import {
   BOOKING_SERVICE_OPTIONS,
   BookingServiceOption,
+  BookingStatus,
   EventCategory,
 } from '@/src/types/studio';
 
@@ -19,7 +20,12 @@ export async function POST(request: Request) {
       eventTime?: string;
       venue?: string;
       packageId?: string;
+      packageName?: string;
+      quotedAmount?: number;
       notes?: string;
+      status?: BookingStatus;
+      source?: string;
+      assignedCrew?: string;
       requestedServices?: unknown;
     };
 
@@ -39,6 +45,8 @@ export async function POST(request: Request) {
       eventTime: body.eventTime,
       venue: body.venue,
       packageId: body.packageId || 'pkg-grand',
+      packageName: body.packageName,
+      quotedAmount: body.quotedAmount,
       requestedServices: Array.isArray(body.requestedServices)
         ? body.requestedServices.filter(
             (service): service is BookingServiceOption =>
@@ -46,6 +54,9 @@ export async function POST(request: Request) {
           )
         : [],
       notes: body.notes || '',
+      status: body.status,
+      source: body.source,
+      assignedCrew: body.assignedCrew,
     });
 
     return NextResponse.json({ booking: created }, { status: 201 });
