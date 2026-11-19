@@ -103,7 +103,6 @@ function PublicStudioContent() {
             onExploreWork={() => jumpToSection('portfolio')}
           />
           <DeliveryPromiseSection />
-          <StatsSection />
           <PortfolioSection
             onBookCategory={handleBookCategory}
             externalCategoryFilter={portfolioFilterCategory}
