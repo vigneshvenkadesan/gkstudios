@@ -62,7 +62,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
   return (
     <section
       id="hero"
-      className="relative min-h-[92vh] sm:min-h-[95vh] flex flex-col justify-between overflow-hidden bg-[#061E1C] border-b border-[#C5B378]/18"
+      className="relative min-h-[92svh] sm:min-h-screen flex flex-col justify-between overflow-hidden bg-[#061E1C] border-b border-[#C5B378]/18"
     >
       {/* Full-Bleed Cinematic Photography Stage */}
       <div className="absolute inset-0 z-0">
@@ -117,7 +117,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
 
       {/* Main Editorial Center Content — Minimal & Confident */}
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-        <div className="max-w-2xl space-y-6">
+        <div className="max-w-3xl space-y-6">
           {/* Brand Name */}
           <motion.p
             initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
@@ -133,7 +133,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-semibold tracking-[-0.015em] text-white leading-[1.02]"
+            className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[6.25rem] font-semibold tracking-[-0.025em] text-white leading-[0.98]"
           >
             Creating Memories
           </motion.h1>

@@ -148,9 +148,6 @@ export function PortfolioSection({
             </p>
           </div>
 
-          <p className="font-tamil-serif text-lg sm:text-xl font-medium text-[#D8C78E]/90 lg:pb-1">
-            நினைவுகளின் அழகிய பயணம்
-          </p>
         </motion.div>
 
         {/* Compact Category Filter Bar */}
@@ -281,10 +278,10 @@ export function PortfolioSection({
 
       {/* Fullscreen Editorial Lightbox Modal */}
       <Dialog open={Boolean(lightboxItem)} onOpenChange={(open) => !open && setLightboxItem(null)}>
-        <DialogContent className="max-w-5xl rounded-sm border-[#C5B378]/35 bg-[#061E1C] p-0 overflow-hidden">
+        <DialogContent className="h-[100dvh] max-h-none w-screen max-w-none gap-0 overflow-hidden rounded-none border-0 bg-[#061E1C] p-0">
           {lightboxItem && (
-            <div>
-              <div className="relative aspect-[16/10] w-full bg-[#041412]">
+            <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
+              <div className="relative min-h-0 w-full bg-[#041412]">
                 {!failedImages[lightboxItem.id] ? (
                   <img
                     src={lightboxItem.imageUrl}
@@ -325,20 +322,20 @@ export function PortfolioSection({
                 )}
               </div>
 
-              <div className="p-6 sm:p-7 space-y-4">
+              <div className="max-h-[34dvh] overflow-y-auto px-5 py-4 sm:px-8 sm:py-5">
                 <DialogHeader>
                   <p className="text-xs font-medium text-[#D8C78E]">
                     {lightboxItem.category} · {lightboxItem.dateLabel}
                   </p>
-                  <DialogTitle className="font-serif text-2xl sm:text-3xl font-semibold text-white">
+                  <DialogTitle className="font-serif text-xl font-semibold text-white sm:text-2xl">
                     {lightboxItem.title}
                   </DialogTitle>
-                  <DialogDescription className="text-[#E6ECEB]/82 leading-relaxed pt-1 text-sm">
+                  <DialogDescription className="hidden text-sm leading-relaxed text-[#E6ECEB]/82 pt-1 sm:block">
                     {lightboxItem.shootNotes}
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#C5B378]/18 pt-4">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#C5B378]/18 pt-3">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#E6ECEB]/75">
                     <span className="inline-flex items-center gap-1.5">
                       <MapPin className="h-3.5 w-3.5 text-[#D8C78E]" />

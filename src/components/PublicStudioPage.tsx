@@ -12,7 +12,6 @@ import { PortfolioSection } from '@/src/components/PortfolioSection';
 import { PackagesSection } from '@/src/components/PackagesSection';
 import { StudioAboutSection } from '@/src/components/StudioAboutSection';
 import { BookingSection } from '@/src/components/BookingSection';
-import { ContactSection } from '@/src/components/ContactSection';
 import { Footer } from '@/src/components/Footer';
 
 export function PublicStudioPage() {
@@ -102,7 +101,6 @@ export function PublicStudioPage() {
             preselectedPackageId={selectedPackageId}
             preselectedCategory={selectedCategory}
           />
-          <ContactSection onReserveDate={() => jumpToSection('availability')} />
         </main>
 
         <Footer

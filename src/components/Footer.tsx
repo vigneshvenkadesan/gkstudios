@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ArrowUpRight, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
+import { ArrowUpRight, LockKeyhole, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { EventCategory } from '@/src/types/studio';
 import { buildWhatsAppUrl } from '@/src/lib/utils';
@@ -43,12 +43,15 @@ export function Footer({
   )}`;
 
   return (
-    <footer className="bg-[#061E1C] text-[#E6ECEB]/80">
-      <div className="mx-auto max-w-7xl px-4 pt-16 pb-10 sm:px-6 sm:pt-20 sm:pb-12 lg:px-8">
+    <footer id="contact" className="scroll-mt-16 bg-[#061E1C] text-[#E6ECEB]/80 sm:scroll-mt-[72px]">
+      <div className="mx-auto max-w-7xl px-4 pt-12 pb-8 sm:px-6 sm:pt-14 sm:pb-9 lg:px-8">
         {/* Balanced 3-Column Editorial Grid */}
         <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:gap-8 lg:gap-12">
           {/* Column 1 — Brand Identity & Primary Studio Contact */}
           <div className="md:col-span-5 space-y-5">
+            <h2 className="text-[10px] font-semibold tracking-[0.22em] text-[#D8C78E]/75">
+              BRAND &amp; CONTACT
+            </h2>
             <button
               type="button"
               onClick={() => onJumpToSection('hero')}
@@ -157,11 +160,22 @@ export function Footer({
         </div>
 
         {/* Bottom Footer Bar */}
-        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-[#C5B378]/15 pt-7 text-xs text-[#E6ECEB]/58 sm:flex-row sm:items-center">
+        <div className="mt-9 flex flex-col items-start justify-between gap-3 border-t border-[#C5B378]/15 pt-5 text-xs text-[#E6ECEB]/58 sm:flex-row sm:items-center">
           <p onDoubleClick={onHiddenAdminTrigger} className="select-none">
             © 2026 GK STUDIOS. All rights reserved.
           </p>
-          <p className="text-[#E6ECEB]/65">Designed with passion. Creating memories.</p>
+          <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end sm:gap-6">
+            <p className="text-[#E6ECEB]/65">Designed with passion. Creating memories.</p>
+            <button
+              type="button"
+              onClick={onHiddenAdminTrigger}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-[#C5B378]/15 bg-[#092E2B]/25 px-2.5 py-1.5 text-[10px] tracking-[0.08em] text-[#E6ECEB]/50 transition-colors hover:border-[#C5B378]/35 hover:text-[#D8C78E]/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D8C78E]"
+              aria-label="Open studio admin"
+            >
+              <LockKeyhole className="h-3 w-3" />
+              Admin
+            </button>
+          </div>
         </div>
       </div>
     </footer>

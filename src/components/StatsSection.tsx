@@ -97,7 +97,7 @@ export function StatsSection() {
       aria-label="Studio highlights"
       className="bg-[#072421] border-b border-[#C5B378]/18"
     >
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
         <div className="grid grid-cols-2 gap-y-8 gap-x-6 lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-[#C5B378]/18">
           {STUDIO_STATS.map((stat, idx) => (
             <motion.div
@@ -110,7 +110,7 @@ export function StatsSection() {
                 delay: idx * 0.07,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="lg:px-8 first:lg:pl-0 last:lg:pr-0 space-y-1.5"
+              className="lg:px-8 first:lg:pl-0 last:lg:pr-0 space-y-1"
             >
               <div>
                 <AnimatedStatValue

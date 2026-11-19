@@ -102,8 +102,8 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
               </h2>
 
               <p className="max-w-lg text-base sm:text-lg leading-relaxed text-[#E6ECEB]/82">
-                Capturing South Indian traditions and timeless celebrations through photography
-                and cinematic storytelling.
+                Rooted in South Indian tradition, we preserve the rituals and quiet in-between
+                moments that make each celebration yours.
               </p>
             </div>
 
