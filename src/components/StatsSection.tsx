@@ -2,33 +2,35 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useInView, useReducedMotion } from 'motion/react';
+import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { translate, TranslationKey } from '@/src/i18n/translations';
 
 interface StatItem {
   targetNumber?: number;
   suffix?: string;
   staticDisplay?: string;
-  label: string;
+  labelKey: TranslationKey;
 }
 
 const STUDIO_STATS: StatItem[] = [
   {
     targetNumber: 250,
     suffix: '+',
-    label: 'Celebrations',
+    labelKey: 'stats.celebrations',
   },
   {
     targetNumber: 7,
     suffix: '+',
-    label: 'Years',
+    labelKey: 'stats.years',
   },
   {
     targetNumber: 4,
     suffix: 'K',
-    label: 'Cinema',
+    labelKey: 'stats.cinema',
   },
   {
     staticDisplay: 'Karizma',
-    label: 'Albums',
+    labelKey: 'stats.albums',
   },
 ];
 
@@ -87,6 +89,8 @@ function AnimatedStatValue({
 }
 
 export function StatsSection() {
+  const { locale } = usePublicPreferences();
+  const t = (key: TranslationKey) => translate(locale, key);
   const sectionRef = useRef<HTMLElement | null>(null);
   const isInView = useInView(sectionRef, { once: true, amount: 0.25 });
   const prefersReducedMotion = Boolean(useReducedMotion());
@@ -94,14 +98,14 @@ export function StatsSection() {
   return (
     <section
       ref={sectionRef}
-      aria-label="Studio highlights"
+      aria-label={t('stats.aria')}
       className="bg-[#072421] border-b border-[#C5B378]/18"
     >
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
         <div className="grid grid-cols-2 gap-y-8 gap-x-6 lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-[#C5B378]/18">
           {STUDIO_STATS.map((stat, idx) => (
             <motion.div
-              key={stat.label}
+              key={stat.labelKey}
               initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.25 }}
@@ -120,7 +124,7 @@ export function StatsSection() {
                 />
               </div>
               <p className="text-xs sm:text-sm font-medium tracking-[0.08em] text-[#E6ECEB]/80">
-                {stat.label}
+                {t(stat.labelKey)}
               </p>
             </motion.div>
           ))}

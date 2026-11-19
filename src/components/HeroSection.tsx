@@ -14,6 +14,8 @@ import { useStudio } from '@/src/context/StudioContext';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { MandalaCorner } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
+import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { localizePortfolioText, translate } from '@/src/i18n/translations';
 
 interface HeroSectionProps {
   onCheckAvailability: () => void;
@@ -22,6 +24,8 @@ interface HeroSectionProps {
 
 export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionProps) {
   const { portfolio } = useStudio();
+  const { locale } = usePublicPreferences();
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const prefersReducedMotion = useReducedMotion();
 
   const featuredSlides = portfolio.filter((item) => item.isVisible && item.isHeroFeatured);
@@ -45,6 +49,9 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
   }, [slides.length]);
 
   const activeSlide = slides[currentIndex];
+  const activeSlideTitle = activeSlide
+    ? localizePortfolioText(locale, activeSlide.id, 'title', activeSlide.title)
+    : '';
 
   const handlePrev = () => {
     if (slides.length <= 1) return;
@@ -81,7 +88,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             >
               <img
                 src={activeSlide.imageUrl}
-                alt={activeSlide.title}
+                alt={activeSlideTitle}
                 loading="eager"
                 referrerPolicy="no-referrer"
                 onError={() =>
@@ -135,7 +142,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             transition={{ duration: 0.75, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[6.25rem] font-semibold tracking-[-0.025em] text-white leading-[0.98]"
           >
-            Creating Memories
+            {t('hero.heading')}
           </motion.h1>
 
           {/* Concise Supporting Line */}
@@ -145,7 +152,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             transition={{ duration: 0.75, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
             className="text-base sm:text-xl font-normal tracking-[0.02em] text-[#E6ECEB]/90"
           >
-            Timeless Wedding Photography &amp; Cinematic Films.
+            {t('hero.subtitle')}
           </motion.p>
 
           {/* Primary & Secondary CTAs */}
@@ -160,7 +167,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
               Check Availability
             </Button>
             <Button size="lg" variant="outline" onClick={onExploreWork}>
-              Explore Stories
+              {t('hero.explore')}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </motion.div>
@@ -178,7 +185,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             )}
             {activeSlide && (
               <p className="font-serif text-sm sm:text-base text-white/95 truncate">
-                {activeSlide.title}
+                {activeSlideTitle}
               </p>
             )}
           </div>
@@ -189,7 +196,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
               onClick={onExploreWork}
               className="hidden sm:inline-flex items-center gap-2 text-xs font-medium tracking-[0.14em] text-[#E6ECEB]/75 hover:text-[#D8C78E] transition-colors cursor-pointer"
             >
-              <span>Scroll</span>
+              <span>{t('hero.scroll')}</span>
               <motion.span
                 animate={prefersReducedMotion ? undefined : { y: [0, 3, 0] }}
                 transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
@@ -203,7 +210,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
                 <button
                   type="button"
                   onClick={handlePrev}
-                  aria-label="Previous hero photograph"
+                  aria-label={t('hero.previous')}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-[#C5B378]/30 bg-[#092E2B]/80 text-white hover:border-[#D8C78E] hover:bg-[#134E49] transition-colors cursor-pointer"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -211,7 +218,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
                 <button
                   type="button"
                   onClick={handleNext}
-                  aria-label="Next hero photograph"
+                  aria-label={t('hero.next')}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-[#C5B378]/30 bg-[#092E2B]/80 text-white hover:border-[#D8C78E] hover:bg-[#134E49] transition-colors cursor-pointer"
                 >
                   <ChevronRight className="h-4 w-4" />

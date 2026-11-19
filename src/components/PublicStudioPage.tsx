@@ -13,9 +13,22 @@ import { PackagesSection } from '@/src/components/PackagesSection';
 import { StudioAboutSection } from '@/src/components/StudioAboutSection';
 import { BookingSection } from '@/src/components/BookingSection';
 import { Footer } from '@/src/components/Footer';
+import { PublicPreferencesProvider, usePublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { localizePackage, translate, translateCategory } from '@/src/i18n/translations';
 
 export function PublicStudioPage() {
+  return (
+    <PublicPreferencesProvider>
+      <PublicStudioContent />
+    </PublicPreferencesProvider>
+  );
+}
+
+function PublicStudioContent() {
   const router = useRouter();
+  const { locale } = usePublicPreferences();
+  const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) =>
+    translate(locale, key, params);
   const [selectedPackageId, setSelectedPackageId] = useState<string>('pkg-grand');
   const [selectedCategory, setSelectedCategory] = useState<EventCategory | null>(null);
   const [portfolioFilterCategory, setPortfolioFilterCategory] = useState<EventCategory | null>(
@@ -54,13 +67,13 @@ export function PublicStudioPage() {
 
   const handleSelectPackage = (pkg: StudioPackage) => {
     setSelectedPackageId(pkg.id);
-    toast.success(`${pkg.name} selected — complete your date inquiry below.`);
+    toast.success(t('packages.selectedToast', { name: localizePackage(locale, pkg).name }));
     jumpToSection('availability');
   };
 
   const handleBookCategory = (category: EventCategory) => {
     setSelectedCategory(category);
-    toast.info(`Event type set to ${category}. Choose an open date below.`);
+    toast.info(t('portfolio.eventTypeToast', { category: translateCategory(locale, category) }));
     jumpToSection('availability');
   };
 

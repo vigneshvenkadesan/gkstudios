@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ArrowRight, Camera } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
+import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { translate } from '@/src/i18n/translations';
 
 interface StudioAboutSectionProps {
   onMeetStudio?: () => void;
@@ -25,6 +27,8 @@ const STUDIO_HIGHLIGHTS = [
 ] as const;
 
 export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
+  const { locale } = usePublicPreferences();
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const prefersReducedMotion = Boolean(useReducedMotion());
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -47,7 +51,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
               {!imageFailed ? (
                 <img
                   src="/images/portfolio/temple_wedding_gopuram_1794972485937.jpg"
-                  alt="Sacred South Indian temple wedding ceremony captured by G Krishna"
+                  alt={t('about.photoAlt')}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={() => setImageFailed(true)}
@@ -66,7 +70,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
               <div className="h-14 w-20 shrink-0 overflow-hidden rounded-sm border border-[#C5B378]/25 bg-[#061E1C]">
                 <img
                   src="/assets/aistudio/image_777005f0.png"
-                  alt="GK STUDIOS emblem"
+                  alt={t('about.emblemAlt')}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   className="h-full w-full object-cover"
@@ -76,9 +80,9 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                 <p className="text-xs font-semibold tracking-[0.22em] text-white">
                   G KRISHNA
                 </p>
-                <p className="text-xs text-[#D8C78E] mt-0.5">Photographer &amp; Filmmaker</p>
+                <p className="text-xs text-[#D8C78E] mt-0.5">{t('about.photographer')}</p>
                 <p className="font-serif italic text-sm text-[#E6ECEB]/80 mt-0.5">
-                  &ldquo;Behind every frame, a story.&rdquo;
+                  &ldquo;{t('about.signature')}&rdquo;
                 </p>
               </div>
             </div>
@@ -94,16 +98,15 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
           >
             <div className="space-y-5">
               <p className="text-xs font-semibold tracking-[0.26em] text-[#D8C78E]">
-                OUR STORY
+                {t('about.eyebrow')}
               </p>
 
               <h2 className="font-serif text-4xl sm:text-5xl lg:text-[3.5rem] font-semibold tracking-[-0.015em] text-white leading-[1.06]">
-                Every Ritual. Every Emotion. Every Forever.
+                {t('about.heading')}
               </h2>
 
               <p className="max-w-lg text-base sm:text-lg leading-relaxed text-[#E6ECEB]/82">
-                Rooted in South Indian tradition, we preserve the rituals and quiet in-between
-                moments that make each celebration yours.
+                {t('about.description')}
               </p>
             </div>
 
@@ -112,10 +115,20 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
               {STUDIO_HIGHLIGHTS.map((highlight) => (
                 <div key={highlight.primary} className="space-y-1">
                   <p className="font-serif text-xl sm:text-2xl lg:text-[1.75rem] font-semibold text-[#D8C78E] leading-tight tabular-nums">
-                    {highlight.primary}
+                    {locale === 'ta' && highlight.primary === '7+ Years'
+                      ? '7+ ஆண்டுகள்'
+                      : locale === 'ta' && highlight.primary === 'Photography'
+                        ? t('about.photography')
+                        : highlight.primary}
                   </p>
                   <p className="text-xs sm:text-sm text-[#E6ECEB]/75 leading-snug">
-                    {highlight.secondary}
+                    {highlight.secondary === 'Celebrations'
+                      ? t('about.celebrations')
+                      : highlight.secondary === 'Experience'
+                        ? t('about.experience')
+                        : locale === 'ta'
+                          ? t('about.cinema')
+                          : highlight.secondary}
                   </p>
                 </div>
               ))}
@@ -128,7 +141,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                 onClick={onMeetStudio}
                 className="group inline-flex items-center gap-3 border-b border-[#C5B378]/65 pb-2 text-sm sm:text-base font-medium tracking-[0.04em] text-white transition-colors duration-200 hover:border-[#D8C78E] hover:text-[#D8C78E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] focus-visible:ring-offset-4 focus-visible:ring-offset-[#092E2B] cursor-pointer"
               >
-                <span>Meet Our Studio</span>
+                <span>{t('about.meet')}</span>
                 <ArrowRight className="h-4 w-4 text-[#D8C78E] transition-transform duration-200 group-hover:translate-x-1.5" />
               </button>
             </div>
