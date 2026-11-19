@@ -189,6 +189,9 @@ export async function getStudioState(): Promise<StudioState> {
       ...(plain.assignedCrew ? { assignedCrew: String(plain.assignedCrew) } : {}),
       ...(plain.notes ? { notes: String(plain.notes) } : {}),
       ...(plain.bookingId ? { bookingId: String(plain.bookingId) } : {}),
+      ...(plain.phone ? { phone: String(plain.phone) } : {}),
+      ...(plain.time ? { time: String(plain.time) } : {}),
+      ...(Array.isArray(plain.requestedServices) ? { requestedServices: plain.requestedServices } : {}),
     } satisfies CalendarDayEntry;
   });
 
@@ -407,6 +410,9 @@ export async function processBookingOnServer(input: {
         assignedCrew: resolvedCrew,
         notes: input.acknowledgementNote.trim() || targetBooking.notes,
         bookingId: targetBooking.id,
+        phone: targetBooking.phone,
+        time: targetBooking.eventTime,
+        requestedServices: targetBooking.requestedServices,
       };
       const existingIdx = targetBooking.id
         ? updatedCalendar.findIndex(

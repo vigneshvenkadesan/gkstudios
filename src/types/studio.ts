@@ -196,6 +196,9 @@ export interface CalendarDayEntry {
   assignedCrew?: string;
   notes?: string;
   bookingId?: string;
+  phone?: string;
+  time?: string;
+  requestedServices?: BookingServiceOption[];
 }
 
 export interface StudioState {

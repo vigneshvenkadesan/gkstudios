@@ -1,16 +1,36 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Grid2X2, Trash2 } from 'lucide-react';
+import {
+  CalendarDays,
+  CalendarPlus,
+  Camera,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Film,
+  Grid2X2,
+  Loader2,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Trash2,
+  Tv,
+  User,
+  Video,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import {
+  BOOKING_SERVICE_OPTIONS,
+  BookingServiceOption,
   CalendarDayEntry,
   EVENT_CATEGORIES,
   EventCategory,
   normalizeEventCategory,
 } from '@/src/types/studio';
-import { formatDateDisplay, toISODate } from '@/src/lib/utils';
+import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
@@ -25,13 +45,15 @@ import {
 } from '@/src/components/ui/dialog';
 
 export function AdminScheduleModule() {
-  const { calendarEntries, upsertCalendarEntry, removeCalendarEntry } = useStudio();
+  const { calendarEntries, bookings, upsertCalendarEntry, removeCalendarEntry } = useStudio();
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string>(toISODate(new Date()));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('month');
   const [editingEntryId, setEditingEntryId] = useState<string | undefined>();
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Form states
   const [status, setStatus] = useState<'Booked' | 'Limited'>('Booked');
   const [title, setTitle] = useState('');
   const [eventType, setEventType] = useState<
@@ -39,12 +61,17 @@ export function AdminScheduleModule() {
   >('Weddings');
   const [clientName, setClientName] = useState('');
   const [venue, setVenue] = useState('');
+  const [phone, setPhone] = useState('');
+  const [eventTime, setEventTime] = useState('');
   const [assignedCrew, setAssignedCrew] = useState('G Krishna + Studio Unit');
   const [notes, setNotes] = useState('');
+  const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>([]);
+  const [linkedBookingId, setLinkedBookingId] = useState<string | undefined>();
 
   const handleSelectDate = (isoDate: string, entry?: CalendarDayEntry) => {
     setSelectedDate(isoDate);
     setEditingEntryId(entry?.id);
+
     if (entry) {
       setStatus(entry.status);
       setTitle(entry.title);
@@ -57,16 +84,41 @@ export function AdminScheduleModule() {
       setVenue(entry.venue || '');
       setAssignedCrew(entry.assignedCrew || 'G Krishna + Studio Unit');
       setNotes(entry.notes || '');
+      setLinkedBookingId(entry.bookingId);
+
+      const matchedBooking = entry.bookingId
+        ? bookings.find((b) => b.id === entry.bookingId)
+        : undefined;
+
+      setPhone(entry.phone || matchedBooking?.phone || '');
+      setEventTime(entry.time || matchedBooking?.eventTime || '');
+      setRequestedServices(
+        entry.requestedServices && entry.requestedServices.length > 0
+          ? entry.requestedServices
+          : matchedBooking?.requestedServices && matchedBooking.requestedServices.length > 0
+          ? matchedBooking.requestedServices
+          : []
+      );
     } else {
       setStatus('Booked');
       setTitle('');
       setEventType('Weddings');
       setClientName('');
       setVenue('');
+      setPhone('');
+      setEventTime('');
       setAssignedCrew('G Krishna + Studio Unit');
       setNotes('');
+      setRequestedServices(['Traditional Camera', 'Candid Camera', 'Traditional Video']);
+      setLinkedBookingId(undefined);
     }
     setDialogOpen(true);
+  };
+
+  const toggleService = (service: BookingServiceOption) => {
+    setRequestedServices((prev) =>
+      prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]
+    );
   };
 
   const handleSaveEntry = async (e: React.FormEvent) => {
@@ -76,6 +128,7 @@ export function AdminScheduleModule() {
       return;
     }
 
+    setIsSaving(true);
     try {
       await upsertCalendarEntry({
         id: editingEntryId,
@@ -85,24 +138,33 @@ export function AdminScheduleModule() {
         eventType,
         clientName: clientName.trim() || undefined,
         venue: venue.trim() || undefined,
+        phone: phone.trim() || undefined,
+        time: eventTime.trim() || undefined,
         assignedCrew: assignedCrew.trim() || undefined,
         notes: notes.trim() || undefined,
+        bookingId: linkedBookingId,
+        requestedServices: requestedServices.length > 0 ? requestedServices : undefined,
       });
 
       toast.success(`Schedule updated for ${formatDateDisplay(selectedDate)} (${status}).`);
       setDialogOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save schedule entry.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleClearDate = async (dateToRemove: string, entryId?: string) => {
+    setIsSaving(true);
     try {
       await removeCalendarEntry(dateToRemove, entryId);
       setDialogOpen(false);
-      toast.info(`${formatDateDisplay(dateToRemove)} is now Open / Available on the public site.`);
+      toast.info(`Schedule entry removed for ${formatDateDisplay(dateToRemove)}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to remove schedule entry.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -114,6 +176,11 @@ export function AdminScheduleModule() {
   const selectedEntries = useMemo(
     () => calendarEntries.filter((entry) => entry.date === selectedDate),
     [calendarEntries, selectedDate]
+  );
+
+  const matchedBooking = useMemo(
+    () => (linkedBookingId ? bookings.find((b) => b.id === linkedBookingId) : undefined),
+    [bookings, linkedBookingId]
   );
 
   const weekDates = useMemo(() => {
@@ -135,25 +202,23 @@ export function AdminScheduleModule() {
     setMonthDate(new Date(date.getFullYear(), date.getMonth(), 1));
   };
 
-  const selectedHasEntry = calendarEntries.some((c) => c.date === selectedDate);
-
   return (
     <div className="space-y-6">
       {/* Full-Width Large Studio Master Calendar */}
-      <Card className="bg-[#0E423E]">
+      <Card className="bg-[#0E423E] border border-[#C5B378]/25">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#C5B378]/15 pb-5">
           <div>
-            <CardTitle className="text-xl">Studio Master Schedule Planner</CardTitle>
-            <CardDescription>
-              Click any day cell below to view details, log an offline shoot, or block out
-              Muhurtham &amp; maintenance dates.
+            <CardTitle className="text-xl text-white font-bold">Studio Master Schedule Planner</CardTitle>
+            <CardDescription className="text-[#E6ECEB]/75 text-xs sm:text-sm">
+              Click any individual event to inspect camera requirements, or click the date cell to add new bookings.
             </CardDescription>
           </div>
           <Button
             type="button"
             onClick={() => handleSelectDate(selectedDate || toISODate(new Date()))}
+            className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold shrink-0"
           >
-            <CalendarPlus className="h-4 w-4" />
+            <CalendarPlus className="h-4 w-4 mr-2" />
             Add Offline Booking / Block
           </Button>
         </CardHeader>
@@ -169,9 +234,9 @@ export function AdminScheduleModule() {
                   onClick={() => setCalendarView(view)}
                   className="capitalize"
                 >
-                  {view === 'day' && <CalendarDays className="h-3.5 w-3.5" />}
-                  {view === 'week' && <Grid2X2 className="h-3.5 w-3.5" />}
-                  {view === 'month' && <CalendarPlus className="h-3.5 w-3.5" />}
+                  {view === 'day' && <CalendarDays className="h-3.5 w-3.5 mr-1" />}
+                  {view === 'week' && <Grid2X2 className="h-3.5 w-3.5 mr-1" />}
+                  {view === 'month' && <CalendarPlus className="h-3.5 w-3.5 mr-1" />}
                   {view}
                 </Button>
               ))}
@@ -183,22 +248,18 @@ export function AdminScheduleModule() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    moveSelectedDate(calendarView === 'week' ? -7 : -1)
-                  }
+                  onClick={() => moveSelectedDate(calendarView === 'week' ? -7 : -1)}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="min-w-36 text-center text-sm font-semibold text-white">
+                <span className="min-w-36 text-center font-mono text-sm font-semibold text-white">
                   {formatDateDisplay(selectedDate)}
                 </span>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    moveSelectedDate(calendarView === 'week' ? 7 : 1)
-                  }
+                  onClick={() => moveSelectedDate(calendarView === 'week' ? 7 : 1)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -206,24 +267,33 @@ export function AdminScheduleModule() {
             )}
           </div>
 
+          {/* DAY VIEW */}
           {calendarView === 'day' && (
-            <div className="rounded-xl border border-[#C5B378]/20 bg-[#072421]/50 p-4">
+            <div className="rounded-xl border border-[#C5B378]/20 bg-[#072421]/60 p-4 sm:p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">
-                  {formatDateDisplay(selectedDate)}
-                </h3>
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    {formatDateDisplay(selectedDate)}
+                  </h3>
+                  <p className="text-xs text-[#D8C78E]">
+                    {selectedEntries.length} {selectedEntries.length === 1 ? 'event' : 'events'} scheduled
+                  </p>
+                </div>
                 <Button
                   type="button"
                   size="sm"
                   onClick={() => handleSelectDate(selectedDate)}
+                  className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
                 >
-                  <CalendarPlus className="h-4 w-4" /> Add Event
+                  <CalendarPlus className="h-4 w-4 mr-1.5" /> Add Booking / Event
                 </Button>
               </div>
+
               {selectedEntries.length === 0 ? (
-                <p className="py-10 text-center text-sm text-[#E6ECEB]/70">
-                  No events scheduled for this day.
-                </p>
+                <div className="py-12 text-center space-y-2">
+                  <p className="text-sm font-semibold text-white">No events scheduled for this day</p>
+                  <p className="text-xs text-[#E6ECEB]/60">Date is open and available for bookings.</p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {selectedEntries.map((entry) => (
@@ -231,19 +301,46 @@ export function AdminScheduleModule() {
                       key={entry.id || `${entry.date}-${entry.title}`}
                       type="button"
                       onClick={() => handleSelectDate(entry.date, entry)}
-                      className="w-full rounded-lg border border-[#C5B378]/20 bg-[#092E2B] p-4 text-left hover:border-[#D8C78E]"
+                      className="w-full text-left rounded-xl border border-[#C5B378]/25 bg-[#092E2B] p-4 transition-all hover:border-[#D8C78E] hover:bg-[#134E49]/60 cursor-pointer"
                     >
-                      <div className="flex items-center gap-2">
-                        <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
-                          {entry.status}
-                        </Badge>
-                        <span className="font-semibold text-white">{entry.title}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
+                            {entry.status}
+                          </Badge>
+                          <span className="text-base font-bold text-white">{entry.title}</span>
+                        </div>
+                        {entry.time && (
+                          <span className="font-mono text-xs text-[#D8C78E] bg-[#072421] px-2 py-0.5 rounded border border-[#C5B378]/20">
+                            {entry.time}
+                          </span>
+                        )}
                       </div>
-                      <p className="mt-2 text-xs text-[#E6ECEB]/75">
-                        {[entry.eventType, entry.venue, entry.assignedCrew]
-                          .filter(Boolean)
-                          .join(' · ')}
+
+                      <p className="mt-2 text-xs sm:text-sm text-[#E6ECEB]/80 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        {entry.eventType && <span>Category: {entry.eventType}</span>}
+                        {entry.venue && <span>· Venue: {entry.venue}</span>}
+                        {entry.clientName && <span>· Client: {entry.clientName}</span>}
+                        {entry.phone && <span className="font-mono">· Phone: {entry.phone}</span>}
+                        {entry.assignedCrew && <span>· Crew: {entry.assignedCrew}</span>}
                       </p>
+
+                      {/* Equipment & Cameras Badge Section */}
+                      {entry.requestedServices && entry.requestedServices.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-[#D8C78E] mr-1 flex items-center gap-1">
+                            <Camera className="h-3 w-3" /> Equipment Required:
+                          </span>
+                          {entry.requestedServices.map((svc) => (
+                            <span
+                              key={svc}
+                              className="inline-flex items-center text-[10px] px-2 py-0.5 rounded border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E] font-medium"
+                            >
+                              {svc}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -251,47 +348,64 @@ export function AdminScheduleModule() {
             </div>
           )}
 
+          {/* WEEK VIEW */}
           {calendarView === 'week' && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-7">
               {weekDates.map((date) => {
                 const entries = calendarEntries.filter((entry) => entry.date === date);
                 return (
-                  <button
+                  <div
                     key={date}
-                    type="button"
-                    onClick={() => {
-                      setSelectedDate(date);
-                      setCalendarView('day');
-                    }}
-                    className="min-h-36 rounded-lg border border-[#C5B378]/20 bg-[#092E2B] p-3 text-left hover:border-[#D8C78E]"
+                    className="min-h-40 rounded-lg border border-[#C5B378]/20 bg-[#092E2B] p-3 text-left flex flex-col justify-between"
                   >
-                    <p className="text-sm font-semibold text-[#D8C78E]">
-                      {formatDateDisplay(date)}
-                    </p>
-                    <div className="mt-2 space-y-1.5">
-                      {entries.slice(0, 4).map((entry) => (
-                        <div
-                          key={entry.id || `${entry.date}-${entry.title}`}
-                          className="rounded border border-white/10 bg-[#072421] px-2 py-1.5 text-xs text-white"
-                        >
-                          {entry.title}
-                        </div>
-                      ))}
-                      {entries.length === 0 && (
-                        <p className="text-xs text-[#E6ECEB]/50">Available</p>
-                      )}
-                      {entries.length > 4 && (
-                        <p className="text-xs text-[#D8C78E]">
-                          +{entries.length - 4} more
+                    <div>
+                      <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                        <p className="text-xs font-mono font-bold text-[#D8C78E]">
+                          {formatDateDisplay(date)}
                         </p>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => handleSelectDate(date)}
+                          className="text-[10px] text-[#E6ECEB]/60 hover:text-[#D8C78E] font-bold"
+                          title="Add event on this date"
+                        >
+                          + Add
+                        </button>
+                      </div>
+
+                      <div className="mt-2 space-y-1.5">
+                        {entries.slice(0, 4).map((entry) => (
+                          <button
+                            key={entry.id || `${entry.date}-${entry.title}`}
+                            type="button"
+                            onClick={() => handleSelectDate(entry.date, entry)}
+                            className="w-full text-left rounded border border-white/10 bg-[#072421] p-1.5 text-xs text-white hover:border-[#D8C78E] hover:bg-[#134E49] transition-colors cursor-pointer"
+                          >
+                            <p className="font-semibold text-[11px] truncate">{entry.title}</p>
+                            {entry.requestedServices && entry.requestedServices.length > 0 && (
+                              <p className="text-[9px] text-[#D8C78E] truncate font-mono">
+                                {entry.requestedServices.slice(0, 2).join(', ')}
+                              </p>
+                            )}
+                          </button>
+                        ))}
+                        {entries.length === 0 && (
+                          <p className="text-xs text-[#E6ECEB]/40 py-2">Open / Available</p>
+                        )}
+                        {entries.length > 4 && (
+                          <p className="text-xs font-semibold text-[#D8C78E]">
+                            +{entries.length - 4} more
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           )}
 
+          {/* MONTH VIEW (Large interactive clickable calendar) */}
           {calendarView === 'month' && (
             <StudioCalendar
               monthDate={monthDate}
@@ -307,19 +421,18 @@ export function AdminScheduleModule() {
       </Card>
 
       {/* Chronological Confirmed Events & Blocks */}
-      <Card className="bg-[#0E423E]">
+      <Card className="bg-[#0E423E] border border-[#C5B378]/25">
         <CardHeader>
-          <CardTitle>Chronological Studio Schedule &amp; Blocked Dates</CardTitle>
-          <CardDescription>
-            All confirmed events, Muhurtham rush windows, and maintenance dates synced to the
-            public availability calendar.
+          <CardTitle className="text-lg text-white font-bold">Upcoming Studio Bookings &amp; Schedules</CardTitle>
+          <CardDescription className="text-xs sm:text-sm text-[#E6ECEB]/70">
+            Chronological master list of all confirmed events, dates, crew assignments, and camera units.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {sortedEntries.length === 0 ? (
             <p className="text-sm text-[#E6ECEB]/75 py-4">
               All upcoming dates are currently Open. Click any calendar cell above to log an offline
-              booking or block.
+              booking or schedule block.
             </p>
           ) : (
             <div className="divide-y divide-[#C5B378]/15">
@@ -328,21 +441,44 @@ export function AdminScheduleModule() {
                   key={entry.id || `${entry.date}-${entry.title}-${index}`}
                   className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 max-w-3xl">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span className="font-mono text-xs font-semibold text-[#D8C78E] tabular-nums">
                         {formatDateDisplay(entry.date)}
                       </span>
+                      {entry.time && (
+                        <span className="font-mono text-[11px] text-[#E6ECEB]/80 bg-[#072421] px-1.5 py-0.5 rounded border border-white/10">
+                          {entry.time}
+                        </span>
+                      )}
                       <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
                         {entry.status}
                       </Badge>
-                      <span className="text-sm font-semibold text-white">{entry.title}</span>
+                      <span className="text-sm font-bold text-white">{entry.title}</span>
                     </div>
-                    <p className="text-xs text-[#E6ECEB]/75">
+
+                    <p className="text-xs text-[#E6ECEB]/80">
                       {[entry.eventType, entry.venue, entry.assignedCrew, entry.notes]
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
+
+                    {/* Camera Requirements in chronological list */}
+                    {entry.requestedServices && entry.requestedServices.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] text-[#D8C78E] font-medium flex items-center gap-1 mr-1">
+                          <Camera className="h-2.5 w-2.5" /> Cameras:
+                        </span>
+                        {entry.requestedServices.map((svc) => (
+                          <span
+                            key={svc}
+                            className="text-[10px] px-2 py-0.5 rounded border border-[#C5B378]/30 bg-[#C5B378]/10 text-[#D8C78E] font-medium"
+                          >
+                            {svc}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -351,7 +487,7 @@ export function AdminScheduleModule() {
                       variant="outline"
                       onClick={() => handleSelectDate(entry.date, entry)}
                     >
-                      Edit
+                      View &amp; Edit
                     </Button>
                     <Button
                       size="sm"
@@ -368,64 +504,117 @@ export function AdminScheduleModule() {
         </CardContent>
       </Card>
 
-      {/* Edit / Block Selected Date Modal */}
+      {/* Edit / Manage Selected Event Details Modal */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-xl bg-[#092E2B] border-[#C5B378]/35">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
           <DialogHeader>
-            <DialogTitle>Manage Date · {formatDateDisplay(selectedDate)}</DialogTitle>
-            <DialogDescription>
-              Updates sync immediately with the live public Availability Calendar.
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-[#D8C78E]" />
+                <DialogTitle className="text-xl text-white">
+                  {editingEntryId ? 'Event & Schedule Details' : 'Add Booking / Block Date'}
+                </DialogTitle>
+              </div>
+              <Badge variant={status === 'Booked' ? 'declined' : 'pending'}>
+                {status}
+              </Badge>
+            </div>
+            <DialogDescription className="text-xs sm:text-sm text-[#E6ECEB]/75">
+              Scheduled Date: <span className="font-mono font-semibold text-[#D8C78E]">{formatDateDisplay(selectedDate)}</span>
+              {venue ? ` · ${venue}` : ''}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveEntry} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Linked Booking Summary Banner (if created via Inquiry) */}
+          {matchedBooking && (
+            <div className="rounded-xl border border-[#C5B378]/35 bg-[#072421] p-3.5 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-xs font-semibold text-[#D8C78E]">
+                  Linked Inquiry Ref: {matchedBooking.referenceCode}
+                </span>
+                <span className="text-xs text-[#E6ECEB]/80 font-medium">
+                  Package: {matchedBooking.packageName} ({formatINR(matchedBooking.quotedAmount)})
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span>Client: {matchedBooking.clientName}</span>
+                {matchedBooking.phone && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[#D8C78E]">{matchedBooking.phone}</span>
+                    <a
+                      href={buildWhatsAppUrl(
+                        matchedBooking.phone,
+                        `Vanakkam ${matchedBooking.clientName}! This is G Krishna from GK STUDIOS regarding your ${matchedBooking.eventType} scheduled on ${formatDateDisplay(
+                          selectedDate
+                        )}.`
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#25D366] hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      <MessageCircle className="h-3 w-3" /> WhatsApp
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveEntry} className="space-y-4 pt-1">
+            {/* SECTION 1: Event & Client Information */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Target Date</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Date *</label>
                 <input
                   type="date"
+                  required
                   value={selectedDate}
-                  onChange={(e) => {
-                    const nextIso = e.target.value;
-                    const existing = calendarEntries.find((c) => c.date === nextIso);
-                    handleSelectDate(nextIso, existing);
-                  }}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">
-                  Availability Status
-                </label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Shift / Time</label>
+                <input
+                  type="text"
+                  value={eventTime}
+                  onChange={(e) => setEventTime(e.target.value)}
+                  placeholder="e.g., 06:00 AM Muhurtham"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#D8C78E]">Availability Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as 'Booked' | 'Limited')}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 >
-                  <option value="Booked">Booked (Unavailable)</option>
-                  <option value="Limited">Limited (1 Crew Slot Remaining)</option>
+                  <option value="Booked">Booked (Full Crew Deployed)</option>
+                  <option value="Limited">Limited (1 Slot Remaining)</option>
                 </select>
               </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#D8C78E]">
-                Schedule Title / Block Reason *
+                Event Title / Client Name *
               </label>
               <input
                 type="text"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Karthik & Meera — Offline Temple Booking"
-                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                placeholder="e.g., Kaveri & Subramanian — Iyer Wedding & Muhurtham"
+                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Category</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Category</label>
                 <select
                   value={eventType}
                   onChange={(e) =>
@@ -446,12 +635,12 @@ export function AdminScheduleModule() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Assigned Crew</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Venue / Location</label>
                 <input
                   type="text"
-                  value={assignedCrew}
-                  onChange={(e) => setAssignedCrew(e.target.value)}
-                  placeholder="e.g., G Krishna + 2 Crew"
+                  value={venue}
+                  onChange={(e) => setVenue(e.target.value)}
+                  placeholder="Mandapam / Hall / City"
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
@@ -459,65 +648,137 @@ export function AdminScheduleModule() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">
-                  Client Name (Optional)
-                </label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Client Contact Name</label>
                 <input
                   type="text"
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Client family name"
+                  placeholder="e.g., Subramanian (Groom's Father)"
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">
-                  Venue (Optional)
-                </label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Phone Number</label>
                 <input
-                  type="text"
-                  value={venue}
-                  onChange={(e) => setVenue(e.target.value)}
-                  placeholder="Mandapam / City"
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g., 9842211900"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
             </div>
 
+            {/* SECTION 2: DEDICATED CAMERA & EQUIPMENT REQUIREMENTS */}
+            <div className="space-y-2.5 rounded-xl border border-[#C5B378]/30 bg-[#072421] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-[#D8C78E]" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                    Camera &amp; Equipment Requirements
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-[#D8C78E]">
+                  {requestedServices.length} {requestedServices.length === 1 ? 'service' : 'services'} selected
+                </span>
+              </div>
+              <p className="text-xs text-[#E6ECEB]/70">
+                Specify camera units, traditional video, candid photography, drone, and display screens needed:
+              </p>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {BOOKING_SERVICE_OPTIONS.map((service) => {
+                  const isSelected = requestedServices.includes(service);
+                  return (
+                    <button
+                      key={service}
+                      type="button"
+                      onClick={() => toggleService(service)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-all cursor-pointer',
+                        isSelected
+                          ? 'border-[#C5B378] bg-[#C5B378]/25 text-[#D8C78E] shadow-sm'
+                          : 'border-white/15 bg-[#092E2B]/80 text-[#E6ECEB]/70 hover:border-white/30 hover:text-white'
+                      )}
+                    >
+                      <span className="font-bold">{isSelected ? '✓' : '+'}</span>
+                      <span>{service}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SECTION 3: Crew Assignment */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#D8C78E]">Shoot Notes</label>
+              <label className="block text-xs font-medium text-[#D8C78E]">
+                Assigned Studio Crew &amp; Operators
+              </label>
+              <input
+                type="text"
+                value={assignedCrew}
+                onChange={(e) => setAssignedCrew(e.target.value)}
+                placeholder="e.g., G Krishna (Lead Candid) + Bala (Cinema) + Mani (Traditional Video)"
+                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+              />
+            </div>
+
+            {/* SECTION 4: Notes */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#D8C78E]">
+                Logistics &amp; Ceremony Notes
+              </label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Muhurtham timing, drone gear checklist, or slot notes..."
-                className="w-full rounded-md border border-[#C5B378]/30 bg-[#072421] p-3 text-sm text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                placeholder="Muhurtham timings, special pooja instructions, outdoor drone permission, etc."
+                className="w-full rounded-md border border-[#C5B378]/30 bg-[#072421] p-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
               />
             </div>
 
-            <DialogFooter className="sm:justify-between">
-              {selectedHasEntry ? (
+            <DialogFooter className="sm:justify-between pt-2 gap-2">
+              {editingEntryId ? (
                 <Button
                   type="button"
                   variant="destructive"
                   size="sm"
+                  disabled={isSaving}
                   onClick={() => handleClearDate(selectedDate, editingEntryId)}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Mark Date Open
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Remove Entry
                 </Button>
               ) : (
                 <div />
               )}
 
               <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={() => setDialogOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  <CalendarPlus className="h-4 w-4" />
-                  Save Schedule Entry
+                <Button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CalendarPlus className="h-4 w-4 mr-1.5" />
+                      {editingEntryId ? 'Update Schedule Entry' : 'Save Schedule Entry'}
+                    </>
+                  )}
                 </Button>
               </div>
             </DialogFooter>

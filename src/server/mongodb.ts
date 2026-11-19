@@ -85,6 +85,9 @@ const CalendarScheduleSchema = new Schema<CalendarScheduleDocument>(
     assignedCrew: String,
     notes: String,
     bookingId: String,
+    phone: String,
+    time: String,
+    requestedServices: { type: [String], default: [] },
   },
   { collection: 'calendar_schedule', strict: false, timestamps: false }
 );

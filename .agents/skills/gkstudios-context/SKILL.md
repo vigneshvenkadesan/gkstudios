@@ -117,7 +117,7 @@ gkstudios/
 - `id`: string
 - `date`: string (`YYYY-MM-DD`)
 - `status`: `'Booked'` | `'Limited'`
-- `title`, `eventType`, `clientName`, `venue`, `assignedCrew`, `notes`, `bookingId`
+- `title`, `eventType`, `clientName`, `venue`, `assignedCrew`, `notes`, `bookingId`, `phone`, `time`, `requestedServices`
 
 ### `EventProject` (Collection: `event_projects`)
 - `id`, `bookingId`, `referenceCode`, `clientName`, `phone`, `eventType`, `eventDate`, `endDate`, `venue`, `packageName`, `assignedCrew`

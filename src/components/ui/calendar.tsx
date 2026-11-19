@@ -170,12 +170,19 @@ export function StudioCalendar({
 
           if (isLarge) {
             return (
-              <button
+              <div
                 key={cell.iso}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelectDate(cell.iso, undefined)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectDate(cell.iso, undefined);
+                  }
+                }}
                 className={cn(
-                  'group relative flex min-h-[88px] sm:min-h-[112px] flex-col justify-between rounded-md border p-2 sm:p-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer',
+                  'group relative flex min-h-[76px] sm:min-h-[112px] flex-col justify-between rounded-md border p-1.5 sm:p-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer',
                   isPast && !entry
                     ? 'border-[#C5B378]/10 bg-[#072421]/50 text-[#E6ECEB]/40 hover:border-[#C5B378]/30'
                     : status === 'Available'
@@ -189,7 +196,7 @@ export function StudioCalendar({
                 <div className="flex w-full items-center justify-between gap-1">
                   <span
                     className={cn(
-                      'font-mono text-sm sm:text-base font-semibold tabular-nums',
+                      'font-mono text-xs sm:text-base font-semibold tabular-nums',
                       isSelected ? 'text-[#D8C78E]' : 'text-white'
                     )}
                   >
@@ -197,7 +204,7 @@ export function StudioCalendar({
                   </span>
                   <span
                     className={cn(
-                      'text-[10px] font-semibold leading-none px-1.5 py-0.5 rounded-sm',
+                      'text-[9px] sm:text-[10px] font-semibold leading-none px-1 py-0.5 sm:px-1.5 rounded-sm shrink-0',
                       status === 'Booked'
                         ? 'bg-rose-500/25 text-rose-200'
                         : status === 'Limited'
@@ -205,18 +212,27 @@ export function StudioCalendar({
                         : 'text-emerald-300/80'
                     )}
                   >
-                    {statusLabel(status)}
+                    <span className="sm:hidden font-mono font-bold">
+                      {status === 'Available' ? 'O' : status === 'Limited' ? 'L' : 'B'}
+                    </span>
+                    <span className="hidden sm:inline">{statusLabel(status)}</span>
                   </span>
                 </div>
 
                 {entry ? (
-                  <div className="mt-1.5 w-full space-y-1 overflow-hidden">
+                  <div className="mt-1 sm:mt-1.5 w-full space-y-1 overflow-hidden">
                     {entry.slice(0, 3).map((dayEntry) => (
-                      <div
+                      <button
                         key={dayEntry.id || `${dayEntry.date}-${dayEntry.title}`}
-                        className="rounded-sm border border-white/10 bg-black/15 px-1.5 py-1"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectDate(cell.iso, dayEntry);
+                        }}
+                        className="w-full text-left rounded-sm border border-white/15 bg-black/30 px-1 py-0.5 sm:px-1.5 sm:py-1 transition-all hover:border-[#D8C78E] hover:bg-[#134E49] cursor-pointer group/item"
+                        title={`Click to view/manage: ${dayEntry.title}`}
                       >
-                        <p className="text-[10px] sm:text-xs font-medium text-white truncate">
+                        <p className="text-[9px] sm:text-xs font-semibold text-white truncate group-hover/item:text-[#D8C78E]">
                           {dayEntry.title}
                         </p>
                         {dayEntry.venue && (
@@ -224,20 +240,33 @@ export function StudioCalendar({
                             {dayEntry.venue}
                           </p>
                         )}
-                      </div>
+                        {dayEntry.requestedServices && dayEntry.requestedServices.length > 0 && (
+                          <p className="hidden md:block text-[8px] text-[#D8C78E]/90 truncate font-mono">
+                            {dayEntry.requestedServices.slice(0, 2).join(' · ')}
+                            {dayEntry.requestedServices.length > 2 ? ' +' : ''}
+                          </p>
+                        )}
+                      </button>
                     ))}
                     {entry.length > 3 && (
-                      <p className="text-[10px] font-semibold text-[#D8C78E]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectDate(cell.iso, undefined);
+                        }}
+                        className="text-[9px] sm:text-[10px] font-semibold text-[#D8C78E] hover:underline"
+                      >
                         +{entry.length - 3} more
-                      </p>
+                      </button>
                     )}
                   </div>
                 ) : (
                   <p className="hidden sm:block text-[10px] text-[#E6ECEB]/40 group-hover:text-[#D8C78E] transition-colors">
-                    Click to block
+                    + Add entry
                   </p>
                 )}
-              </button>
+              </div>
             );
           }
 
@@ -277,7 +306,7 @@ export function StudioCalendar({
               {!isPast && (
                 <span
                   className={cn(
-                    'mt-1 text-[9px] sm:text-[10px] leading-none font-medium tracking-[0.01em]',
+                    'mt-0.5 sm:mt-1 text-[8px] sm:text-[10px] leading-none font-medium tracking-[0.01em]',
                     isSelected
                       ? 'text-[#061E1C]'
                       : status === 'Booked'
@@ -287,7 +316,10 @@ export function StudioCalendar({
                       : 'text-[#D8C78E]/75'
                   )}
                 >
-                  {statusLabel(status)}
+                  <span className="sm:hidden font-mono font-bold">
+                    {status === 'Available' ? 'O' : status === 'Limited' ? 'L' : 'B'}
+                  </span>
+                  <span className="hidden sm:inline">{statusLabel(status)}</span>
                 </span>
               )}
             </button>
