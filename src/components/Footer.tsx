@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ArrowUpRight, LockKeyhole, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { EventCategory } from '@/src/types/studio';
 import { buildWhatsAppUrl } from '@/src/lib/utils';
@@ -37,6 +38,7 @@ export function Footer({
 }: FooterProps) {
   const { locale } = usePublicPreferences();
   const t = (key: TranslationKey) => translate(locale, key);
+  const prefersReducedMotion = Boolean(useReducedMotion());
   const whatsappUrl = buildWhatsAppUrl(
     STUDIO_INFO.phone,
     locale === 'ta'
@@ -49,7 +51,14 @@ export function Footer({
   )}`;
 
   return (
-    <footer id="contact" className="scroll-mt-16 bg-[#061E1C] text-[#E6ECEB]/80 sm:scroll-mt-[72px]">
+    <motion.footer
+      id="contact"
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.08 }}
+      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+      className="scroll-mt-16 bg-[#061E1C] text-[#E6ECEB]/80 sm:scroll-mt-[72px]"
+    >
       <div className="mx-auto max-w-7xl px-4 pt-12 pb-8 sm:px-6 sm:pt-14 sm:pb-9 lg:px-8">
         {/* Balanced 3-Column Editorial Grid */}
         <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:gap-8 lg:gap-12">
@@ -112,7 +121,7 @@ export function Footer({
                 >
                   <MessageCircle className="h-4 w-4 shrink-0" />
                   <span>{t('footer.whatsapp')}</span>
-                  <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0" />
                 </a>
               </div>
             </div>
@@ -184,6 +193,6 @@ export function Footer({
           </div>
         </div>
       </div>
-    </footer>
+    </motion.footer>
   );
 }

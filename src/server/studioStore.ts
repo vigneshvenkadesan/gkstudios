@@ -2,8 +2,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import {
   BookingRequest,
+  BookingServiceOption,
   BookingStatus,
   CalendarDayEntry,
+  CUSTOM_PACKAGE_ID,
+  CUSTOM_PACKAGE_NAME,
   EventCategory,
   EventProject,
   EventStage,
@@ -92,10 +95,14 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): Book
     eventType: booking.eventType,
     preferredDate: String(booking.preferredDate),
     ...(booking.endDate ? { endDate: String(booking.endDate) } : {}),
+    ...(booking.eventTime ? { eventTime: String(booking.eventTime) } : {}),
     venue: String(booking.venue),
     packageId: String(booking.packageId),
     packageName: String(booking.packageName),
     quotedAmount: Number(booking.quotedAmount),
+    ...(Array.isArray(booking.requestedServices) && booking.requestedServices.length
+      ? { requestedServices: booking.requestedServices }
+      : {}),
     notes: String(booking.notes || ''),
     status: booking.status,
     ...(booking.assignedCrew ? { assignedCrew: String(booking.assignedCrew) } : {}),
@@ -173,8 +180,10 @@ export async function createBookingOnServer(input: {
   eventType: EventCategory;
   preferredDate: string;
   endDate?: string;
+  eventTime?: string;
   venue: string;
   packageId: string;
+  requestedServices?: BookingServiceOption[];
   notes: string;
 }): Promise<BookingRequest> {
   const state = await getStudioState();
@@ -185,8 +194,10 @@ export async function createBookingOnServer(input: {
     throw new Error(`Selected date ${input.preferredDate} is already booked.`);
   }
 
-  const selectedPkg =
-    state.packages.find((p) => p.id === input.packageId) || state.packages[0];
+  const isCustomPackage = input.packageId === CUSTOM_PACKAGE_ID;
+  const selectedPkg = isCustomPackage
+    ? undefined
+    : state.packages.find((p) => p.id === input.packageId) || state.packages[0];
   const now = new Date();
   const refNumber = String(Math.floor(100 + Math.random() * 900));
 
@@ -200,10 +211,14 @@ export async function createBookingOnServer(input: {
     eventType: input.eventType,
     preferredDate: input.preferredDate,
     endDate: input.endDate || undefined,
+    eventTime: input.eventTime?.trim() || undefined,
     venue: input.venue.trim(),
-    packageId: selectedPkg.id,
-    packageName: selectedPkg.name,
-    quotedAmount: selectedPkg.price,
+    packageId: selectedPkg?.id || CUSTOM_PACKAGE_ID,
+    packageName: selectedPkg?.name || CUSTOM_PACKAGE_NAME,
+    quotedAmount: selectedPkg?.price || 0,
+    requestedServices: input.requestedServices?.length
+      ? input.requestedServices
+      : undefined,
     notes: input.notes.trim(),
     status: 'Pending',
     createdAt: now.toISOString(),
@@ -261,7 +276,12 @@ export async function processBookingOnServer(input: {
   }
 
   const pkg = state.packages.find((p) => p.id === input.packageId);
-  const resolvedPkgName = pkg ? pkg.name : targetBooking.packageName;
+  const resolvedPkgName =
+    input.packageId === CUSTOM_PACKAGE_ID
+      ? CUSTOM_PACKAGE_NAME
+      : pkg
+        ? pkg.name
+        : targetBooking.packageName;
   const resolvedCrew =
     input.assignedCrew?.trim() || targetBooking.assignedCrew || 'G Krishna & Studio Unit';
 

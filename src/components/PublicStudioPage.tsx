@@ -2,19 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MotionConfig } from 'motion/react';
+import { MotionConfig, useReducedMotion } from 'motion/react';
 import { toast } from 'sonner';
 import { EventCategory, StudioPackage } from '@/src/types/studio';
 import { Navbar } from '@/src/components/Navbar';
 import { HeroSection } from '@/src/components/HeroSection';
 import { StatsSection } from '@/src/components/StatsSection';
+import { DeliveryPromiseSection } from '@/src/components/DeliveryPromiseSection';
 import { PortfolioSection } from '@/src/components/PortfolioSection';
 import { PackagesSection } from '@/src/components/PackagesSection';
 import { StudioAboutSection } from '@/src/components/StudioAboutSection';
 import { BookingSection } from '@/src/components/BookingSection';
 import { Footer } from '@/src/components/Footer';
 import { PublicPreferencesProvider, usePublicPreferences } from '@/src/context/PublicPreferencesContext';
-import { localizePackage, translate, translateCategory } from '@/src/i18n/translations';
+import { getPackageCopy, translate, translateCategory } from '@/src/i18n/translations';
 
 export function PublicStudioPage() {
   return (
@@ -27,6 +28,7 @@ export function PublicStudioPage() {
 function PublicStudioContent() {
   const router = useRouter();
   const { locale } = usePublicPreferences();
+  const prefersReducedMotion = Boolean(useReducedMotion());
   const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) =>
     translate(locale, key, params);
   const [selectedPackageId, setSelectedPackageId] = useState<string>('pkg-grand');
@@ -62,12 +64,14 @@ function PublicStudioContent() {
   }, [router]);
 
   const jumpToSection = (sectionId: string) => {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById(sectionId)?.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    });
   };
 
   const handleSelectPackage = (pkg: StudioPackage) => {
     setSelectedPackageId(pkg.id);
-    toast.success(t('packages.selectedToast', { name: localizePackage(locale, pkg).name }));
+    toast.success(t('packages.selectedToast', { name: getPackageCopy(pkg).name }));
     jumpToSection('availability');
   };
 
@@ -98,6 +102,7 @@ function PublicStudioContent() {
             onCheckAvailability={() => jumpToSection('availability')}
             onExploreWork={() => jumpToSection('portfolio')}
           />
+          <DeliveryPromiseSection />
           <StatsSection />
           <PortfolioSection
             onBookCategory={handleBookCategory}

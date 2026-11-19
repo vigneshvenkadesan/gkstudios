@@ -52,7 +52,7 @@ function AnimatedStatValue({
       return;
     }
 
-    const durationMs = 1000;
+    const durationMs = 750;
     const startTime = performance.now();
     const target = item.targetNumber;
     let rafId = 0;
@@ -90,7 +90,7 @@ function AnimatedStatValue({
 
 export function StatsSection() {
   const { locale } = usePublicPreferences();
-  const t = (key: TranslationKey) => translate(locale, key);
+  const t = (key: TranslationKey) => translate('en', key);
   const sectionRef = useRef<HTMLElement | null>(null);
   const isInView = useInView(sectionRef, { once: true, amount: 0.25 });
   const prefersReducedMotion = Boolean(useReducedMotion());
@@ -98,7 +98,7 @@ export function StatsSection() {
   return (
     <section
       ref={sectionRef}
-      aria-label={t('stats.aria')}
+      aria-label={translate(locale, 'stats.aria')}
       className="bg-[#072421] border-b border-[#C5B378]/18"
     >
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
@@ -111,7 +111,7 @@ export function StatsSection() {
               viewport={{ once: true, amount: 0.25 }}
               transition={{
                 duration: 0.5,
-                delay: idx * 0.07,
+                delay: idx * 0.09,
                 ease: [0.16, 1, 0.3, 1],
               }}
               className="lg:px-8 first:lg:pl-0 last:lg:pr-0 space-y-1"

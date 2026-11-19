@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createBookingOnServer } from '@/src/server/studioStore';
-import { EventCategory } from '@/src/types/studio';
+import {
+  BOOKING_SERVICE_OPTIONS,
+  BookingServiceOption,
+  EventCategory,
+} from '@/src/types/studio';
+
+const bookingServiceSet = new Set<string>(BOOKING_SERVICE_OPTIONS);
 
 export async function POST(request: Request) {
   try {
@@ -10,9 +16,11 @@ export async function POST(request: Request) {
       eventType?: EventCategory;
       preferredDate?: string;
       endDate?: string;
+      eventTime?: string;
       venue?: string;
       packageId?: string;
       notes?: string;
+      requestedServices?: unknown;
     };
 
     if (!body.clientName?.trim() || !body.phone?.trim() || !body.preferredDate || !body.venue?.trim()) {
@@ -28,8 +36,15 @@ export async function POST(request: Request) {
       eventType: body.eventType || 'Weddings',
       preferredDate: body.preferredDate,
       endDate: body.endDate,
+      eventTime: body.eventTime,
       venue: body.venue,
       packageId: body.packageId || 'pkg-grand',
+      requestedServices: Array.isArray(body.requestedServices)
+        ? body.requestedServices.filter(
+            (service): service is BookingServiceOption =>
+              typeof service === 'string' && bookingServiceSet.has(service)
+          )
+        : [],
       notes: body.notes || '',
     });
 

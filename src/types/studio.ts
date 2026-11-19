@@ -62,6 +62,21 @@ export function normalizeEventCategory(category?: string): CoreEventCategory {
 
 export type BookingStatus = 'Pending' | 'Acknowledged' | 'Confirmed' | 'Declined';
 
+export const CUSTOM_PACKAGE_ID = 'custom-package';
+export const CUSTOM_PACKAGE_NAME = 'Custom Package';
+
+export const BOOKING_SERVICE_OPTIONS = [
+  'Traditional Camera',
+  'Candid Camera',
+  'Candid Video',
+  'Traditional Video',
+  'Drone',
+  'TV',
+  'LED Wall',
+] as const;
+
+export type BookingServiceOption = (typeof BOOKING_SERVICE_OPTIONS)[number];
+
 export type AvailabilityStatus = 'Available' | 'Limited' | 'Booked';
 
 export type EventStage =
@@ -151,10 +166,12 @@ export interface BookingRequest {
   eventType: EventCategory;
   preferredDate: string; // YYYY-MM-DD
   endDate?: string; // Optional multi-day YYYY-MM-DD
+  eventTime?: string; // Optional HH:mm
   venue: string;
   packageId: string;
   packageName: string;
   quotedAmount: number;
+  requestedServices?: BookingServiceOption[];
   notes: string;
   status: BookingStatus;
   assignedCrew?: string;

@@ -8,6 +8,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Phone,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
@@ -41,12 +42,12 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
   }, [slides.length, currentIndex]);
 
   useEffect(() => {
-    if (slides.length <= 1) return;
+    if (slides.length <= 1 || prefersReducedMotion) return;
     const timer = window.setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % slides.length);
     }, 6800);
     return () => window.clearInterval(timer);
-  }, [slides.length]);
+  }, [prefersReducedMotion, slides.length]);
 
   const activeSlide = slides[currentIndex];
   const activeSlideTitle = activeSlide
@@ -77,12 +78,12 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
           {activeSlide && !failedImages[activeSlide.id] ? (
             <motion.div
               key={activeSlide.id}
-              initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 1.05 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, scale: 1 }}
+              animate={{ opacity: 1, scale: prefersReducedMotion ? 1 : 1.045 }}
               exit={{ opacity: 0 }}
               transition={{
                 opacity: { duration: 1.0, ease: 'easeInOut' },
-                scale: { duration: 7.5, ease: [0.16, 1, 0.3, 1] },
+                scale: { duration: 8, ease: [0.16, 1, 0.3, 1] },
               }}
               className="absolute inset-0"
             >
@@ -162,7 +163,14 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             transition={{ duration: 0.75, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-wrap items-center gap-3.5 pt-2"
           >
-            <Button size="lg" onClick={onCheckAvailability}>
+            <a
+              href="tel:+917418543123"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-sm bg-[#C5B378] px-7 text-sm font-semibold tracking-[0.02em] text-[#061E1C] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_0_24px_rgba(197,179,120,0.16)] transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-[#D8C78E] hover:shadow-[0_0_28px_rgba(216,199,142,0.28)] active:scale-[0.99] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#092E2B]"
+            >
+              <Phone className="h-4 w-4" />
+              Call GK Studios
+            </a>
+            <Button size="lg" variant="secondary" onClick={onCheckAvailability}>
               <Calendar className="h-4 w-4" />
               Check Availability
             </Button>
@@ -194,15 +202,10 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             <button
               type="button"
               onClick={onExploreWork}
-              className="hidden sm:inline-flex items-center gap-2 text-xs font-medium tracking-[0.14em] text-[#E6ECEB]/75 hover:text-[#D8C78E] transition-colors cursor-pointer"
+              className="group hidden sm:inline-flex items-center gap-2 text-xs font-medium tracking-[0.14em] text-[#E6ECEB]/75 hover:text-[#D8C78E] transition-colors cursor-pointer"
             >
               <span>{t('hero.scroll')}</span>
-              <motion.span
-                animate={prefersReducedMotion ? undefined : { y: [0, 3, 0] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <ArrowDown className="h-3.5 w-3.5 text-[#D8C78E]" />
-              </motion.span>
+              <ArrowDown className="h-3.5 w-3.5 text-[#D8C78E] transition-transform duration-300 ease-out group-hover:translate-y-0.5 motion-reduce:group-hover:translate-y-0" />
             </button>
 
             {slides.length > 1 && (

@@ -136,7 +136,7 @@ export function PortfolioSection({
   return (
     <section
       id="portfolio"
-      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-20 sm:py-28 border-b border-[#C5B378]/18"
+      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-16 sm:py-24 border-b border-[#C5B378]/18"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Minimal Editorial Header */}
@@ -240,7 +240,7 @@ export function PortfolioSection({
                 viewport={{ once: true, amount: 0.12 }}
                 transition={{
                   duration: 0.55,
-                  delay: Math.min(idx * 0.06, 0.28),
+                  delay: Math.min(idx * 0.09, 0.45),
                   ease: [0.16, 1, 0.3, 1],
                 }}
                 onClick={() => setLightboxItem(item)}
@@ -258,7 +258,7 @@ export function PortfolioSection({
                     onError={() =>
                       setFailedImages((prev) => ({ ...prev, [item.id]: true }))
                     }
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04] motion-reduce:group-hover:scale-100"
                   />
                 ) : (
                   <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0E423E] to-[#061E1C] p-6 text-center">
@@ -278,7 +278,7 @@ export function PortfolioSection({
                 </div>
 
                 {/* Short Editorial Caption */}
-                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                <div className="absolute inset-x-0 bottom-0 p-5 transition-transform duration-500 ease-out group-hover:-translate-y-1 motion-reduce:group-hover:translate-y-0 sm:p-6">
                   <p className="text-xs font-medium text-[#D8C78E] truncate">
                     {translateCategory(locale, item.category)} · {localizePortfolioText(locale, item.id, 'location', item.location)}
                   </p>
@@ -291,7 +291,7 @@ export function PortfolioSection({
           </div>
         )}
 
-        <MandalaDivider className="mt-20" />
+        <MandalaDivider className="mt-12" />
       </div>
 
       {/* Fullscreen Editorial Lightbox Modal */}

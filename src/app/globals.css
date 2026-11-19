@@ -42,6 +42,13 @@
     }
   }
 
+  @media (scripting: none) {
+    [style*="opacity"] {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+
   h1, h2, h3, h4 {
     text-wrap: balance;
   }

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   BookingRequest,
+  BookingServiceOption,
   BookingStatus,
   CalendarDayEntry,
   EventCategory,
@@ -21,8 +22,10 @@ interface SubmitBookingInput {
   eventType: EventCategory;
   preferredDate: string;
   endDate?: string;
+  eventTime?: string;
   venue: string;
   packageId: string;
+  requestedServices?: BookingServiceOption[];
   notes: string;
 }
 

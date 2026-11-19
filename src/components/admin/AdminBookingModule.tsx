@@ -12,7 +12,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
-import { BookingRequest, BookingStatus } from '@/src/types/studio';
+import {
+  BookingRequest,
+  BookingStatus,
+  CUSTOM_PACKAGE_ID,
+  CUSTOM_PACKAGE_NAME,
+} from '@/src/types/studio';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR } from '@/src/lib/utils';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
@@ -116,7 +121,13 @@ export function AdminBookingModule() {
       `Vanakkam ${activeBooking.clientName}!`,
       `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
       `We have received your ${activeBooking.eventType} inquiry (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}.`,
-      `Package: ${pkgName} | Quote: ${formatINR(editQuote)}`,
+      activeBooking.eventTime ? `Event time: ${activeBooking.eventTime}` : '',
+      activeBooking.requestedServices?.length
+        ? `Requested services: ${activeBooking.requestedServices.join(', ')}`
+        : '',
+      `Package: ${pkgName} | Quote: ${
+        editPackageId === CUSTOM_PACKAGE_ID ? 'Custom quote to discuss' : formatINR(editQuote)
+      }`,
       editNote ? `Note: ${editNote}` : '',
       `Reply to confirm your advance & lock the date. Contact: 7418543123.`,
     ]
@@ -268,6 +279,11 @@ export function AdminBookingModule() {
                     <p className="font-mono text-sm text-white tabular-nums whitespace-nowrap">
                       {formatDateDisplay(booking.preferredDate)}
                     </p>
+                    {booking.eventTime && (
+                      <p className="mt-1 font-mono text-xs text-[#E6ECEB]/70 tabular-nums">
+                        {booking.eventTime}
+                      </p>
+                    )}
                     {booking.endDate && (
                       <p className="mt-1 font-mono text-xs text-[#D8C78E] tabular-nums whitespace-nowrap">
                         to {formatDateDisplay(booking.endDate)}
@@ -277,8 +293,15 @@ export function AdminBookingModule() {
                   <TableCell className="px-5 py-5">
                     <p className="text-base text-white">{booking.packageName}</p>
                     <p className="mt-1 font-mono text-sm text-[#D8C78E] tabular-nums">
-                      {formatINR(booking.quotedAmount)}
+                      {booking.packageId === CUSTOM_PACKAGE_ID
+                        ? 'Custom quote'
+                        : formatINR(booking.quotedAmount)}
                     </p>
+                    {booking.requestedServices?.length ? (
+                      <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-[#E6ECEB]/70">
+                        {booking.requestedServices.join(', ')}
+                      </p>
+                    ) : null}
                   </TableCell>
                   <TableCell className="px-5 py-5">{getStatusBadge(booking.status)}</TableCell>
                   <TableCell className="px-5 py-5 text-right">
@@ -307,6 +330,7 @@ export function AdminBookingModule() {
               <DialogHeader>
                 <p className="font-mono text-xs text-[#D8C78E] tabular-nums">
                   {activeBooking.referenceCode} · {formatDateDisplay(activeBooking.preferredDate)}
+                  {activeBooking.eventTime ? ` · ${activeBooking.eventTime}` : ''}
                 </p>
                 <DialogTitle className="text-xl text-white">
                   {activeBooking.clientName} — {activeBooking.eventType}
@@ -323,6 +347,13 @@ export function AdminBookingModule() {
                 </div>
               )}
 
+              {activeBooking.requestedServices?.length ? (
+                <div className="rounded-lg border border-[#C5B378]/20 bg-[#072421] p-3 text-xs text-[#E6ECEB]/85">
+                  <span className="font-semibold text-[#D8C78E]">Requested services: </span>
+                  {activeBooking.requestedServices.join(', ')}
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-[#D8C78E]">
@@ -334,7 +365,7 @@ export function AdminBookingModule() {
                       const nextId = e.target.value;
                       setEditPackageId(nextId);
                       const found = packages.find((p) => p.id === nextId);
-                      if (found) setEditQuote(found.price);
+                      setEditQuote(found?.price ?? 0);
                     }}
                     className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                   >
@@ -343,6 +374,7 @@ export function AdminBookingModule() {
                         {p.name}
                       </option>
                     ))}
+                    <option value={CUSTOM_PACKAGE_ID}>{CUSTOM_PACKAGE_NAME}</option>
                   </select>
                 </div>
 

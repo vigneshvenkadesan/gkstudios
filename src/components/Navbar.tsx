@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Menu, Moon, Sun, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { GKCameraMark } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
 import { useOptionalPublicPreferences } from '@/src/context/PublicPreferencesContext';
@@ -28,6 +28,7 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('hero');
+  const prefersReducedMotion = Boolean(useReducedMotion());
   const preferences = useOptionalPublicPreferences();
   const locale: PublicLocale = preferences?.locale ?? 'en';
   const t = (key: TranslationKey) => translate(locale, key);
@@ -124,14 +125,14 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
                 key={link.id}
                 type="button"
                 onClick={() => handleLink(link.id)}
-                className={`relative whitespace-nowrap shrink-0 py-1.5 tracking-[0.02em] transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] rounded-sm ${
+                className={`relative whitespace-nowrap shrink-0 py-1.5 tracking-[0.02em] transition-colors duration-300 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] rounded-sm ${
                   isActive ? 'text-white' : 'text-[#E6ECEB]/80 hover:text-white'
                 }`}
               >
                 {activeView === 'public' ? t(link.key) : translate('en', link.key)}
                 <span
                   aria-hidden="true"
-                  className={`absolute inset-x-0 -bottom-0.5 h-[1.5px] bg-[#D8C78E] transition-transform duration-200 origin-left ${
+                  className={`absolute inset-x-0 -bottom-0.5 h-[1.5px] bg-[#D8C78E] transition-transform duration-300 ease-out origin-left ${
                     isActive ? 'scale-x-100' : 'scale-x-0'
                   }`}
                 />
@@ -200,9 +201,9 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className={`${activeView === 'public' ? 'lg:hidden' : 'md:hidden'} border-t border-[#C5B378]/20 bg-[#072421]/98 backdrop-blur-lg px-4 py-5`}
           >

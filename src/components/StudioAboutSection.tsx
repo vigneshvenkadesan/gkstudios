@@ -35,7 +35,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
   return (
     <section
       id="studio-story"
-      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-24 sm:py-32 border-b border-[#C5B378]/18"
+      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-20 sm:py-24 border-b border-[#C5B378]/18"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16 lg:items-center">
@@ -55,7 +55,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={() => setImageFailed(true)}
-                  className="h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                  className="h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03] motion-reduce:group-hover:scale-100"
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[#072421] p-8 text-center">
@@ -66,7 +66,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
             </div>
 
             {/* Minimal Photographer Profile Strip */}
-            <div className="flex items-center gap-4 pt-1">
+            {/* <div className="flex items-center gap-4 pt-1">
               <div className="h-14 w-20 shrink-0 overflow-hidden rounded-sm border border-[#C5B378]/25 bg-[#061E1C]">
                 <img
                   src="/assets/aistudio/image_777005f0.png"
@@ -85,7 +85,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                   &ldquo;{t('about.signature')}&rdquo;
                 </p>
               </div>
-            </div>
+            </div> */}
           </motion.div>
 
           {/* Right Editorial Story Column */}
@@ -142,7 +142,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                 className="group inline-flex items-center gap-3 border-b border-[#C5B378]/65 pb-2 text-sm sm:text-base font-medium tracking-[0.04em] text-white transition-colors duration-200 hover:border-[#D8C78E] hover:text-[#D8C78E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] focus-visible:ring-offset-4 focus-visible:ring-offset-[#092E2B] cursor-pointer"
               >
                 <span>{t('about.meet')}</span>
-                <ArrowRight className="h-4 w-4 text-[#D8C78E] transition-transform duration-200 group-hover:translate-x-1.5" />
+                <ArrowRight className="h-4 w-4 text-[#D8C78E] transition-transform duration-200 group-hover:translate-x-1.5 motion-reduce:group-hover:translate-x-0" />
               </button>
             </div>
           </motion.div>

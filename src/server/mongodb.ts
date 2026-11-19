@@ -1,7 +1,7 @@
 import mongoose, { Schema, type Model } from 'mongoose';
 import type { BookingRequest, CalendarDayEntry } from '../types/studio';
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.MONGODB_STANDARD_URI || process.env.MONGODB_URI;
 const databaseName = process.env.MONGODB_DATABASE || 'gk_studios';
 
 interface BookingRequestDocument extends BookingRequest, mongoose.Document {}
@@ -15,10 +15,12 @@ const BookingSchema = new Schema<BookingRequestDocument>(
     eventType: { type: String, required: true },
     preferredDate: { type: String, required: true },
     endDate: String,
+    eventTime: String,
     venue: { type: String, required: true },
     packageId: { type: String, required: true },
     packageName: { type: String, required: true },
     quotedAmount: { type: Number, required: true },
+    requestedServices: { type: [String], default: [] },
     notes: { type: String, default: '' },
     status: { type: String, required: true },
     assignedCrew: String,
@@ -32,23 +34,24 @@ const globalForMongoose = globalThis as typeof globalThis & {
   mongooseConnection?: Promise<typeof mongoose>;
 };
 
+async function connectToMongo(uri: string): Promise<typeof mongoose> {
+  return mongoose.connect(uri, {
+    dbName: databaseName,
+    maxPoolSize: 5,
+    minPoolSize: 0,
+    maxIdleTimeMS: 30000,
+    serverSelectionTimeoutMS: 15000,
+  });
+}
+
 export async function getBookingModel(): Promise<Model<BookingRequestDocument> | null> {
   if (!uri) return null;
 
   if (!globalForMongoose.mongooseConnection) {
-    globalForMongoose.mongooseConnection = mongoose
-      .connect(uri, {
-        dbName: databaseName,
-        maxPoolSize: 5,
-        minPoolSize: 0,
-        maxIdleTimeMS: 30000,
-        serverSelectionTimeoutMS: 15000,
-      })
-      .then((instance) => instance)
-      .catch((error) => {
-        globalForMongoose.mongooseConnection = undefined;
-        throw error;
-      });
+    globalForMongoose.mongooseConnection = connectToMongo(uri).catch((error) => {
+      globalForMongoose.mongooseConnection = undefined;
+      throw error;
+    });
   }
 
   await globalForMongoose.mongooseConnection;
@@ -80,19 +83,10 @@ export async function getCalendarScheduleModel(): Promise<Model<CalendarSchedule
   if (!uri) return null;
 
   if (!globalForMongoose.mongooseConnection) {
-    globalForMongoose.mongooseConnection = mongoose
-      .connect(uri, {
-        dbName: databaseName,
-        maxPoolSize: 5,
-        minPoolSize: 0,
-        maxIdleTimeMS: 30000,
-        serverSelectionTimeoutMS: 15000,
-      })
-      .then((instance) => instance)
-      .catch((error) => {
-        globalForMongoose.mongooseConnection = undefined;
-        throw error;
-      });
+    globalForMongoose.mongooseConnection = connectToMongo(uri).catch((error) => {
+      globalForMongoose.mongooseConnection = undefined;
+      throw error;
+    });
   }
 
   await globalForMongoose.mongooseConnection;
