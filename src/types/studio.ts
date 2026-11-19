@@ -1,4 +1,11 @@
-export type EventCategory =
+export type CoreEventCategory =
+  | 'Weddings'
+  | 'Traditional Ceremonies'
+  | 'Family Celebrations'
+  | 'Portraits & Outdoor Shoots'
+  | 'Corporate Events';
+
+export type LegacyEventCategory =
   | 'Iyer Weddings'
   | 'Temple Weddings'
   | 'Hindu, Christian & Muslim Weddings'
@@ -13,21 +20,45 @@ export type EventCategory =
   | 'Outdoor Shoots'
   | 'Corporate & Social Events';
 
-export const EVENT_CATEGORIES: EventCategory[] = [
-  'Iyer Weddings',
-  'Temple Weddings',
-  'Hindu, Christian & Muslim Weddings',
-  'Pre-Wedding & Engagement Shoots',
-  'Seemantham / Baby Shower',
-  'Kaathu Kuthi',
-  'Puberty Ceremony',
-  'Nool Punal / Upanayanam',
-  'Griha Pravesam (Housewarming)',
-  'Birthdays & Milestones',
-  'Maternity & Newborn Shoots',
-  'Outdoor Shoots',
-  'Corporate & Social Events',
+export type EventCategory = CoreEventCategory | LegacyEventCategory;
+
+export const EVENT_CATEGORIES: CoreEventCategory[] = [
+  'Weddings',
+  'Traditional Ceremonies',
+  'Family Celebrations',
+  'Portraits & Outdoor Shoots',
+  'Corporate Events',
 ];
+
+export function normalizeEventCategory(category?: string): CoreEventCategory {
+  switch (category) {
+    case 'Weddings':
+    case 'Iyer Weddings':
+    case 'Temple Weddings':
+    case 'Hindu, Christian & Muslim Weddings':
+      return 'Weddings';
+    case 'Traditional Ceremonies':
+    case 'Kaathu Kuthi':
+    case 'Seemantham / Baby Shower':
+    case 'Puberty Ceremony':
+    case 'Nool Punal / Upanayanam':
+    case 'Griha Pravesam (Housewarming)':
+      return 'Traditional Ceremonies';
+    case 'Family Celebrations':
+    case 'Birthdays & Milestones':
+    case 'Maternity & Newborn Shoots':
+      return 'Family Celebrations';
+    case 'Portraits & Outdoor Shoots':
+    case 'Pre-Wedding & Engagement Shoots':
+    case 'Outdoor Shoots':
+      return 'Portraits & Outdoor Shoots';
+    case 'Corporate Events':
+    case 'Corporate & Social Events':
+      return 'Corporate Events';
+    default:
+      return 'Weddings';
+  }
+}
 
 export type BookingStatus = 'Pending' | 'Acknowledged' | 'Confirmed' | 'Declined';
 

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const created = await createBookingOnServer({
       clientName: body.clientName,
       phone: body.phone,
-      eventType: body.eventType || 'Iyer Weddings',
+      eventType: body.eventType || 'Weddings',
       preferredDate: body.preferredDate,
       endDate: body.endDate,
       venue: body.venue,

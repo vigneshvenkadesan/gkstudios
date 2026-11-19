@@ -4,7 +4,12 @@ import React, { useMemo, useState } from 'react';
 import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Grid2X2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
-import { CalendarDayEntry, EVENT_CATEGORIES, EventCategory } from '@/src/types/studio';
+import {
+  CalendarDayEntry,
+  EVENT_CATEGORIES,
+  EventCategory,
+  normalizeEventCategory,
+} from '@/src/types/studio';
 import { formatDateDisplay, toISODate } from '@/src/lib/utils';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
@@ -31,7 +36,7 @@ export function AdminScheduleModule() {
   const [title, setTitle] = useState('');
   const [eventType, setEventType] = useState<
     EventCategory | 'Studio Maintenance' | 'Muhurtham Rush'
-  >('Iyer Weddings');
+  >('Weddings');
   const [clientName, setClientName] = useState('');
   const [venue, setVenue] = useState('');
   const [assignedCrew, setAssignedCrew] = useState('G Krishna + Studio Unit');
@@ -43,7 +48,11 @@ export function AdminScheduleModule() {
     if (entry) {
       setStatus(entry.status);
       setTitle(entry.title);
-      setEventType(entry.eventType || 'Iyer Weddings');
+      setEventType(
+        entry.eventType === 'Studio Maintenance' || entry.eventType === 'Muhurtham Rush'
+          ? entry.eventType
+          : normalizeEventCategory(entry.eventType)
+      );
       setClientName(entry.clientName || '');
       setVenue(entry.venue || '');
       setAssignedCrew(entry.assignedCrew || 'G Krishna + Studio Unit');
@@ -51,7 +60,7 @@ export function AdminScheduleModule() {
     } else {
       setStatus('Booked');
       setTitle('');
-      setEventType('Iyer Weddings');
+      setEventType('Weddings');
       setClientName('');
       setVenue('');
       setAssignedCrew('G Krishna + Studio Unit');

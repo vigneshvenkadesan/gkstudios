@@ -4,7 +4,12 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, ImagePlus, Pencil, Star, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
-import { EVENT_CATEGORIES, EventCategory, PortfolioItem } from '@/src/types/studio';
+import {
+  EVENT_CATEGORIES,
+  EventCategory,
+  normalizeEventCategory,
+  PortfolioItem,
+} from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import {
@@ -21,7 +26,7 @@ export function AdminGalleryModule() {
 
   // New photo upload state
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<EventCategory>('Iyer Weddings');
+  const [category, setCategory] = useState<EventCategory>('Weddings');
   const [location, setLocation] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [shootNotes, setShootNotes] = useState('');
@@ -33,7 +38,7 @@ export function AdminGalleryModule() {
   // Edit modal state
   const [editingItem, setEditingItem] = useState<PortfolioItem | null>(null);
   const [editTitle, setEditTitle] = useState('');
-  const [editCategory, setEditCategory] = useState<EventCategory>('Iyer Weddings');
+  const [editCategory, setEditCategory] = useState<EventCategory>('Weddings');
   const [editLocation, setEditLocation] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
@@ -91,7 +96,7 @@ export function AdminGalleryModule() {
   const openEditModal = (item: PortfolioItem) => {
     setEditingItem(item);
     setEditTitle(item.title);
-    setEditCategory(item.category);
+    setEditCategory(normalizeEventCategory(item.category));
     setEditLocation(item.location);
     setEditNotes(item.shootNotes);
   };

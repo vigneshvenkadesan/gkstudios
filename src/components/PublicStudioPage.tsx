@@ -2,20 +2,26 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MotionConfig } from 'motion/react';
 import { toast } from 'sonner';
 import { EventCategory, StudioPackage } from '@/src/types/studio';
 import { Navbar } from '@/src/components/Navbar';
 import { HeroSection } from '@/src/components/HeroSection';
+import { StatsSection } from '@/src/components/StatsSection';
 import { PortfolioSection } from '@/src/components/PortfolioSection';
 import { PackagesSection } from '@/src/components/PackagesSection';
 import { StudioAboutSection } from '@/src/components/StudioAboutSection';
 import { BookingSection } from '@/src/components/BookingSection';
+import { ContactSection } from '@/src/components/ContactSection';
 import { Footer } from '@/src/components/Footer';
 
 export function PublicStudioPage() {
   const router = useRouter();
   const [selectedPackageId, setSelectedPackageId] = useState<string>('pkg-grand');
   const [selectedCategory, setSelectedCategory] = useState<EventCategory | null>(null);
+  const [portfolioFilterCategory, setPortfolioFilterCategory] = useState<EventCategory | null>(
+    null
+  );
 
   // Support legacy #/admin hash navigation seamlessly
   useEffect(() => {
@@ -59,36 +65,52 @@ export function PublicStudioPage() {
     jumpToSection('availability');
   };
 
-  return (
-    <div className="min-h-screen flex flex-col bg-[#092E2B] text-[#E6ECEB]">
-      <Navbar
-        activeView="public"
-        onSwitchView={(view) => {
-          if (view === 'admin') router.push('/admin');
-        }}
-        onJumpToSection={jumpToSection}
-      />
+  const handleFilterPortfolioFromFooter = (category: EventCategory) => {
+    setPortfolioFilterCategory(category);
+    jumpToSection('portfolio');
+  };
 
-      <main className="flex-1">
-        <HeroSection
-          onCheckAvailability={() => jumpToSection('availability')}
-          onExplorePackages={() => jumpToSection('packages')}
+  return (
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-screen flex flex-col bg-[#092E2B] text-[#E6ECEB]">
+        <Navbar
+          activeView="public"
+          onSwitchView={(view) => {
+            if (view === 'admin') router.push('/admin');
+          }}
+          onJumpToSection={jumpToSection}
         />
-        <PortfolioSection onBookCategory={handleBookCategory} />
-        <PackagesSection
-          selectedPackageId={selectedPackageId}
-          onSelectPackage={handleSelectPackage}
-        />
-        <StudioAboutSection />
-        <BookingSection
-          preselectedPackageId={selectedPackageId}
-          preselectedCategory={selectedCategory}
-        />
+
+        <main className="flex-1">
+          <HeroSection
+            onCheckAvailability={() => jumpToSection('availability')}
+            onExploreWork={() => jumpToSection('portfolio')}
+          />
+          <StatsSection />
+          <PortfolioSection
+            onBookCategory={handleBookCategory}
+            externalCategoryFilter={portfolioFilterCategory}
+          />
+          <PackagesSection
+            selectedPackageId={selectedPackageId}
+            onSelectPackage={handleSelectPackage}
+          />
+          <StudioAboutSection
+            onMeetStudio={() => jumpToSection('contact')}
+          />
+          <BookingSection
+            preselectedPackageId={selectedPackageId}
+            preselectedCategory={selectedCategory}
+          />
+          <ContactSection onReserveDate={() => jumpToSection('availability')} />
+        </main>
+
         <Footer
           onJumpToSection={jumpToSection}
+          onSelectCategory={handleFilterPortfolioFromFooter}
           onHiddenAdminTrigger={() => router.push('/admin')}
         />
-      </main>
-    </div>
+      </div>
+    </MotionConfig>
   );
 }

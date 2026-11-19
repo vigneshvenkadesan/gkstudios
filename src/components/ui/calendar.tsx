@@ -66,25 +66,40 @@ export function StudioCalendar({
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between gap-4 pb-4">
-        <h4 className={cn('font-semibold text-white tracking-tight', isLarge ? 'text-xl' : 'text-base')}>
-          {monthLabel}
-        </h4>
+      <div className="flex items-center justify-between gap-4 pb-5 border-b border-[#C5B378]/15">
+        <div>
+          <h4
+            className={cn(
+              'font-serif font-semibold text-white tracking-tight',
+              isLarge ? 'text-2xl' : 'text-xl sm:text-2xl'
+            )}
+          >
+            {monthLabel}
+          </h4>
+        </div>
         <div className="flex items-center gap-2">
-          {isLarge && (
+          {isLarge ? (
             <button
               type="button"
-              onClick={() => onMonthChange(new Date(2026, 10, 1))}
-              className="h-9 rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white cursor-pointer"
+              onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+              className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
             >
               Current Month
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+              className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#072421] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
+            >
+              Today
             </button>
           )}
           <button
             type="button"
             onClick={handlePrev}
             aria-label="Previous month"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#C5B378]/25 bg-[#092E2B] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:text-white cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -92,20 +107,20 @@ export function StudioCalendar({
             type="button"
             onClick={handleNext}
             aria-label="Next month"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#C5B378]/25 bg-[#092E2B] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:text-white cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 text-center pb-2">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center pt-4 pb-2">
         {WEEKDAYS.map((day) => (
           <div
             key={day}
             className={cn(
-              'font-semibold text-[#D8C78E]/85 py-1.5',
-              isLarge ? 'text-xs sm:text-sm border-b border-[#C5B378]/15' : 'text-xs'
+              'font-medium text-[#D8C78E]/80 py-1.5 tracking-[0.04em]',
+              isLarge ? 'text-xs sm:text-sm border-b border-[#C5B378]/15' : 'text-[11px] sm:text-xs'
             )}
           >
             {day}
@@ -113,7 +128,7 @@ export function StudioCalendar({
         ))}
       </div>
 
-      <div className={cn('grid grid-cols-7', isLarge ? 'gap-2 sm:gap-2.5' : 'gap-1.5')}>
+      <div className={cn('grid grid-cols-7', isLarge ? 'gap-2 sm:gap-2.5' : 'gap-1.5 sm:gap-2')}>
         {cells.map((cell) => {
           if (cell.day === null) {
             return (
@@ -121,9 +136,9 @@ export function StudioCalendar({
                 key={cell.iso}
                 className={
                   isLarge
-                    ? 'min-h-[88px] sm:min-h-[112px] rounded-xl bg-[#072421]/30'
+                    ? 'min-h-[88px] sm:min-h-[112px] rounded-md bg-[#072421]/30'
                     : size === 'compact'
-                    ? 'h-10'
+                    ? 'h-11'
                     : 'h-12 sm:h-14'
                 }
               />
@@ -133,6 +148,7 @@ export function StudioCalendar({
           const entry = entryMap.get(cell.iso);
           const status: AvailabilityStatus = entry?.[0]?.status ?? 'Available';
           const isPast = cell.iso < todayISO;
+          const isToday = cell.iso === todayISO;
           const isSelected = selectedDate === cell.iso;
           const isDisabled = !allowSelectBooked && (isPast || status === 'Booked');
 
@@ -143,7 +159,7 @@ export function StudioCalendar({
                 type="button"
                 onClick={() => onSelectDate(cell.iso, undefined)}
                 className={cn(
-                  'group relative flex min-h-[88px] sm:min-h-[112px] flex-col justify-between rounded-xl border p-2 sm:p-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer',
+                  'group relative flex min-h-[88px] sm:min-h-[112px] flex-col justify-between rounded-md border p-2 sm:p-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer',
                   isPast && !entry
                     ? 'border-[#C5B378]/10 bg-[#072421]/50 text-[#E6ECEB]/40 hover:border-[#C5B378]/30'
                     : status === 'Available'
@@ -165,7 +181,7 @@ export function StudioCalendar({
                   </span>
                   <span
                     className={cn(
-                      'text-[10px] font-semibold leading-none px-1.5 py-0.5 rounded',
+                      'text-[10px] font-semibold leading-none px-1.5 py-0.5 rounded-sm',
                       status === 'Booked'
                         ? 'bg-rose-500/25 text-rose-200'
                         : status === 'Limited'
@@ -182,7 +198,7 @@ export function StudioCalendar({
                     {entry.slice(0, 3).map((dayEntry) => (
                       <div
                         key={dayEntry.id || `${dayEntry.date}-${dayEntry.title}`}
-                        className="rounded border border-white/10 bg-black/10 px-1.5 py-1"
+                        className="rounded-sm border border-white/10 bg-black/15 px-1.5 py-1"
                       >
                         <p className="text-[10px] sm:text-xs font-medium text-white truncate">
                           {dayEntry.title}
@@ -214,40 +230,45 @@ export function StudioCalendar({
               key={cell.iso}
               type="button"
               disabled={isDisabled}
+              aria-pressed={isSelected}
+              aria-label={`${cell.iso} ${isPast ? 'Past date' : status}${entry?.[0]?.title ? ` — ${entry[0].title}` : ''}`}
               onClick={() => onSelectDate(cell.iso, entry?.[0])}
               title={entry ? `${status}: ${entry[0].title}` : `${cell.iso} · Available`}
               className={cn(
-                'relative flex flex-col items-center justify-center rounded-lg border text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E]',
+                'relative flex flex-col items-center justify-center rounded-sm border text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E]',
                 size === 'compact' ? 'h-11' : 'h-12 sm:h-14',
                 isPast &&
-                  'border-transparent bg-[#072421]/50 text-[#E6ECEB]/25 cursor-not-allowed',
+                  'border-transparent bg-[#061E1C]/50 text-[#E6ECEB]/25 cursor-not-allowed',
                 !isPast &&
                   status === 'Available' &&
-                  'border-[#C5B378]/15 bg-[#092E2B] text-white hover:border-[#D8C78E] hover:bg-[#134E49] cursor-pointer',
+                  'border-[#C5B378]/15 bg-[#072421] text-white hover:border-[#D8C78E] hover:bg-[#134E49] cursor-pointer',
                 !isPast &&
                   status === 'Limited' &&
-                  'border-amber-400/45 bg-amber-500/15 text-amber-100 hover:border-amber-300 cursor-pointer',
+                  'border-amber-400/50 bg-amber-500/15 text-amber-100 hover:border-amber-300 cursor-pointer',
                 !isPast &&
                   status === 'Booked' &&
                   (allowSelectBooked
                     ? 'border-rose-400/45 bg-rose-500/20 text-rose-100 hover:border-rose-300 cursor-pointer'
-                    : 'border-rose-400/25 bg-rose-950/50 text-rose-200/60 cursor-not-allowed'),
+                    : 'border-rose-400/25 bg-rose-950/55 text-rose-200/60 cursor-not-allowed'),
+                isToday && !isSelected && 'border-[#D8C78E]/70',
                 isSelected &&
-                  'ring-2 ring-[#D8C78E] border-[#D8C78E] bg-[#C5B378] text-[#072421] font-semibold'
+                  'ring-2 ring-[#D8C78E] ring-offset-1 ring-offset-[#0E423E] border-[#D8C78E] bg-[#C5B378] text-[#061E1C] font-semibold hover:bg-[#D8C78E]'
               )}
             >
-              <span className="tabular-nums text-sm leading-none">{cell.day}</span>
+              <span className="font-mono tabular-nums text-xs sm:text-sm leading-none">
+                {cell.day}
+              </span>
               {!isPast && (
                 <span
                   className={cn(
-                    'mt-1 text-[10px] leading-none font-medium',
+                    'mt-1 text-[9px] sm:text-[10px] leading-none font-medium tracking-[0.01em]',
                     isSelected
-                      ? 'text-[#072421]'
+                      ? 'text-[#061E1C]'
                       : status === 'Booked'
                       ? 'text-rose-300'
                       : status === 'Limited'
                       ? 'text-amber-300'
-                      : 'text-emerald-300/75'
+                      : 'text-[#D8C78E]/75'
                   )}
                 >
                   {status === 'Booked' ? 'Booked' : status === 'Limited' ? 'Limited' : 'Open'}
@@ -258,19 +279,23 @@ export function StudioCalendar({
         })}
       </div>
 
-      {/* Explicit multi-modal legend */}
-      <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-[#C5B378]/15 pt-3 text-xs text-[#E6ECEB]/80">
+      {/* Explicit multi-modal availability legend */}
+      <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#C5B378]/15 pt-4 text-xs text-[#E6ECEB]/80">
         <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded border border-emerald-400/50 bg-[#092E2B]" />
+          <span className="inline-block h-3 w-3 rounded-[2px] border border-[#C5B378]/45 bg-[#072421]" />
           <span>Open · Available</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded border border-amber-400/60 bg-amber-500/25" />
+          <span className="inline-block h-3 w-3 rounded-[2px] border border-amber-400/60 bg-amber-500/20" />
           <span>Limited · 1 Crew Slot</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded border border-rose-400/50 bg-rose-950/80" />
+          <span className="inline-block h-3 w-3 rounded-[2px] border border-rose-400/50 bg-rose-950/80" />
           <span>Booked · Unavailable</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-3 w-3 rounded-[2px] border border-[#D8C78E] bg-[#C5B378]" />
+          <span>Selected</span>
         </div>
       </div>
     </div>

@@ -82,7 +82,7 @@ export function AdminEventsTimelineModule() {
 
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newEventType, setNewEventType] = useState<EventCategory>('Iyer Weddings');
+  const [newEventType, setNewEventType] = useState<EventCategory>('Weddings');
   const [newEventDate, setNewEventDate] = useState('2026-12-08');
   const [newVenue, setNewVenue] = useState('');
   const [newPackageName, setNewPackageName] = useState(packages[1]?.name || 'Traditional Grand Wedding');

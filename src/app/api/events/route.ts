@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const result = await createEventProjectOnServer({
       clientName: body.clientName,
       phone: body.phone,
-      eventType: body.eventType || 'Iyer Weddings',
+      eventType: body.eventType || 'Weddings',
       eventDate: body.eventDate,
       endDate: body.endDate,
       venue: body.venue,
