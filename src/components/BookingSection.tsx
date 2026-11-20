@@ -23,6 +23,7 @@ import {
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { Button } from '@/src/components/ui/button';
+import { TermsAndConditionsModal } from '@/src/components/TermsAndConditionsModal';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import {
   getPackageCopy,
@@ -90,6 +91,7 @@ export function BookingSection({
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [lastSubmitted, setLastSubmitted] = useState<BookingRequest | null>(null);
 
   useEffect(() => {
@@ -144,7 +146,7 @@ export function BookingSection({
     setFormError(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -171,6 +173,11 @@ export function BookingSection({
       return;
     }
 
+    // Validation succeeded — show Terms & Conditions acceptance modal before final submission
+    setIsTermsModalOpen(true);
+  };
+
+  const handleAcceptAndConfirmBooking = async () => {
     setIsSubmitting(true);
     try {
       const created = await submitBooking({
@@ -184,8 +191,12 @@ export function BookingSection({
         packageId,
         requestedServices,
         notes: notes.trim(),
+        termsAccepted: true,
+        termsAcceptedAt: new Date().toISOString(),
+        termsVersion: '1.0',
       });
 
+      setIsTermsModalOpen(false);
       setLastSubmitted(created);
       toast.success(t('booking.saved', { reference: created.referenceCode }));
       setClientName('');
@@ -553,6 +564,21 @@ export function BookingSection({
           </motion.div>
         </div>
       </div>
+
+      <TermsAndConditionsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        isBookingFlow={true}
+        bookingSummary={{
+          clientName: clientName.trim(),
+          phone: phone.trim(),
+          preferredDate: displayDate(selectedDate),
+          packageName: selectedPackageName,
+          venue: venue.trim(),
+        }}
+        onAcceptAndContinue={handleAcceptAndConfirmBooking}
+        isSubmitting={isSubmitting}
+      />
     </section>
   );
 }

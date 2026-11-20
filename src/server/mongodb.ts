@@ -30,6 +30,9 @@ const BookingSchema = new Schema<BookingRequestDocument>(
     source: String,
     assignedCrew: String,
     acknowledgementNote: String,
+    termsAccepted: { type: Boolean, default: false },
+    termsAcceptedAt: String,
+    termsVersion: String,
     createdAt: { type: String, required: true },
   },
   { collection: 'booking_requests', strict: false, timestamps: false }

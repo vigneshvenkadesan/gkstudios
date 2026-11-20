@@ -182,6 +182,9 @@ export interface BookingRequest {
   source?: string;
   assignedCrew?: string;
   acknowledgementNote?: string;
+  termsAccepted?: boolean;
+  termsAcceptedAt?: string;
+  termsVersion?: string;
   createdAt: string;
 }
 

@@ -26,6 +26,9 @@ export async function POST(request: Request) {
       status?: BookingStatus;
       source?: string;
       assignedCrew?: string;
+      termsAccepted?: boolean;
+      termsAcceptedAt?: string;
+      termsVersion?: string;
       requestedServices?: unknown;
     };
 
@@ -57,6 +60,9 @@ export async function POST(request: Request) {
       status: body.status,
       source: body.source,
       assignedCrew: body.assignedCrew,
+      termsAccepted: typeof body.termsAccepted === 'boolean' ? body.termsAccepted : false,
+      termsAcceptedAt: typeof body.termsAcceptedAt === 'string' ? body.termsAcceptedAt : undefined,
+      termsVersion: typeof body.termsVersion === 'string' ? body.termsVersion : undefined,
     });
 
     return NextResponse.json({ booking: created }, { status: 201 });

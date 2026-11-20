@@ -14,6 +14,7 @@ interface FooterProps {
   onJumpToSection: (sectionId: string) => void;
   onSelectCategory?: (category: EventCategory) => void;
   onHiddenAdminTrigger: () => void;
+  onOpenTerms?: () => void;
 }
 
 const EXPLORE_LINKS = [
@@ -35,6 +36,7 @@ export function Footer({
   onJumpToSection,
   onSelectCategory,
   onHiddenAdminTrigger,
+  onOpenTerms,
 }: FooterProps) {
   const { locale } = usePublicPreferences();
   const t = (key: TranslationKey) => translate(locale, key);
@@ -144,6 +146,17 @@ export function Footer({
                   </button>
                 </li>
               ))}
+              {onOpenTerms && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={onOpenTerms}
+                    className="text-[#E6ECEB]/75 hover:text-white transition-colors duration-200 cursor-pointer text-left"
+                  >
+                    {t('footer.terms')}
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 
@@ -176,9 +189,23 @@ export function Footer({
 
         {/* Bottom Footer Bar */}
         <div className="mt-9 flex flex-col items-start justify-between gap-3 border-t border-[#C5B378]/15 pt-5 text-xs text-[#E6ECEB]/58 sm:flex-row sm:items-center">
-          <p onDoubleClick={onHiddenAdminTrigger} className="select-none">
-            {t('footer.copyright')}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <p onDoubleClick={onHiddenAdminTrigger} className="select-none">
+              {t('footer.copyright')}
+            </p>
+            {onOpenTerms && (
+              <>
+                <span className="text-[#C5B378]/40 select-none">·</span>
+                <button
+                  type="button"
+                  onClick={onOpenTerms}
+                  className="text-[#E6ECEB]/70 hover:text-[#D8C78E] underline-offset-4 hover:underline transition-colors cursor-pointer"
+                >
+                  {t('footer.terms')}
+                </button>
+              </>
+            )}
+          </div>
           <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end sm:gap-6">
             <p className="text-[#E6ECEB]/65">{t('footer.credit')}</p>
             <button

@@ -32,6 +32,9 @@ interface SubmitBookingInput {
   status?: BookingStatus;
   source?: string;
   assignedCrew?: string;
+  termsAccepted?: boolean;
+  termsAcceptedAt?: string;
+  termsVersion?: string;
 }
 
 interface AcknowledgeBookingInput {

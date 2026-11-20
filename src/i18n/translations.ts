@@ -155,6 +155,7 @@ const translations = {
   'footer.stories': { en: 'Our Stories', ta: 'எங்கள் கதைகள்' },
   'footer.about': { en: 'About', ta: 'எங்களைப் பற்றி' },
   'footer.availability': { en: 'Availability', ta: 'கிடைக்கும் தேதிகள்' },
+  'footer.terms': { en: 'Terms & Conditions', ta: 'விதிமுறைகள் & நிபந்தனைகள்' },
   'footer.whatsapp': { en: 'WhatsApp', ta: 'WhatsApp' },
   'footer.tagline': { en: 'Creating Memories.', ta: 'என்றென்றும் நிலைக்கும் நினைவுகள்.' },
   'footer.copyright': { en: '© 2026 GK STUDIOS. All rights reserved.', ta: '© 2026 GK STUDIOS. அனைத்து உரிமைகளும் பாதுகாக்கப்பட்டவை.' },

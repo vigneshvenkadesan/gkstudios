@@ -133,6 +133,11 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): Book
     ...(booking.acknowledgementNote
       ? { acknowledgementNote: String(booking.acknowledgementNote) }
       : {}),
+    ...(booking.termsAccepted !== undefined
+      ? { termsAccepted: Boolean(booking.termsAccepted) }
+      : {}),
+    ...(booking.termsAcceptedAt ? { termsAcceptedAt: String(booking.termsAcceptedAt) } : {}),
+    ...(booking.termsVersion ? { termsVersion: String(booking.termsVersion) } : {}),
     createdAt:
       typeof booking.createdAt === 'string'
         ? booking.createdAt
@@ -263,6 +268,9 @@ export async function createBookingOnServer(input: {
   status?: BookingStatus;
   source?: string;
   assignedCrew?: string;
+  termsAccepted?: boolean;
+  termsAcceptedAt?: string;
+  termsVersion?: string;
 }): Promise<BookingRequest> {
   const state = await getStudioState();
   // Studio supports concurrent crews and multiple bookings/orders on the same date.
@@ -304,6 +312,9 @@ export async function createBookingOnServer(input: {
     status: input.status || 'Pending',
     source: input.source?.trim() || undefined,
     assignedCrew: input.assignedCrew?.trim() || undefined,
+    termsAccepted: input.termsAccepted ?? false,
+    termsAcceptedAt: input.termsAcceptedAt || undefined,
+    termsVersion: input.termsVersion || undefined,
     createdAt: now.toISOString(),
   };
 

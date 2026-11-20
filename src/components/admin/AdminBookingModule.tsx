@@ -500,7 +500,7 @@ export function AdminBookingModule() {
                     <p className="mt-0.5 font-mono text-sm text-[#E6ECEB]/70 tabular-nums">
                       {booking.phone}
                     </p>
-                    <div className="mt-1.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {booking.source ? (
                         <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-[#C5B378]/30 bg-[#C5B378]/10 text-[#D8C78E] font-medium">
                           {booking.source}
@@ -508,6 +508,12 @@ export function AdminBookingModule() {
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[#E6ECEB]/60 font-medium">
                           Website Inquiry
+                        </span>
+                      )}
+                      {booking.termsAccepted && (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-medium">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          T&C Agreed
                         </span>
                       )}
                     </div>
@@ -899,6 +905,33 @@ export function AdminBookingModule() {
                   Venue: {activeBooking.venue} · Phone: {activeBooking.phone}
                 </DialogDescription>
               </DialogHeader>
+
+              {activeBooking.termsAccepted ? (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <div>
+                    <span className="font-semibold text-emerald-300">Terms & Conditions Accepted</span>
+                    {activeBooking.termsVersion && (
+                      <span className="ml-1 text-emerald-400/80">· v{activeBooking.termsVersion}</span>
+                    )}
+                    {activeBooking.termsAcceptedAt && (
+                      <span className="ml-1 text-emerald-400/80">
+                        on {new Date(activeBooking.termsAcceptedAt).toLocaleString('en-IN', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-300">
+                  <Clock className="h-4 w-4 shrink-0 text-amber-400" />
+                  <span>
+                    Terms & Conditions: Unrecorded / Direct inquiry (requires verbal or written guidelines agreement)
+                  </span>
+                </div>
+              )}
 
               {activeBooking.notes && (
                 <div className="rounded-lg border border-[#C5B378]/20 bg-[#072421] p-3 text-xs text-[#E6ECEB]/85">

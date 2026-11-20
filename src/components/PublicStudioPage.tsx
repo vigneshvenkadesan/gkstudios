@@ -14,6 +14,7 @@ import { PackagesSection } from '@/src/components/PackagesSection';
 import { StudioAboutSection } from '@/src/components/StudioAboutSection';
 import { BookingSection } from '@/src/components/BookingSection';
 import { Footer } from '@/src/components/Footer';
+import { TermsAndConditionsModal } from '@/src/components/TermsAndConditionsModal';
 import { PublicPreferencesProvider, usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { getPackageCopy, translate, translateCategory } from '@/src/i18n/translations';
 
@@ -36,6 +37,7 @@ function PublicStudioContent() {
   const [portfolioFilterCategory, setPortfolioFilterCategory] = useState<EventCategory | null>(
     null
   );
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
 
   // Support legacy #/admin hash navigation seamlessly
   useEffect(() => {
@@ -124,6 +126,13 @@ function PublicStudioContent() {
           onJumpToSection={jumpToSection}
           onSelectCategory={handleFilterPortfolioFromFooter}
           onHiddenAdminTrigger={() => router.push('/admin')}
+          onOpenTerms={() => setIsTermsModalOpen(true)}
+        />
+
+        <TermsAndConditionsModal
+          isOpen={isTermsModalOpen}
+          onClose={() => setIsTermsModalOpen(false)}
+          isBookingFlow={false}
         />
       </div>
     </MotionConfig>
