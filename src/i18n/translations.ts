@@ -304,6 +304,16 @@ const translations = {
     en: 'Your wedding album and film, beautifully finished and delivered within 90 days of your event.',
     ta: 'உங்கள் திருமண ஆல்பமும் திரைப்படமும் அழகாக நிறைவுசெய்யப்பட்டு, நிகழ்வுக்கு 90 நாட்களுக்குள் வழங்கப்படும்.',
   },
+  /* PromiseTimeline keys */
+  'promise.tl.eyebrow': { en: 'OUR PROMISE', ta: 'எங்கள் உறுதிமொழி' },
+  'promise.tl.step1.label': { en: 'Event day', ta: 'நிகழ்வு நாள்' },
+  'promise.tl.step1.title': { en: 'We capture it', ta: 'நாங்கள் படம் பிடிக்கிறோம்' },
+  'promise.tl.step2.label': { en: 'Next day', ta: 'மறுநாள்' },
+  'promise.tl.step2.title': { en: 'Pick photos at home', ta: 'வீட்டிலேயே புகைப்படங்களைத் தேர்வு செய்யுங்கள்' },
+  'promise.tl.step3.label': { en: 'Within 90 days', ta: '90 நாட்களுக்குள்' },
+  'promise.tl.step3.title': { en: 'Album and film delivered', ta: 'ஆல்பம் மற்றும் வீடியோ வழங்கப்படும்' },
+  'promise.tl.trust.celebrations': { en: 'Celebrations', ta: 'விழாக்கள்' },
+  'promise.tl.trust.experience': { en: 'Years Experience', ta: 'ஆண்டுகள் அனுபவம்' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
