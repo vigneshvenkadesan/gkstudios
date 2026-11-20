@@ -82,8 +82,14 @@ export function BookingSection({
   const [endDate, setEndDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [venue, setVenue] = useState('');
+  const activePackages = React.useMemo(() => {
+    return packages
+      .filter((pkg) => (pkg.status ?? 'active') === 'active')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [packages]);
+
   const [packageId, setPackageId] = useState(
-    preselectedPackageId || packages[0]?.id || 'pkg-grand'
+    preselectedPackageId || activePackages[0]?.id || packages[0]?.id || 'pkg-grand'
   );
   const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>(
     () => DEFAULT_SERVICES_BY_PACKAGE[packageId] || []
@@ -401,7 +407,7 @@ export function BookingSection({
                     onChange={(e) => setPackageId(e.target.value)}
                     className={`${inputBaseClass} studio-select cursor-pointer`}
                   >
-                    {packages.map((pkg) => (
+                    {activePackages.map((pkg) => (
                       <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white">
                         {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
                       </option>

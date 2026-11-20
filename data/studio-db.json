@@ -93,7 +93,13 @@
         "250+ Color-Graded High-Res Digital Stills",
         "30-Sheet Layflat Karizma Photo Album",
         "Full Event Edited Video + Complete Raw Footage"
-      ]
+      ],
+      "imageUrl": "/images/portfolio/kaathu_kuthi_ceremony_1794972491963.jpg",
+      "category": "Traditional Ceremonies",
+      "status": "active",
+      "displayOnPortfolio": true,
+      "sortOrder": 1,
+      "highlighted": false
     },
     {
       "id": "pkg-grand",
@@ -109,7 +115,12 @@
         "4K Cinematic Wedding Teaser (3–4 Minutes)",
         "50-Sheet Premium Metallic Karizma Photo Album + 2 Mini Books",
         "500+ Curated Digital Gallery & Complete Raw Footage Drive"
-      ]
+      ],
+      "imageUrl": "/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg",
+      "category": "Weddings",
+      "status": "active",
+      "displayOnPortfolio": true,
+      "sortOrder": 2
     },
     {
       "id": "pkg-royal",
@@ -124,7 +135,13 @@
         "4K Dual-Camera Cinema Team + Licensed Aerial Drone Coverage",
         "Complimentary Half-Day Outdoor Pre-Wedding Couple Shoot",
         "70-Sheet Signature Velvet Box Karizma Album + 4K Highlight Film"
-      ]
+      ],
+      "imageUrl": "/images/portfolio/temple_wedding_gopuram_1794972485937.jpg",
+      "category": "Weddings",
+      "status": "active",
+      "displayOnPortfolio": true,
+      "sortOrder": 3,
+      "highlighted": false
     },
     {
       "id": "pkg-custom",
@@ -139,7 +156,13 @@
         "90-Second Vertical & 4K Reel Cut for Social Sharing",
         "20-Sheet Compact Keepsake Album (Optional Upgrade)",
         "Same-Week Express Cloud Preview Link"
-      ]
+      ],
+      "imageUrl": "/images/portfolio/outdoor_couple_shoot_1794972488329.jpg",
+      "category": "Portraits & Outdoor Shoots",
+      "status": "active",
+      "displayOnPortfolio": true,
+      "sortOrder": 4,
+      "highlighted": false
     }
   ],
   "bookings": [],

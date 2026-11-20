@@ -16,13 +16,19 @@ interface PackagesSectionProps {
 }
 
 export function PackagesSection({ selectedPackageId, onSelectPackage }: PackagesSectionProps) {
-  const { packages } = useStudio();
+  const { packages, isLoading } = useStudio();
   const t = (key: Parameters<typeof translate>[1]) => translate('en', key);
   const prefersReducedMotion = Boolean(useReducedMotion());
   const whatsappUrl = buildWhatsAppUrl(
     STUDIO_INFO.phone,
     "Vanakkam GK Studios! I'm not sure which package to choose. Please help me find the right collection."
   );
+
+  const portfolioPackages = React.useMemo(() => {
+    return packages
+      .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [packages]);
 
   return (
     <section
@@ -80,103 +86,152 @@ export function PackagesSection({ selectedPackageId, onSelectPackage }: Packages
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {packages.map((pkg, idx) => {
-            const copy = getPackageCopy(pkg);
-            const isSelected = selectedPackageId === pkg.id;
-            const isComprehensive = pkg.id === 'pkg-royal';
-            const isElevated = isComprehensive || isSelected;
-
-            return (
-              <motion.article
-                key={pkg.id}
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.15 }}
-                transition={{
-                  duration: 0.5,
-                  delay: idx * 0.09,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                className={`group relative flex flex-col justify-between rounded-sm border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1 motion-reduce:hover:translate-y-0 hover:shadow-[0_14px_32px_rgba(4,20,18,0.28)] ${
-                  isSelected
-                    ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_18px_45px_rgba(4,20,18,0.45)]'
-                    : isComprehensive
-                    ? 'border-[#C5B378]/55 bg-[#0E423E] hover:border-[#D8C78E]'
-                    : 'border-[#C5B378]/18 bg-[#092E2B] hover:border-[#C5B378]/45 hover:bg-[#0C3935]'
-                }`}
+        {portfolioPackages.length === 0 ? (
+          <div className="mt-8 rounded-sm border border-[#C5B378]/25 bg-[#092E2B] p-10 text-center space-y-3">
+            <p className="font-serif text-lg text-white">Packages Updating</p>
+            <p className="text-sm text-[#E6ECEB]/70 max-w-md mx-auto">
+              Our bespoke photography packages are currently being refreshed. Please contact G Krishna directly for tailored wedding quotes.
+            </p>
+            <div className="pt-2">
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-sm bg-[#C5B378] px-6 py-2.5 text-xs font-semibold text-[#061E1C]"
               >
-                <div
-                  aria-hidden="true"
-                  className={`h-[2px] w-full transition-colors duration-300 ${
+                <MessageCircle className="h-4 w-4" />
+                Contact via WhatsApp
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {portfolioPackages.map((pkg, idx) => {
+              const copy = getPackageCopy(pkg);
+              const isSelected = selectedPackageId === pkg.id;
+              const isComprehensive = pkg.id === 'pkg-royal' || Boolean(pkg.featured && !pkg.highlighted);
+              const isPopular = Boolean(pkg.highlighted || (!isComprehensive && pkg.featured));
+              const isElevated = isComprehensive || isSelected || isPopular;
+              const pkgImg = pkg.imageUrl || pkg.image;
+
+              return (
+                <motion.article
+                  key={pkg.id}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.15 }}
+                  transition={{
+                    duration: 0.5,
+                    delay: idx * 0.09,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className={`group relative flex flex-col justify-between overflow-hidden rounded-sm border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1 motion-reduce:hover:translate-y-0 hover:shadow-[0_14px_32px_rgba(4,20,18,0.28)] ${
                     isSelected
-                      ? 'bg-[#D8C78E]'
+                      ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_18px_45px_rgba(4,20,18,0.45)]'
                       : isComprehensive
-                      ? 'bg-[#C5B378]/80'
-                      : 'bg-transparent group-hover:bg-[#C5B378]/35'
+                      ? 'border-[#C5B378]/55 bg-[#0E423E] hover:border-[#D8C78E]'
+                      : 'border-[#C5B378]/18 bg-[#092E2B] hover:border-[#C5B378]/45 hover:bg-[#0C3935]'
                   }`}
-                />
+                >
+                  <div
+                    aria-hidden="true"
+                    className={`h-[2px] w-full transition-colors duration-300 ${
+                      isSelected
+                        ? 'bg-[#D8C78E]'
+                        : isComprehensive
+                        ? 'bg-[#C5B378]/80'
+                        : 'bg-transparent group-hover:bg-[#C5B378]/35'
+                    }`}
+                  />
 
-                <div className="flex flex-1 flex-col p-6">
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="font-mono tabular-nums text-[#D8C78E]/70">
-                      {String(idx + 1).padStart(2, '0')}
-                    </span>
-                    {isComprehensive ? (
-                      <span className="font-medium tracking-[0.12em] text-[#D8C78E]">
-                        {t('packages.flagship')}
-                      </span>
-                    ) : pkg.highlighted ? (
-                      <span className="font-medium tracking-[0.08em] text-[#D8C78E]">
-                        {t('packages.popular')}
-                      </span>
-                    ) : null}
-                  </div>
+                  {pkgImg && (
+                    <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#041513] border-b border-[#C5B378]/15">
+                      <img
+                        src={pkgImg}
+                        alt={copy.name}
+                        className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/25" />
+                      <div className="absolute top-2.5 right-2.5">
+                        {isComprehensive ? (
+                          <span className="rounded-full bg-[#0E423E]/90 border border-[#D8C78E]/50 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#D8C78E] uppercase backdrop-blur-sm shadow">
+                            {t('packages.flagship')}
+                          </span>
+                        ) : isPopular ? (
+                          <span className="rounded-full bg-[#C5B378] px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#072421] uppercase shadow">
+                            {t('packages.popular')}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="mt-4 space-y-2">
-                    <h3 className="font-serif text-2xl font-semibold text-white leading-snug">
-                      {copy.name}
-                    </h3>
-                    <p className="text-xs text-[#D8C78E]/90">{copy.audience}</p>
-                    <p className="text-xs leading-relaxed text-[#E6ECEB]/75">{copy.duration}</p>
-                  </div>
-
-                  <div className="mt-5 pb-5 border-b border-[#C5B378]/16">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-serif text-4xl font-semibold text-white tabular-nums tracking-tight">
-                        {formatINR(pkg.price)}
+                  <div className="flex flex-1 flex-col p-6">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-mono tabular-nums text-[#D8C78E]/70">
+                        {String(idx + 1).padStart(2, '0')}
                       </span>
-                      <span className="text-xs text-[#E6ECEB]/60">{t('packages.starting')}</span>
+                      {!pkgImg && (
+                        <>
+                          {isComprehensive ? (
+                            <span className="font-medium tracking-[0.12em] text-[#D8C78E]">
+                              {t('packages.flagship')}
+                            </span>
+                          ) : isPopular ? (
+                            <span className="font-medium tracking-[0.08em] text-[#D8C78E]">
+                              {t('packages.popular')}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      <h3 className="font-serif text-2xl font-semibold text-white leading-snug">
+                        {copy.name}
+                      </h3>
+                      <p className="text-xs text-[#D8C78E]/90">{copy.audience}</p>
+                      <p className="text-xs leading-relaxed text-[#E6ECEB]/75">{copy.duration}</p>
+                    </div>
+
+                    <div className="mt-5 pb-5 border-b border-[#C5B378]/16">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-serif text-4xl font-semibold text-white tabular-nums tracking-tight">
+                          {formatINR(pkg.price)}
+                        </span>
+                        <span className="text-xs text-[#E6ECEB]/60">{t('packages.starting')}</span>
+                      </div>
+                    </div>
+
+                    <ul className="mt-5 flex-1 space-y-3">
+                      {copy.deliverables.map((item) => (
+                        <li
+                          key={item}
+                          className="flex items-start gap-2.5 text-[13px] sm:text-sm text-[#E6ECEB]/86"
+                        >
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D8C78E]" />
+                          <span className="leading-snug">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="mt-7 pt-3">
+                      <Button
+                        className="w-full justify-between transition-transform duration-200 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:hover:translate-y-0"
+                        variant={isElevated ? 'default' : 'outline'}
+                        onClick={() => onSelectPackage(pkg)}
+                      >
+                        <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
+                        <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                      </Button>
                     </div>
                   </div>
-
-                  <ul className="mt-5 flex-1 space-y-3">
-                    {copy.deliverables.map((item) => (
-                      <li
-                        key={item}
-                        className="flex items-start gap-2.5 text-[13px] sm:text-sm text-[#E6ECEB]/86"
-                      >
-                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D8C78E]" />
-                        <span className="leading-snug">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-7 pt-3">
-                    <Button
-                      className="w-full justify-between transition-transform duration-200 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:hover:translate-y-0"
-                      variant={isElevated ? 'default' : 'outline'}
-                      onClick={() => onSelectPackage(pkg)}
-                    >
-                      <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
-                      <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                    </Button>
-                  </div>
-                </div>
-              </motion.article>
-            );
-          })}
-        </div>
+                </motion.article>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

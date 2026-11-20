@@ -10,6 +10,7 @@ import {
   KeyRound,
   Lock,
   LogOut,
+  Package as PackageIcon,
   RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,18 +19,19 @@ import { AdminBookingModule } from '@/src/components/admin/AdminBookingModule';
 import { AdminScheduleModule } from '@/src/components/admin/AdminScheduleModule';
 import { AdminEventsTimelineModule } from '@/src/components/admin/AdminEventsTimelineModule';
 import { AdminGalleryModule } from '@/src/components/admin/AdminGalleryModule';
+import { AdminPackagesModule } from '@/src/components/admin/AdminPackagesModule';
 import { GKCameraMark } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 
-type AdminTab = 'bookings' | 'schedule' | 'timeline' | 'gallery';
+type AdminTab = 'bookings' | 'schedule' | 'timeline' | 'gallery' | 'packages';
 
 interface AdminDashboardProps {
   onExitAdmin: () => void;
 }
 
 export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
-  const { bookings, calendarEntries, portfolio, eventProjects, resetDemoData } = useStudio();
+  const { bookings, calendarEntries, portfolio, packages, eventProjects, resetDemoData } = useStudio();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [authSubmitting, setAuthSubmitting] = useState(false);
@@ -205,6 +207,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     { id: 'schedule', label: 'Schedule & Calendar', icon: CalendarDays, badgeCount: blockedDatesCount },
     { id: 'timeline', label: 'Event Timeline & Payments', icon: GitCommitHorizontal, badgeCount: activeEventsCount },
     { id: 'gallery', label: 'Gallery Manager', icon: ImageIcon, badgeCount: visiblePhotosCount },
+    { id: 'packages', label: 'Packages Manager', icon: PackageIcon, badgeCount: packages.length },
   ];
 
   const activeTitle =
@@ -214,7 +217,9 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
       ? 'Studio Schedule & Master Calendar'
       : activeTab === 'timeline'
       ? 'Event Delivery Timeline & Payment Ledger'
-      : 'Live Gallery & Portfolio Manager';
+      : activeTab === 'gallery'
+      ? 'Live Gallery & Portfolio Manager'
+      : 'Photography Packages & Collections Manager';
 
   return (
     <div className="min-h-screen bg-[#072421] text-[#E6ECEB]">
@@ -337,6 +342,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {activeTab === 'schedule' && <AdminScheduleModule />}
           {activeTab === 'timeline' && <AdminEventsTimelineModule />}
           {activeTab === 'gallery' && <AdminGalleryModule />}
+          {activeTab === 'packages' && <AdminPackagesModule />}
         </main>
       </div>
     </div>

@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 2050" width="1080" height="2050">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#092E2B" />
+      <stop offset="50%" stop-color="#072421" />
+      <stop offset="100%" stop-color="#051A18" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F2E3B3" />
+      <stop offset="50%" stop-color="#D8C78E" />
+      <stop offset="100%" stop-color="#C5B378" />
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-5%" width="120%" height="115%">
+      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <style>
+    .font-sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .font-serif { font-family: "Georgia", "Times New Roman", serif; }
+    .gold-text { fill: url(#goldGrad); }
+    .white-text { fill: #FFFFFF; }
+    .sub-text { fill: #E6ECEB; opacity: 0.85; }
+    .muted-text { fill: #E6ECEB; opacity: 0.65; }
+  </style>
+
+  <!-- Background Canvas -->
+  <rect width="1080" height="2050" fill="#041513" />
+
+  <!-- Outer Border Frame -->
+  <rect x="30" y="30" width="1020" height="1990" rx="24" fill="url(#bgGrad)" stroke="#C5B378" stroke-width="2.5" filter="url(#cardShadow)" />
+  <rect x="42" y="42" width="996" height="1966" rx="18" fill="none" stroke="#C5B378" stroke-width="0.75" stroke-dasharray="6,4" opacity="0.4" />
+
+  <!-- Top Decorative Mandala Accents -->
+  <g transform="translate(540, 95)" text-anchor="middle">
+    <!-- Camera Glyph -->
+    <path d="M-28 -10 L-18 -22 L18 -22 L28 -10 L40 -10 C44 -10 48 -6 48 -2 L48 24 C48 28 44 32 40 32 L-40 32 C-44 32 -48 28 -48 24 L-48 -2 C-48 -6 -44 -10 -40 -10 Z" fill="none" stroke="url(#goldGrad)" stroke-width="2.5" />
+    <circle cx="0" cy="11" r="14" fill="none" stroke="url(#goldGrad)" stroke-width="2.5" />
+    <circle cx="0" cy="11" r="6" fill="url(#goldGrad)" />
+    <circle cx="28" cy="-1" r="3" fill="#D8C78E" />
+  </g>
+
+  <!-- Header Header -->
+  <g transform="translate(540, 175)" text-anchor="middle" class="font-sans">
+    <text y="0" font-size="14" font-weight="700" letter-spacing="4" fill="#D8C78E">GK STUDIOS · OFFICIAL GUIDELINES</text>
+    <text y="42" font-size="44" font-weight="800" letter-spacing="5" fill="#FFFFFF" class="font-serif">GK STUDIOS</text>
+    <text y="78" font-size="24" font-weight="700" letter-spacing="4" fill="url(#goldGrad)">TERMS &amp; CONDITIONS</text>
+    <text y="108" font-size="16" font-style="italic" fill="#E6ECEB" opacity="0.85">"A few simple guidelines to make your experience smooth and hassle-free."</text>
+  </g>
+
+  <!-- Divider Line -->
+  <line x1="80" y1="310" x2="1000" y2="310" stroke="#C5B378" stroke-width="1.5" opacity="0.3" />
+
+  <!-- Intro Banner -->
+  <g transform="translate(80, 330)">
+    <rect width="920" height="50" rx="8" fill="#C5B378" fill-opacity="0.12" stroke="#D8C78E" stroke-width="1" />
+    <rect x="0" y="0" width="6" height="50" rx="3" fill="#D8C78E" />
+    <text x="24" y="31" font-size="16" font-weight="600" fill="#FFFFFF" class="font-sans">
+      To make sure everything goes smoothly, please take a moment to read our simple booking guidelines.
+    </text>
+  </g>
+
+  <!-- Helper Macro for numbered conditions -->
+  <!-- ITEM 1: Payment Terms -->
+  <g transform="translate(80, 405)" class="font-sans">
+    <rect width="920" height="116" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="38" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="43" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">1</text>
+    
+    <text x="68" y="34" font-size="16" font-weight="700" fill="#FFFFFF">1. PAYMENT TERMS (20% – 60% – 20%)</text>
+    <text x="68" y="60" font-size="14" fill="#E6ECEB" opacity="0.9">
+      • <tspan font-weight="700" fill="#D8C78E">20% Advance:</tspan> Pay 20% in advance to confirm your booking.
+    </text>
+    <text x="68" y="82" font-size="14" fill="#E6ECEB" opacity="0.9">
+      • <tspan font-weight="700" fill="#D8C78E">60% During the Event:</tspan> Pay 60% during the event or production.
+    </text>
+    <text x="68" y="104" font-size="14" fill="#E6ECEB" opacity="0.9">
+      • <tspan font-weight="700" fill="#D8C78E">20% Final Payment:</tspan> Pay the remaining 20% before receiving your final photos, albums and files.
+    </text>
+  </g>
+
+  <!-- ITEM 2: Photo & File Collection -->
+  <g transform="translate(80, 535)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">2</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">2. PHOTO &amp; FILE COLLECTION</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      Please collect your photos and event files within <tspan font-weight="700" fill="#D8C78E">120 days</tspan> from your event date or order confirmation.
+    </text>
+  </g>
+
+  <!-- ITEM 3: Uncollected Photos & Files -->
+  <g transform="translate(80, 622)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">3</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">3. UNCOLLECTED PHOTOS &amp; FILES</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      If you do not collect your photos or files within <tspan font-weight="700" fill="#D8C78E">120 days</tspan>, GK Studios cannot guarantee their storage, safety or availability.
+    </text>
+  </g>
+
+  <!-- ITEM 4: Photo Selection -->
+  <g transform="translate(80, 709)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">4</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">4. PHOTO SELECTION</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      Please select photos according to the number of photos included in your confirmed package.
+    </text>
+  </g>
+
+  <!-- ITEM 5: Extra Photo Sheets -->
+  <g transform="translate(80, 796)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">5</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">5. EXTRA PHOTO SHEETS</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      Need extra photo sheets? No problem! Additional sheets will cost <tspan font-weight="700" fill="#D8C78E">₹300</tspan> per sheet.
+    </text>
+  </g>
+
+  <!-- ITEM 6: Album Delivery Time -->
+  <g transform="translate(80, 883)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">6</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">6. ALBUM DELIVERY TIME</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      After you submit your final photo selection and approve the album design, please allow up to <tspan font-weight="700" fill="#D8C78E">2 months</tspan> for delivery.
+    </text>
+  </g>
+
+  <!-- ITEM 7: Complimentary Offers -->
+  <g transform="translate(80, 970)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">7</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">7. COMPLIMENTARY OFFERS</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      If you need any free prints, services or extra files, please discuss and confirm them with us before finalising your package.
+    </text>
+  </g>
+
+  <!-- ITEM 8: Package Confirmation -->
+  <g transform="translate(80, 1057)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">8</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">8. PACKAGE CONFIRMATION</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      Only the complimentary items agreed upon before booking confirmation will be included. Additional items cannot be requested after.
+    </text>
+  </g>
+
+  <!-- ITEM 9: After Receiving Photos & Files -->
+  <g transform="translate(80, 1144)" class="font-sans">
+    <rect width="920" height="78" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="39" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="44" text-anchor="middle" font-size="15" font-weight="700" fill="#D8C78E">9</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">9. AFTER RECEIVING YOUR PHOTOS &amp; FILES</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      Once we hand over your photos and event files, please keep them safe and maintain backup copies.
+    </text>
+    <text x="68" y="74" font-size="13" fill="#E6ECEB" opacity="0.75">
+      GK Studios will not be responsible for any loss or damage after delivery.
+    </text>
+  </g>
+
+  <!-- ITEM 10: Agreement -->
+  <g transform="translate(80, 1235)" class="font-sans">
+    <rect width="920" height="74" rx="12" fill="#092E2B" fill-opacity="0.6" stroke="#C5B378" stroke-width="0.8" stroke-opacity="0.25" />
+    <circle cx="36" cy="37" r="16" fill="#C5B378" fill-opacity="0.2" stroke="#D8C78E" stroke-width="1.5" />
+    <text x="36" y="42" text-anchor="middle" font-size="14" font-weight="700" fill="#D8C78E">10</text>
+    
+    <text x="68" y="32" font-size="16" font-weight="700" fill="#FFFFFF">10. AGREEMENT</text>
+    <text x="68" y="56" font-size="14" fill="#E6ECEB" opacity="0.9">
+      By confirming your booking, you agree that you have read, understood and accepted all the above terms and conditions.
+    </text>
+  </g>
+
+  <!-- IMPORTANT NOTE BOX -->
+  <g transform="translate(80, 1335)" class="font-sans">
+    <rect width="920" height="150" rx="16" fill="#092E2B" stroke="#D8C78E" stroke-width="2" />
+    <text x="32" y="40" font-size="16" font-weight="800" letter-spacing="2" fill="#D8C78E">⚠️ IMPORTANT NOTE</text>
+    <text x="32" y="74" font-size="15" fill="#FFFFFF" opacity="0.95" width="850">
+      To avoid any confusion later, please discuss all your requirements, package details, complimentary
+    </text>
+    <text x="32" y="98" font-size="15" fill="#FFFFFF" opacity="0.95">
+      offers and additional services with us before confirming your booking.
+    </text>
+    <text x="32" y="128" font-size="15" font-weight="700" fill="#D8C78E">
+      Once your package is confirmed, the agreed terms and conditions will apply.
+    </text>
+  </g>
+
+  <!-- STUDIO SIGNATURE & FOOTER -->
+  <g transform="translate(540, 1540)" text-anchor="middle" class="font-sans">
+    <line x1="-420" y1="0" x2="420" y2="0" stroke="#C5B378" stroke-width="1.5" opacity="0.3" />
+    <text y="42" font-size="20" font-weight="800" letter-spacing="4" fill="#D8C78E" class="font-serif">THANK YOU FOR CHOOSING GK STUDIOS!</text>
+    <text y="72" font-size="16" font-weight="500" letter-spacing="2" fill="#E6ECEB">Your Memories, Our Responsibility.</text>
+    <text y="104" font-size="13" letter-spacing="1" fill="#E6ECEB" opacity="0.6">
+      Chennai Highway, Kandarakkottai, Panruti · Phone: +91 7418543123 · www.gkstudios.in
+    </text>
+  </g>
+</svg>

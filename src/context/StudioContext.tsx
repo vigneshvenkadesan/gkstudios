@@ -78,6 +78,10 @@ interface StudioContextValue {
   addPortfolioItem: (item: Omit<PortfolioItem, 'id'>) => Promise<PortfolioItem>;
   updatePortfolioItem: (id: string, patch: Partial<PortfolioItem>) => Promise<void>;
   deletePortfolioItem: (id: string) => Promise<void>;
+  addPackage: (item: Partial<StudioPackage>) => Promise<StudioPackage>;
+  updatePackage: (id: string, patch: Partial<StudioPackage>) => Promise<void>;
+  deletePackage: (id: string) => Promise<void>;
+  reorderPackages: (orderedIds: string[]) => Promise<void>;
   createEventProject: (input: CreateEventProjectInput) => Promise<EventProject>;
   updateEventStage: (projectId: string, stage: EventStage, note?: string) => Promise<void>;
   updateEventFinancials: (
@@ -230,6 +234,47 @@ export function StudioProvider({
     setState(nextState);
   }, []);
 
+  const addPackage = useCallback(
+    async (item: Partial<StudioPackage>): Promise<StudioPackage> => {
+      const data = await requestJson<{ state: StudioState; created: StudioPackage }>(
+        '/api/packages',
+        {
+          method: 'POST',
+          body: JSON.stringify(item),
+        }
+      );
+      setState(data.state);
+      return data.created;
+    },
+    []
+  );
+
+  const updatePackage = useCallback(
+    async (id: string, patch: Partial<StudioPackage>) => {
+      const nextState = await requestJson<StudioState>(`/api/packages/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      });
+      setState(nextState);
+    },
+    []
+  );
+
+  const deletePackage = useCallback(async (id: string) => {
+    const nextState = await requestJson<StudioState>(`/api/packages/${id}`, {
+      method: 'DELETE',
+    });
+    setState(nextState);
+  }, []);
+
+  const reorderPackages = useCallback(async (orderedIds: string[]) => {
+    const nextState = await requestJson<StudioState>('/api/packages/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ orderedIds }),
+    });
+    setState(nextState);
+  }, []);
+
   const createEventProject = useCallback(
     async (input: CreateEventProjectInput): Promise<EventProject> => {
       const data = await requestJson<{ state: StudioState; created: EventProject }>(
@@ -321,6 +366,10 @@ export function StudioProvider({
         addPortfolioItem,
         updatePortfolioItem,
         deletePortfolioItem,
+        addPackage,
+        updatePackage,
+        deletePackage,
+        reorderPackages,
         createEventProject,
         updateEventStage,
         updateEventFinancials,

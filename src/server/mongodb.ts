@@ -3,6 +3,7 @@ import type {
   BookingRequest,
   CalendarDayEntry,
   EventProject,
+  StudioPackage,
 } from '../types/studio';
 
 const uri = process.env.MONGODB_STANDARD_URI || process.env.MONGODB_URI;
@@ -33,6 +34,7 @@ const BookingSchema = new Schema<BookingRequestDocument>(
     termsAccepted: { type: Boolean, default: false },
     termsAcceptedAt: String,
     termsVersion: String,
+    packageSnapshot: { type: Schema.Types.Mixed },
     createdAt: { type: String, required: true },
   },
   { collection: 'booking_requests', strict: false, timestamps: false }
@@ -55,15 +57,20 @@ async function connectToMongo(uri: string): Promise<typeof mongoose> {
 async function ensureMongoConnection(): Promise<boolean> {
   if (!uri) return false;
 
-  if (!globalForMongoose.mongooseConnection) {
-    globalForMongoose.mongooseConnection = connectToMongo(uri).catch((error) => {
-      globalForMongoose.mongooseConnection = undefined;
-      throw error;
-    });
-  }
+  try {
+    if (!globalForMongoose.mongooseConnection) {
+      globalForMongoose.mongooseConnection = connectToMongo(uri).catch((error) => {
+        globalForMongoose.mongooseConnection = undefined;
+        throw error;
+      });
+    }
 
-  await globalForMongoose.mongooseConnection;
-  return true;
+    await globalForMongoose.mongooseConnection;
+    return true;
+  } catch (error) {
+    console.warn('MongoDB connection unavailable:', error instanceof Error ? error.message : error);
+    return false;
+  }
 }
 
 export async function getBookingModel(): Promise<Model<BookingRequestDocument> | null> {
@@ -72,6 +79,37 @@ export async function getBookingModel(): Promise<Model<BookingRequestDocument> |
   return (
     mongoose.models.BookingRequest as Model<BookingRequestDocument> | undefined
   ) || mongoose.model<BookingRequestDocument>('BookingRequest', BookingSchema);
+}
+
+interface StudioPackageDocument extends StudioPackage, mongoose.Document {}
+
+const PackageSchema = new Schema<StudioPackageDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    audience: { type: String, required: true },
+    price: { type: Number, required: true },
+    priceLabel: String,
+    duration: { type: String, required: true },
+    highlighted: { type: Boolean, default: false },
+    deliverables: { type: [String], default: [] },
+    imageUrl: String,
+    category: String,
+    status: { type: String, default: 'active' },
+    displayOnPortfolio: { type: Boolean, default: true },
+    sortOrder: { type: Number, default: 0 },
+    createdAt: String,
+    updatedAt: String,
+  },
+  { collection: 'packages', strict: false, timestamps: true }
+);
+
+export async function getPackageModel(): Promise<Model<StudioPackageDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    mongoose.models.Package as Model<StudioPackageDocument> | undefined
+  ) || mongoose.model<StudioPackageDocument>('Package', PackageSchema);
 }
 
 interface CalendarScheduleDocument extends CalendarDayEntry, mongoose.Document {}
@@ -129,6 +167,7 @@ const EventProjectSchema = new Schema<EventProjectDocument>(
     discount: { type: Number, required: true },
     payments: { type: [PaymentSchema], default: [] },
     deliveryNotes: { type: String, required: true },
+    packageSnapshot: { type: Schema.Types.Mixed },
   },
   { collection: 'event_projects', strict: false, timestamps: false }
 );

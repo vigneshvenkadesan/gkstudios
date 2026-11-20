@@ -28,6 +28,7 @@ import {
   EventCategory,
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import {
@@ -114,6 +115,7 @@ export function AdminBookingModule() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeBooking, setActiveBooking] = useState<BookingRequest | null>(null);
+  const [whatsAppModalBooking, setWhatsAppModalBooking] = useState<BookingRequest | null>(null);
 
   // Manage modal editable state
   const [editPackageId, setEditPackageId] = useState('');
@@ -581,20 +583,14 @@ export function AdminBookingModule() {
                           : 'Manage'}
                       </Button>
                       {booking.phone && (
-                        <a
-                          href={buildWhatsAppUrl(
-                            booking.phone,
-                            `Vanakkam ${booking.clientName}! This is G Krishna from GK STUDIOS. Regarding your ${booking.eventType} on ${formatDateDisplay(
-                              booking.preferredDate
-                            )}:`
-                          )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] hover:text-[#25D366] hover:border-[#25D366]/50 transition-colors"
-                          title="Quick WhatsApp message"
+                        <button
+                          type="button"
+                          onClick={() => setWhatsAppModalBooking(booking)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] hover:text-[#25D366] hover:border-[#25D366]/50 transition-colors cursor-pointer"
+                          title="Open WhatsApp message templates"
                         >
                           <MessageCircle className="h-4 w-4" />
-                        </a>
+                        </button>
                       )}
                     </div>
                   </TableCell>
@@ -1032,16 +1028,17 @@ export function AdminBookingModule() {
                       <Copy className="h-3.5 w-3.5" />
                       Copy Text
                     </Button>
-                    <a
-                      href={buildWhatsAppUrl(activeBooking.phone, generatedMessage)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isProcessingAction}
+                      onClick={() => setWhatsAppModalBooking(activeBooking)}
+                      className="cursor-pointer border-[#C5B378]/30 text-[#E6ECEB] hover:text-[#25D366] hover:border-[#25D366]/50"
                     >
-                      <Button type="button" size="sm" variant="outline" disabled={isProcessingAction}>
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Send via WhatsApp
-                      </Button>
-                    </a>
+                      <MessageCircle className="h-3.5 w-3.5 mr-1.5 text-[#25D366]" />
+                      Send via WhatsApp
+                    </Button>
                   </div>
                 </div>
                 <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#E6ECEB]/90">
@@ -1133,6 +1130,20 @@ export function AdminBookingModule() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Multiple WhatsApp Message Templates Modal */}
+      {whatsAppModalBooking && (
+        <WhatsAppTemplateModal
+          isOpen={Boolean(whatsAppModalBooking)}
+          onClose={() => setWhatsAppModalBooking(null)}
+          booking={whatsAppModalBooking}
+          currentQuote={whatsAppModalBooking?.id === activeBooking?.id ? editQuote : undefined}
+          currentNote={whatsAppModalBooking?.id === activeBooking?.id ? editNote : undefined}
+          currentPackageId={
+            whatsAppModalBooking?.id === activeBooking?.id ? editPackageId : undefined
+          }
+        />
+      )}
     </div>
   );
 }

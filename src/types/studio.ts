@@ -136,6 +136,7 @@ export interface EventProject {
   discount: number;
   payments: PaymentRecord[];
   deliveryNotes: string;
+  packageSnapshot?: PackageSnapshot;
 }
 
 export interface PortfolioItem {
@@ -152,15 +153,33 @@ export interface PortfolioItem {
   aspect?: 'wide' | 'standard';
 }
 
+export interface PackageSnapshot {
+  id: string;
+  name: string;
+  price: number;
+  duration?: string;
+  deliverables?: string[];
+  snapshotAt: string;
+}
+
 export interface StudioPackage {
   id: string;
   name: string;
   audience: string;
   price: number;
-  priceLabel: string;
+  priceLabel?: string;
   duration: string;
   highlighted?: boolean;
+  featured?: boolean;
   deliverables: string[];
+  imageUrl?: string;
+  image?: string;
+  category?: string;
+  status?: 'active' | 'inactive';
+  displayOnPortfolio?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BookingRequest {
@@ -185,6 +204,7 @@ export interface BookingRequest {
   termsAccepted?: boolean;
   termsAcceptedAt?: string;
   termsVersion?: string;
+  packageSnapshot?: PackageSnapshot;
   createdAt: string;
 }
 

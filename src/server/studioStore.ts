@@ -10,8 +10,10 @@ import {
   EventCategory,
   EventProject,
   EventStage,
+  PackageSnapshot,
   PaymentRecord,
   PortfolioItem,
+  StudioPackage,
   StudioState,
 } from '../types/studio';
 import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '../data/initialStudioData';
@@ -19,7 +21,9 @@ import {
   getBookingModel,
   getCalendarScheduleModel,
   getEventProjectModel,
+  getPackageModel,
 } from './mongodb';
+import { formatINR } from '../lib/utils';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 
@@ -109,7 +113,34 @@ async function writeToDisk(nextState: StudioState): Promise<void> {
   );
 }
 
-function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): BookingRequest {
+export function toPlainPackage(doc: unknown): StudioPackage {
+  const p = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
+    ? (doc as { toObject: () => Record<string, unknown> }).toObject()
+    : doc) as Record<string, unknown> || {};
+
+  const priceNum = typeof p.price === 'number' ? p.price : Number(p.price) || 0;
+  return {
+    id: String(p.id || p._id || ''),
+    name: String(p.name || ''),
+    audience: String(p.audience || ''),
+    price: priceNum,
+    priceLabel: p.priceLabel ? String(p.priceLabel) : formatINR(priceNum),
+    duration: String(p.duration || ''),
+    highlighted: Boolean(p.highlighted || p.featured),
+    featured: Boolean(p.featured || p.highlighted),
+    deliverables: Array.isArray(p.deliverables) ? p.deliverables.map(String) : [],
+    imageUrl: p.imageUrl ? String(p.imageUrl) : p.image ? String(p.image) : '',
+    image: p.image ? String(p.image) : p.imageUrl ? String(p.imageUrl) : '',
+    category: p.category ? String(p.category) : undefined,
+    status: p.status === 'inactive' ? 'inactive' : 'active',
+    displayOnPortfolio: p.displayOnPortfolio !== false,
+    sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
+    createdAt: p.createdAt ? String(p.createdAt) : undefined,
+    updatedAt: p.updatedAt ? String(p.updatedAt) : undefined,
+  };
+}
+
+function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; packageSnapshot?: unknown }): BookingRequest {
   return {
     id: String(booking.id),
     referenceCode: String(booking.referenceCode),
@@ -138,6 +169,7 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): Book
       : {}),
     ...(booking.termsAcceptedAt ? { termsAcceptedAt: String(booking.termsAcceptedAt) } : {}),
     ...(booking.termsVersion ? { termsVersion: String(booking.termsVersion) } : {}),
+    ...(booking.packageSnapshot ? { packageSnapshot: booking.packageSnapshot as PackageSnapshot } : {}),
     createdAt:
       typeof booking.createdAt === 'string'
         ? booking.createdAt
@@ -145,7 +177,7 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown }): Book
   };
 }
 
-function toPlainEventProject(project: EventProject & { _id?: unknown }): EventProject {
+function toPlainEventProject(project: EventProject & { _id?: unknown; packageSnapshot?: unknown }): EventProject {
   return {
     id: String(project.id),
     ...(project.bookingId ? { bookingId: String(project.bookingId) } : {}),
@@ -165,6 +197,7 @@ function toPlainEventProject(project: EventProject & { _id?: unknown }): EventPr
     discount: Number(project.discount),
     payments: Array.isArray(project.payments) ? project.payments : [],
     deliveryNotes: String(project.deliveryNotes || ''),
+    ...(project.packageSnapshot ? { packageSnapshot: project.packageSnapshot as PackageSnapshot } : {}),
   };
 }
 
@@ -215,8 +248,29 @@ export async function getStudioState(): Promise<StudioState> {
     mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
   }
 
+  const packageModel = await getPackageModel();
+  let plainPackages: StudioPackage[] = [];
+  if (packageModel) {
+    try {
+      const mongoPackages = await packageModel.find({}).sort({ sortOrder: 1, createdAt: 1 }).lean().exec();
+      if (mongoPackages && mongoPackages.length > 0) {
+        plainPackages = mongoPackages.map(toPlainPackage);
+      }
+    } catch (err) {
+      console.warn('Could not query packages from MongoDB:', err);
+    }
+  }
+
+  if (plainPackages.length === 0) {
+    plainPackages =
+      memoryCache && memoryCache.packages && memoryCache.packages.length > 0
+        ? memoryCache.packages
+        : INITIAL_STUDIO_STATE.packages;
+  }
+
   memoryCache = {
     ...memoryCache,
+    packages: plainPackages,
     bookings: plainBookings,
     calendarEntries: plainSchedule,
     eventProjects: mongoProjects.map((project) =>
@@ -315,6 +369,14 @@ export async function createBookingOnServer(input: {
     termsAccepted: input.termsAccepted ?? false,
     termsAcceptedAt: input.termsAcceptedAt || undefined,
     termsVersion: input.termsVersion || undefined,
+    packageSnapshot: {
+      id: selectedPkg?.id || input.packageId || CUSTOM_PACKAGE_ID,
+      name: resolvedPkgName,
+      price: resolvedQuotedAmount,
+      duration: selectedPkg?.duration,
+      deliverables: selectedPkg?.deliverables,
+      snapshotAt: now.toISOString(),
+    },
     createdAt: now.toISOString(),
   };
 
@@ -477,6 +539,14 @@ export async function processBookingOnServer(input: {
         discount: 0,
         payments: [],
         deliveryNotes: targetBooking.notes || 'Standard album & 4K delivery workflow.',
+        packageSnapshot: targetBooking.packageSnapshot || {
+          id: pkg?.id || targetBooking.packageId || CUSTOM_PACKAGE_ID,
+          name: resolvedPkgName,
+          price: input.quotedAmount,
+          duration: pkg?.duration,
+          deliverables: pkg?.deliverables,
+          snapshotAt: new Date().toISOString(),
+        },
       };
       const eventProjects = await requireEventProjectModel();
       await eventProjects.updateOne(
@@ -734,4 +804,206 @@ export async function deleteEventPaymentOnServer(
     { $set: { payments: project.payments.filter((payment) => payment.id !== paymentId) } }
   );
   return getStudioState();
+}
+
+export async function createPackageOnServer(
+  input: Partial<StudioPackage>
+): Promise<{ state: StudioState; created: StudioPackage }> {
+  const state = await getStudioState();
+
+  const name = input.name?.trim();
+  if (!name) {
+    throw new Error('Package name is required.');
+  }
+
+  const rawId =
+    input.id?.trim() ||
+    'pkg-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const id = rawId.startsWith('pkg-') ? rawId : `pkg-${rawId}`;
+
+  if (state.packages.some((p) => p.id === id)) {
+    throw new Error(`Package ID "${id}" already exists. Please choose a different ID or name.`);
+  }
+
+  const price = typeof input.price === 'number' ? input.price : Number(input.price) || 0;
+  const maxSort = state.packages.reduce((max, p) => Math.max(max, p.sortOrder ?? 0), 0);
+
+  const newPackage: StudioPackage = {
+    id,
+    name,
+    audience: input.audience?.trim() || 'For weddings and celebrations',
+    price,
+    priceLabel: input.priceLabel?.trim() || formatINR(price),
+    duration: input.duration?.trim() || 'Single Day',
+    highlighted: Boolean(input.highlighted || input.featured),
+    featured: Boolean(input.featured || input.highlighted),
+    deliverables:
+      Array.isArray(input.deliverables) && input.deliverables.length > 0
+        ? input.deliverables.map(String).map((d) => d.trim()).filter(Boolean)
+        : [
+            '1 Lead Candid Photographer + 1 Traditional Photographer',
+            'Full Event Edited Video + Raw Footage Drive',
+            'Signature Layflat Photo Album',
+          ],
+    imageUrl: input.imageUrl?.trim() || input.image?.trim() || '',
+    category: input.category?.trim() || 'Weddings',
+    status: input.status === 'inactive' ? 'inactive' : 'active',
+    displayOnPortfolio: input.displayOnPortfolio !== false,
+    sortOrder: typeof input.sortOrder === 'number' ? input.sortOrder : maxSort + 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const packageModel = await getPackageModel();
+  if (packageModel) {
+    await packageModel.updateOne({ id }, { $set: newPackage }, { upsert: true });
+  }
+
+  const nextPackages = [...state.packages, newPackage].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  );
+
+  memoryCache = {
+    ...state,
+    packages: nextPackages,
+  };
+
+  await writeToDisk({
+    ...memoryCache,
+    packages: nextPackages,
+    bookings: [],
+    calendarEntries: [],
+  });
+
+  return { state: memoryCache, created: newPackage };
+}
+
+export async function updatePackageOnServer(
+  id: string,
+  patch: Partial<StudioPackage>
+): Promise<StudioState> {
+  const state = await getStudioState();
+  const existing = state.packages.find((p) => p.id === id);
+  if (!existing) {
+    throw new Error(`Package with ID "${id}" not found.`);
+  }
+
+  const price = patch.price !== undefined ? (Number(patch.price) || 0) : existing.price;
+
+  const updatedPackage: StudioPackage = {
+    ...existing,
+    ...patch,
+    id: existing.id,
+    price,
+    priceLabel:
+      patch.priceLabel ||
+      (patch.price !== undefined ? formatINR(price) : existing.priceLabel),
+    highlighted:
+      patch.highlighted !== undefined
+        ? Boolean(patch.highlighted)
+        : patch.featured !== undefined
+        ? Boolean(patch.featured)
+        : existing.highlighted,
+    featured:
+      patch.featured !== undefined
+        ? Boolean(patch.featured)
+        : patch.highlighted !== undefined
+        ? Boolean(patch.highlighted)
+        : existing.featured,
+    deliverables: Array.isArray(patch.deliverables)
+      ? patch.deliverables.map(String).map((d) => d.trim()).filter(Boolean)
+      : existing.deliverables,
+    status: patch.status ? (patch.status === 'inactive' ? 'inactive' : 'active') : existing.status,
+    displayOnPortfolio:
+      patch.displayOnPortfolio !== undefined
+        ? patch.displayOnPortfolio
+        : existing.displayOnPortfolio,
+    sortOrder: patch.sortOrder !== undefined ? Number(patch.sortOrder) : existing.sortOrder,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const packageModel = await getPackageModel();
+  if (packageModel) {
+    await packageModel.updateOne({ id }, { $set: updatedPackage }, { upsert: true });
+  }
+
+  const nextPackages = state.packages
+    .map((p) => (p.id === id ? updatedPackage : p))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  memoryCache = {
+    ...state,
+    packages: nextPackages,
+  };
+
+  await writeToDisk({
+    ...memoryCache,
+    packages: nextPackages,
+    bookings: [],
+    calendarEntries: [],
+  });
+
+  return memoryCache;
+}
+
+export async function deletePackageOnServer(id: string): Promise<StudioState> {
+  const state = await getStudioState();
+  const exists = state.packages.some((p) => p.id === id);
+  if (!exists) {
+    throw new Error(`Package with ID "${id}" not found.`);
+  }
+
+  const packageModel = await getPackageModel();
+  if (packageModel) {
+    await packageModel.deleteOne({ id });
+  }
+
+  const nextPackages = state.packages.filter((p) => p.id !== id);
+
+  memoryCache = {
+    ...state,
+    packages: nextPackages,
+  };
+
+  await writeToDisk({
+    ...memoryCache,
+    packages: nextPackages,
+    bookings: [],
+    calendarEntries: [],
+  });
+
+  return memoryCache;
+}
+
+export async function reorderPackagesOnServer(orderedIds: string[]): Promise<StudioState> {
+  const state = await getStudioState();
+  const packageModel = await getPackageModel();
+
+  const idToOrder = new Map(orderedIds.map((id, index) => [id, index + 1]));
+
+  if (packageModel) {
+    const bulkOps = orderedIds.map((id, index) => ({
+      updateOne: {
+        filter: { id },
+        update: { $set: { sortOrder: index + 1, updatedAt: new Date().toISOString() } },
+      },
+    }));
+    if (bulkOps.length > 0) {
+      await packageModel.bulkWrite(bulkOps);
+    }
+  }
+
+  const nextPackages = [...state.packages]
+    .map((pkg) => {
+      const nextOrder = idToOrder.get(pkg.id);
+      return nextOrder !== undefined ? { ...pkg, sortOrder: nextOrder } : pkg;
+    })
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  memoryCache = {
+    ...state,
+    packages: nextPackages,
+  };
+
+  return memoryCache;
 }

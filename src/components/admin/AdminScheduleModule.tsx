@@ -31,6 +31,7 @@ import {
   normalizeEventCategory,
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
@@ -67,6 +68,9 @@ export function AdminScheduleModule() {
   const [notes, setNotes] = useState('');
   const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>([]);
   const [linkedBookingId, setLinkedBookingId] = useState<string | undefined>();
+  const [whatsAppModalBooking, setWhatsAppModalBooking] = useState<WhatsAppRecipientDetails | null>(
+    null
+  );
 
   const handleSelectDate = (isoDate: string, entry?: CalendarDayEntry) => {
     setSelectedDate(isoDate);
@@ -541,19 +545,29 @@ export function AdminScheduleModule() {
                 {matchedBooking.phone && (
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[#D8C78E]">{matchedBooking.phone}</span>
-                    <a
-                      href={buildWhatsAppUrl(
-                        matchedBooking.phone,
-                        `Vanakkam ${matchedBooking.clientName}! This is G Krishna from GK STUDIOS regarding your ${matchedBooking.eventType} scheduled on ${formatDateDisplay(
-                          selectedDate
-                        )}.`
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#25D366] hover:underline flex items-center gap-1 font-semibold"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setWhatsAppModalBooking({
+                          clientName: matchedBooking.clientName,
+                          phone: matchedBooking.phone,
+                          eventType: matchedBooking.eventType,
+                          preferredDate: matchedBooking.preferredDate,
+                          venue: matchedBooking.venue,
+                          referenceCode: matchedBooking.referenceCode,
+                          packageId: matchedBooking.packageId,
+                          packageName: matchedBooking.packageName,
+                          quotedAmount: matchedBooking.quotedAmount,
+                          requestedServices: matchedBooking.requestedServices,
+                          notes: matchedBooking.notes,
+                          acknowledgementNote: matchedBooking.acknowledgementNote,
+                          eventTime: matchedBooking.eventTime,
+                        })
+                      }
+                      className="text-[#25D366] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
                     >
                       <MessageCircle className="h-3 w-3" /> WhatsApp
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>
@@ -785,6 +799,15 @@ export function AdminScheduleModule() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Multiple WhatsApp Message Templates Modal */}
+      {whatsAppModalBooking && (
+        <WhatsAppTemplateModal
+          isOpen={Boolean(whatsAppModalBooking)}
+          onClose={() => setWhatsAppModalBooking(null)}
+          booking={whatsAppModalBooking}
+        />
+      )}
     </div>
   );
 }
