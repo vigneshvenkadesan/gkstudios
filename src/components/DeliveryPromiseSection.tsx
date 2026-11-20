@@ -2,12 +2,9 @@
 'use client';
 
 import {
-  BookOpen,
-  Camera,
   House,
   Images,
   PackageCheck,
-  ArrowRight,
   type LucideIcon,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
@@ -33,28 +30,6 @@ const PROMISES: {
     timeframeKey: 'promise.deliveryTimeframe',
     titleKey: 'promise.deliveryTitle',
     descriptionKey: 'promise.deliveryDescription',
-  },
-];
-
-const STAGES: {
-  icon: LucideIcon;
-  titleKey: TranslationKey;
-}[] = [
-  {
-    icon: Camera,
-    titleKey: 'promise.stageCaptureTitle',
-  },
-  {
-    icon: Images,
-    titleKey: 'promise.stageSelectionTitle',
-  },
-  {
-    icon: BookOpen,
-    titleKey: 'promise.stageDesignTitle',
-  },
-  {
-    icon: PackageCheck,
-    titleKey: 'promise.stageDeliveryTitle',
   },
 ];
 
@@ -146,61 +121,6 @@ export function DeliveryPromiseSection() {
             );
           })}
         </div>
-
-        {/* Workflow */}
-        <motion.div
-          {...reveal}
-          className="mb-10 mt-16 text-center sm:mt-20"
-        >
-          <p className="text-[10px] font-semibold tracking-[0.3em] text-[#D8C78E] sm:text-xs">
-            {t('promise.workflowEyebrow')}
-          </p>
-          <h3 className="mt-3 font-serif text-2xl font-semibold text-white sm:text-3xl">
-            {t('promise.workflowHeading')}
-          </h3>
-        </motion.div>
-
-        <div className="mx-auto max-w-5xl">
-          <div className="grid grid-cols-2 gap-5 sm:grid-cols-4 sm:gap-4">
-            {STAGES.map(({ icon: Icon, titleKey }, index) => (
-              <motion.div
-                key={titleKey}
-                {...reveal}
-                transition={{
-                  ...reveal.transition,
-                  delay: index * 0.1,
-                }}
-                className="relative flex flex-col items-center text-center"
-              >
-                <div className="relative mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-[#C5B378]/35 bg-[#0E423E] text-[#D8C78E] transition-all duration-300 hover:border-[#D8C78E] hover:bg-[#15544D] sm:h-20 sm:w-20">
-                  <Icon size={27} strokeWidth={1.4} />
-
-                  <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#D8C78E] text-[10px] font-bold text-[#072421]">
-                    {index + 1}
-                  </span>
-                </div>
-
-                <h4 className="font-serif text-base font-semibold text-white sm:text-lg">
-                  {t(titleKey)}
-                </h4>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Closing */}
-        <motion.div
-          {...reveal}
-          className="mt-16 border-t border-[#C5B378]/15 pt-9 text-center sm:mt-20"
-        >
-          <p className="font-serif text-xl italic text-white sm:text-2xl">
-            &ldquo;{t('promise.closing')}&rdquo;
-          </p>
-
-          <p className="mt-3 text-[10px] font-semibold tracking-[0.25em] text-[#D8C78E]">
-            {t('promise.signature')}
-          </p>
-        </motion.div>
 
       </div>
     </section>

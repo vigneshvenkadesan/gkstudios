@@ -105,14 +105,18 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
           )}
         </AnimatePresence>
 
-        {/* Measured Editorial Contrast Scrims */}
+        {/* Soft editorial light and contrast layers */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-r from-[#051B19]/88 via-[#072421]/55 to-[#061E1C]/25"
+          className="absolute inset-0 bg-gradient-to-r from-[#051B19]/48 via-[#072421]/24 to-[#061E1C]/5 sm:from-[#051B19]/58 sm:via-[#072421]/30 sm:to-[#061E1C]/8"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-t from-[#061E1C]/95 via-transparent to-[#061E1C]/60"
+          className="absolute inset-0 bg-gradient-to-t from-[#061E1C]/78 via-transparent to-[#061E1C]/20"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_20%,rgba(216,199,142,0.12),transparent_55%)]"
         />
       </div>
 
@@ -141,7 +145,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[6.25rem] font-semibold tracking-[-0.025em] text-white leading-[0.98]"
+            className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[6.25rem] font-semibold tracking-[-0.025em] text-white leading-[0.98] [text-shadow:0_2px_16px_rgba(0,0,0,0.35)]"
           >
             {t('hero.heading')}
           </motion.h1>
@@ -199,7 +203,7 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
       </div>
 
       {/* Minimal Bottom Film Strip Bar */}
-      <div className="relative z-10 border-t border-[#C5B378]/15 bg-[#061E1C]/60 backdrop-blur-sm">
+      <div className="relative z-10 border-t border-[#C5B378]/15 bg-[#061E1C]/45 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4 min-w-0">
             {slides.length > 0 && (

@@ -156,6 +156,122 @@ const translations = {
   'footer.about': { en: 'About', ta: 'எங்களைப் பற்றி' },
   'footer.availability': { en: 'Availability', ta: 'கிடைக்கும் தேதிகள்' },
   'footer.terms': { en: 'Terms & Conditions', ta: 'விதிமுறைகள் & நிபந்தனைகள்' },
+  'terms.guidelines': { en: 'GK STUDIOS · GUIDELINES', ta: 'GK STUDIOS · வழிகாட்டுதல்கள்' },
+  'terms.title': { en: 'TERMS & CONDITIONS', ta: 'விதிமுறைகள் மற்றும் நிபந்தனைகள்' },
+  'terms.description': {
+    en: 'A few simple guidelines to make your experience smooth and hassle-free.',
+    ta: 'உங்கள் அனுபவம் எளிதாகவும் சிரமமின்றியும் அமைய சில எளிய வழிகாட்டுதல்கள்.',
+  },
+  'terms.bookingInquiry': { en: 'Booking Inquiry:', ta: 'முன்பதிவு கோரிக்கை:' },
+  'terms.intro': {
+    en: 'To make sure everything goes smoothly, please take a moment to read our simple booking guidelines.',
+    ta: 'எல்லாம் சீராக நடைபெற, எங்கள் முன்பதிவு வழிகாட்டுதல்களைச் சிறிது நேரம் ஒதுக்கிப் படிக்கவும்.',
+  },
+  'terms.payment.title': { en: 'PAYMENT TERMS', ta: 'கட்டண விதிமுறைகள்' },
+  'terms.payment.advance': { en: 'Advance', ta: 'முன்பணம்' },
+  'terms.payment.advanceDescription': {
+    en: 'Pay 20% in advance to confirm your booking.',
+    ta: 'முன்பதிவை உறுதிப்படுத்த 20% முன்பணமாகச் செலுத்தவும்.',
+  },
+  'terms.payment.duringEvent': { en: 'During the Event', ta: 'நிகழ்வின்போது' },
+  'terms.payment.duringEventDescription': {
+    en: 'Pay 60% during the event or production.',
+    ta: 'நிகழ்வு அல்லது தயாரிப்புப் பணிகளின்போது 60% செலுத்தவும்.',
+  },
+  'terms.payment.final': { en: 'Final Payment', ta: 'இறுதித் தொகை' },
+  'terms.payment.finalDescription': {
+    en: 'Pay the remaining 20% before receiving your final photos, albums and event files.',
+    ta: 'இறுதிப் புகைப்படங்கள், ஆல்பங்கள் மற்றும் நிகழ்வு கோப்புகளைப் பெறுவதற்கு முன் மீதமுள்ள 20% செலுத்தவும்.',
+  },
+  'terms.collection.title': { en: 'PHOTO & FILE COLLECTION', ta: 'புகைப்படங்கள் மற்றும் கோப்புகளைப் பெறுதல்' },
+  'terms.collection.before': {
+    en: 'Please collect your photos and event files within',
+    ta: 'உங்கள் நிகழ்வு நடைபெற்ற நாள் அல்லது ஆர்டர் உறுதிப்படுத்தப்பட்ட நாளிலிருந்து',
+  },
+  'terms.collection.after': {
+    en: ' from your event date or order confirmation.',
+    ta: ', புகைப்படங்களையும் நிகழ்வு கோப்புகளையும் பெற்றுக்கொள்ளுங்கள்.',
+  },
+  'terms.days120': { en: '120 days', ta: '120 நாட்களுக்குள்' },
+  'terms.uncollected.title': { en: 'UNCOLLECTED PHOTOS & FILES', ta: 'பெறப்படாத புகைப்படங்கள் மற்றும் கோப்புகள்' },
+  'terms.uncollected.before': {
+    en: 'If you do not collect your photos or files within',
+    ta: 'நீங்கள் புகைப்படங்கள் அல்லது கோப்புகளை',
+  },
+  'terms.uncollected.after': {
+    en: ', GK Studios cannot guarantee their storage, safety or availability.',
+    ta: ' பெற்றுக்கொள்ளாவிட்டால், அவற்றின் சேமிப்பு, பாதுகாப்பு அல்லது கிடைப்பை GK STUDIOS உறுதி செய்ய முடியாது.',
+  },
+  'terms.selection.title': { en: 'PHOTO SELECTION', ta: 'புகைப்படத் தேர்வு' },
+  'terms.selection.description': {
+    en: 'Please select photos according to the number of photos included in your confirmed package.',
+    ta: 'உறுதிப்படுத்தப்பட்ட தொகுப்பில் சேர்க்கப்பட்டுள்ள புகைப்படங்களின் எண்ணிக்கைக்கு ஏற்ப புகைப்படங்களைத் தேர்ந்தெடுக்கவும்.',
+  },
+  'terms.sheets.title': { en: 'EXTRA PHOTO SHEETS', ta: 'கூடுதல் புகைப்படத் தாள்கள்' },
+  'terms.sheets.before': {
+    en: 'Need extra photo sheets? No problem! Additional sheets will cost',
+    ta: 'கூடுதல் புகைப்படத் தாள்கள் வேண்டுமா? ஏற்பாடு செய்கிறோம். ஒவ்வொரு தாளுக்கும்',
+  },
+  'terms.sheets.price': { en: '₹300', ta: '₹300' },
+  'terms.sheets.after': { en: 'per sheet.', ta: 'செலுத்த வேண்டும்.' },
+  'terms.delivery.title': { en: 'ALBUM DELIVERY TIME', ta: 'ஆல்பம் வழங்கும் காலம்' },
+  'terms.delivery.before': {
+    en: 'After you submit your final photo selection and approve the album design, please allow up to',
+    ta: 'இறுதிப் புகைப்படத் தேர்வைச் சமர்ப்பித்து ஆல்பம் வடிவமைப்பை ஒப்புதல் அளித்த பிறகு, ஆல்பத்தை முடித்து வழங்க',
+  },
+  'terms.delivery.duration': { en: '2 months', ta: '2 மாதங்கள்' },
+  'terms.delivery.after': {
+    en: 'for us to complete and deliver your album.',
+    ta: 'வரை அவகாசம் அளிக்கவும்.',
+  },
+  'terms.complimentary.title': { en: 'COMPLIMENTARY OFFERS', ta: 'இலவசச் சலுகைகள்' },
+  'terms.complimentary.description': {
+    en: 'If you need any free prints, services or extra files, please discuss and confirm them with us before finalising your package.',
+    ta: 'இலவச அச்சுப் பிரதிகள், சேவைகள் அல்லது கூடுதல் கோப்புகள் தேவைப்பட்டால், தொகுப்பை இறுதி செய்வதற்கு முன் எங்களுடன் பேசி உறுதிப்படுத்தவும்.',
+  },
+  'terms.confirmation.title': { en: 'PACKAGE CONFIRMATION', ta: 'தொகுப்பு உறுதிப்படுத்தல்' },
+  'terms.confirmation.description': {
+    en: 'Only the complimentary items agreed upon before booking confirmation will be included. Additional free items cannot be requested after the package is confirmed.',
+    ta: 'முன்பதிவு உறுதிப்படுத்துவதற்கு முன் ஒப்புக்கொண்ட இலவசப் பொருட்கள் மட்டுமே சேர்க்கப்படும். தொகுப்பு உறுதிப்படுத்தப்பட்ட பிறகு கூடுதல் இலவசப் பொருட்களைக் கோர முடியாது.',
+  },
+  'terms.afterDelivery.title': {
+    en: 'AFTER RECEIVING YOUR PHOTOS & FILES',
+    ta: 'புகைப்படங்கள் மற்றும் கோப்புகளைப் பெற்ற பிறகு',
+  },
+  'terms.afterDelivery.description': {
+    en: 'Once we hand over your photos and event files, please keep them safe and maintain backup copies. GK Studios will not be responsible for any loss or damage after delivery.',
+    ta: 'புகைப்படங்கள் மற்றும் நிகழ்வு கோப்புகளை ஒப்படைத்த பிறகு, அவற்றைப் பாதுகாப்பாக வைத்துப் பிரதிகளை காப்புப் பிரதி எடுக்கவும். ஒப்படைத்த பின்னர் ஏற்படும் இழப்பு அல்லது சேதத்திற்கு GK STUDIOS பொறுப்பல்ல.',
+  },
+  'terms.agreement.title': { en: 'AGREEMENT', ta: 'ஒப்புதல்' },
+  'terms.agreement.description': {
+    en: 'By confirming your booking, you agree that you have read, understood and accepted all the above terms and conditions.',
+    ta: 'முன்பதிவை உறுதிப்படுத்துவதன் மூலம், மேலே உள்ள அனைத்து விதிமுறைகளையும் படித்து, புரிந்து, ஏற்றுக்கொண்டதாக ஒப்புக்கொள்கிறீர்கள்.',
+  },
+  'terms.important.title': { en: 'IMPORTANT NOTE', ta: 'முக்கிய குறிப்பு' },
+  'terms.important.description': {
+    en: 'To avoid any confusion later, please discuss all your requirements, package details, complimentary offers and additional services with us before confirming your booking.',
+    ta: 'பின்னர் குழப்பம் ஏற்படாமல் இருக்க, முன்பதிவை உறுதிப்படுத்துவதற்கு முன் உங்கள் தேவைகள், தொகுப்பு விவரங்கள், இலவசச் சலுகைகள் மற்றும் கூடுதல் சேவைகள் குறித்து எங்களுடன் பேசுங்கள்.',
+  },
+  'terms.important.confirmed': {
+    en: 'Once your package is confirmed, the agreed terms and conditions will apply.',
+    ta: 'உங்கள் தொகுப்பு உறுதிப்படுத்தப்பட்டதும், ஒப்புக்கொண்ட விதிமுறைகள் மற்றும் நிபந்தனைகள் பொருந்தும்.',
+  },
+  'terms.thankYou': {
+    en: 'THANK YOU FOR CHOOSING GK STUDIOS!',
+    ta: 'GK STUDIOS-ஐத் தேர்ந்தெடுத்ததற்கு நன்றி!',
+  },
+  'terms.tagline': {
+    en: 'Your Memories, Our Responsibility.',
+    ta: 'உங்கள் நினைவுகள், எங்கள் பொறுப்பு.',
+  },
+  'terms.acceptance': {
+    en: 'I have read and understood the above terms and agree to them.',
+    ta: 'மேலே உள்ள விதிமுறைகளைப் படித்து புரிந்துகொண்டேன்; அவற்றை ஏற்கிறேன்.',
+  },
+  'terms.goBack': { en: 'Go Back', ta: 'திரும்பிச் செல்ல' },
+  'terms.confirming': { en: 'Confirming...', ta: 'உறுதிப்படுத்தப்படுகிறது...' },
+  'terms.acceptContinue': { en: 'Accept & Continue', ta: 'ஏற்று தொடரவும்' },
+  'terms.close': { en: 'Close', ta: 'மூடு' },
   'footer.whatsapp': { en: 'WhatsApp', ta: 'WhatsApp' },
   'footer.tagline': { en: 'Creating Memories.', ta: 'என்றென்றும் நிலைக்கும் நினைவுகள்.' },
   'footer.copyright': { en: '© 2026 GK STUDIOS. All rights reserved.', ta: '© 2026 GK STUDIOS. அனைத்து உரிமைகளும் பாதுகாக்கப்பட்டவை.' },
@@ -187,42 +303,6 @@ const translations = {
   'promise.deliveryDescription': {
     en: 'Your wedding album and film, beautifully finished and delivered within 90 days of your event.',
     ta: 'உங்கள் திருமண ஆல்பமும் திரைப்படமும் அழகாக நிறைவுசெய்யப்பட்டு, நிகழ்வுக்கு 90 நாட்களுக்குள் வழங்கப்படும்.',
-  },
-  'promise.workflowEyebrow': {
-    en: 'YOUR MEMORIES, STEP BY STEP',
-    ta: 'உங்கள் நினைவுகள், ஒவ்வொரு படியாக',
-  },
-  'promise.workflowHeading': {
-    en: 'A simple journey to something timeless.',
-    ta: 'என்றென்றும் நிலைக்க ஒரு எளிய பயணம்.',
-  },
-  'promise.stageCaptureTitle': { en: 'Event Captured', ta: 'நிகழ்வு பதிவு' },
-  'promise.stageCaptureDescription': {
-    en: 'Your special moments are captured.',
-    ta: 'உங்கள் சிறப்பு தருணங்கள் பதிவு செய்யப்படுகின்றன.',
-  },
-  'promise.stageSelectionTitle': { en: 'Photos Ready', ta: 'புகைப்படங்கள் தயார்' },
-  'promise.stageSelectionDescription': {
-    en: 'Your photographs are ready for selection. We visit your home to help you choose.',
-    ta: 'உங்கள் புகைப்படங்கள் தேர்வுக்குத் தயார். தேர்வு செய்ய உதவ நாங்கள் உங்கள் வீட்டிற்கு வருகிறோம்.',
-  },
-  'promise.stageDesignTitle': { en: 'Album in Design', ta: 'ஆல்பம் வடிவமைப்பில்' },
-  'promise.stageDesignDescription': {
-    en: 'Your selected photographs are being transformed into a beautiful album and wedding film.',
-    ta: 'நீங்கள் தேர்ந்தெடுத்த புகைப்படங்கள் அழகிய ஆல்பமாகவும் திருமணத் திரைப்படமாகவும் வடிவமைக்கப்படுகின்றன.',
-  },
-  'promise.stageDeliveryTitle': { en: 'Final Delivery', ta: 'இறுதி வழங்கல்' },
-  'promise.stageDeliveryDescription': {
-    en: 'Your completed album and video are ready to reach your hands.',
-    ta: 'முழுமையான உங்கள் ஆல்பமும் காணொளியும் உங்களை வந்தடையத் தயாராக உள்ளன.',
-  },
-  'promise.closing': {
-    en: 'Your moments deserve to be remembered beautifully.',
-    ta: 'உங்கள் தருணங்கள் அழகாக நினைவுகூரப்படத் தகுதியானவை.',
-  },
-  'promise.signature': {
-    en: 'GK STUDIOS — Capturing moments, creating memories.',
-    ta: 'GK STUDIOS — தருணங்களைப் படம் பிடித்து, நினைவுகளை உருவாக்குகிறோம்.',
   },
 } as const;
 
