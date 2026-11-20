@@ -186,7 +186,7 @@ export function AdminPackagesModule() {
         displayOnPortfolio: newDisplayOnPortfolio,
       });
 
-      toast.success(`Package "${newName.trim()}" created and saved to MongoDB.`);
+      toast.success(`Package "${newName.trim()}" created.`);
       setIsAddModalOpen(false);
       // Reset form
       setNewId('');
@@ -245,7 +245,7 @@ export function AdminPackagesModule() {
         displayOnPortfolio: editDisplayOnPortfolio,
       });
 
-      toast.success(`Updated "${editName.trim()}" in MongoDB.`);
+      toast.success(`Updated "${editName.trim()}".`);
       setEditingPackage(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update package.');
@@ -260,7 +260,7 @@ export function AdminPackagesModule() {
     setIsSubmitting(true);
     try {
       await deletePackage(deletingPackage.id);
-      toast.success(`Package "${deletingPackage.name}" deleted from MongoDB.`);
+      toast.success(`Package "${deletingPackage.name}" deleted.`);
       setDeletingPackage(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete package.');
@@ -341,7 +341,7 @@ export function AdminPackagesModule() {
             <CardTitle className="text-2xl font-bold font-mono text-white">{totalCount}</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3 pt-0 text-[11px] text-[#E6ECEB]/70">
-            Stored in MongoDB packages collection
+            Available to customers
           </CardContent>
         </Card>
 
@@ -384,7 +384,7 @@ export function AdminPackagesModule() {
             Photography Packages Catalog
           </h2>
           <p className="text-xs text-[#E6ECEB]/70 mt-0.5">
-            Single source of truth connected to MongoDB. Changes immediately reflect on the public website and WhatsApp communications.
+            Manage packages shown on the public website and in WhatsApp messages.
           </p>
         </div>
 
@@ -608,7 +608,7 @@ export function AdminPackagesModule() {
               Edit Package: {editingPackage?.name}
             </DialogTitle>
             <DialogDescription className="text-xs text-[#E6ECEB]/70">
-              Update package pricing, deliverables, image, or visibility in MongoDB.
+              Update package pricing, deliverables, image, or visibility.
             </DialogDescription>
           </DialogHeader>
 
@@ -828,7 +828,7 @@ export function AdminPackagesModule() {
                 disabled={isSubmitting}
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isSubmitting ? 'Saving to MongoDB...' : 'Save Changes'}
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogFooter>
           </form>
@@ -844,7 +844,7 @@ export function AdminPackagesModule() {
               Add New Photography Package
             </DialogTitle>
             <DialogDescription className="text-xs text-[#E6ECEB]/70">
-              Define a new photography collection. All fields will be saved directly into MongoDB.
+              Add a photography collection.
             </DialogDescription>
           </DialogHeader>
 
@@ -1065,7 +1065,7 @@ export function AdminPackagesModule() {
                 disabled={isSubmitting}
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isSubmitting ? 'Creating in MongoDB...' : 'Create Package'}
+                {isSubmitting ? 'Creating...' : 'Create Package'}
               </Button>
             </DialogFooter>
           </form>
@@ -1083,7 +1083,7 @@ export function AdminPackagesModule() {
             <DialogDescription className="text-xs text-[#E6ECEB]/80 pt-2">
               Are you sure you want to permanently delete{' '}
               <strong className="text-white">&quot;{deletingPackage?.name}&quot;</strong> ({deletingPackage?.id})?
-              This package document will be removed from MongoDB. Existing confirmed bookings will not be affected.
+              This package will be removed. Existing confirmed bookings will not be affected.
             </DialogDescription>
           </DialogHeader>
 

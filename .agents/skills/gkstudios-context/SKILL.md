@@ -138,7 +138,7 @@ gkstudios/
 ## 5. Administrative Workflows
 
 - **Accessing Admin**: Navigate to `/admin` or press `Ctrl+Shift+A` (`Cmd+Shift+A`).
-- **Authentication**: PIN validated against `ADMIN_PIN` env variable (fallback `1234`). Sets httpOnly `gk_admin_session` cookie. Demo login button available for testing.
+- **Authentication**: A required six-digit `ADMIN_PIN` environment variable sets the httpOnly `gk_admin_session` cookie. There is no default or demo login.
 - **Confirming a Booking**:
   - In `AdminBookingModule`, choosing "Confirm Booking" automatically:
     1. Updates booking status to `Confirmed`.
@@ -172,7 +172,7 @@ npm run build
 
 ## 7. Environment Variables (`.env.local`)
 
-- `ADMIN_PIN`: Secret 4+ digit PIN for admin dashboard (default: `1234`)
+- `ADMIN_PIN`: Required six-digit numeric PIN for admin dashboard; there is no default.
 - `MONGODB_URI`: Primary MongoDB connection string
 - `MONGODB_STANDARD_URI`: Alternative standard (non-SRV) MongoDB URI
 - `MONGODB_DATABASE`: Target database name (default: `gk_studios`)

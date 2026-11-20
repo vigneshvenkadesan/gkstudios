@@ -31,7 +31,11 @@ export async function PATCH(
     const state = await updatePackageOnServer(id, patch);
     return NextResponse.json(state);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update package';
+    console.error('Could not update package:', error);
+    const message =
+      error instanceof Error && error.message.startsWith('Package with ID "')
+        ? error.message
+        : 'Could not update package. Please try again.';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
@@ -53,7 +57,11 @@ export async function DELETE(
     const state = await deletePackageOnServer(id);
     return NextResponse.json(state);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete package';
+    console.error('Could not delete package:', error);
+    const message =
+      error instanceof Error && error.message.startsWith('Package with ID "')
+        ? error.message
+        : 'Could not delete package. Please try again.';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

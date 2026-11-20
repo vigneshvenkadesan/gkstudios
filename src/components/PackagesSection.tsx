@@ -109,7 +109,7 @@ export function PackagesSection({ selectedPackageId, onSelectPackage }: Packages
             {portfolioPackages.map((pkg, idx) => {
               const copy = getPackageCopy(pkg);
               const isSelected = selectedPackageId === pkg.id;
-              const isComprehensive = pkg.id === 'pkg-royal' || Boolean(pkg.featured && !pkg.highlighted);
+              const isComprehensive = Boolean(pkg.featured && !pkg.highlighted);
               const isPopular = Boolean(pkg.highlighted || (!isComprehensive && pkg.featured));
               const isElevated = isComprehensive || isSelected || isPopular;
               const pkgImg = pkg.imageUrl || pkg.image;

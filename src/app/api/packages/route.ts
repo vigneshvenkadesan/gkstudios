@@ -1,6 +1,9 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { createPackageOnServer, getStudioState } from '@/src/server/studioStore';
+import {
+  createPackageOnServer,
+  getPackagesFromMongo,
+} from '@/src/server/studioStore';
 import { StudioPackage } from '@/src/types/studio';
 
 const ADMIN_COOKIE = 'gk_admin_session';
@@ -14,11 +17,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const state = await getStudioState();
-    return NextResponse.json(state.packages);
+    const packages = await getPackagesFromMongo();
+    return NextResponse.json(packages);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch packages';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Could not load package data:', error);
+    return NextResponse.json({ error: 'Package data is currently unavailable.' }, { status: 500 });
   }
 }
 
@@ -43,7 +46,12 @@ export async function POST(request: Request) {
     const result = await createPackageOnServer(body);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create package';
+    console.error('Could not create package:', error);
+    const message =
+      error instanceof Error &&
+      (error.message === 'Package name is required.' || error.message.startsWith('Package ID "'))
+        ? error.message
+        : 'Could not create package. Please try again.';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

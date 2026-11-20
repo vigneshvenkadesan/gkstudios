@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   addEventPaymentOnServer,
   deleteEventPaymentOnServer,
+  deleteEventProjectOnServer,
   updateEventFinancialsOnServer,
   updateEventStageOnServer,
 } from '@/src/server/studioStore';
@@ -54,7 +55,27 @@ export async function PATCH(
 
     return NextResponse.json({ error: 'Invalid event update action' }, { status: 400 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update event project';
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (error instanceof Error && error.message === 'Event project not found.') {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    console.error('Failed to update event project.', error);
+    return NextResponse.json({ error: 'Unable to update event project.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const state = await deleteEventProjectOnServer(id);
+    return NextResponse.json(state);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Event project not found.') {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    console.error('Failed to delete event project.', error);
+    return NextResponse.json({ error: 'Unable to delete event project.' }, { status: 500 });
   }
 }

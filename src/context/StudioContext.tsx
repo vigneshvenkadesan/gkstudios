@@ -83,6 +83,7 @@ interface StudioContextValue {
   deletePackage: (id: string) => Promise<void>;
   reorderPackages: (orderedIds: string[]) => Promise<void>;
   createEventProject: (input: CreateEventProjectInput) => Promise<EventProject>;
+  deleteEventProject: (projectId: string) => Promise<void>;
   updateEventStage: (projectId: string, stage: EventStage, note?: string) => Promise<void>;
   updateEventFinancials: (
     projectId: string,
@@ -96,7 +97,6 @@ interface StudioContextValue {
   ) => Promise<void>;
   addEventPayment: (projectId: string, payment: Omit<PaymentRecord, 'id'>) => Promise<void>;
   deleteEventPayment: (projectId: string, paymentId: string) => Promise<void>;
-  resetDemoData: () => Promise<void>;
 }
 
 const StudioContext = createContext<StudioContextValue | undefined>(undefined);
@@ -290,6 +290,13 @@ export function StudioProvider({
     []
   );
 
+  const deleteEventProject = useCallback(async (projectId: string) => {
+    const nextState = await requestJson<StudioState>(`/api/events/${projectId}`, {
+      method: 'DELETE',
+    });
+    setState(nextState);
+  }, []);
+
   const updateEventStage = useCallback(
     async (projectId: string, stage: EventStage, note?: string) => {
       const nextState = await requestJson<StudioState>(`/api/events/${projectId}`, {
@@ -340,13 +347,6 @@ export function StudioProvider({
     setState(nextState);
   }, []);
 
-  const resetDemoData = useCallback(async () => {
-    const nextState = await requestJson<StudioState>('/api/studio/reset', {
-      method: 'POST',
-    });
-    setState(nextState);
-  }, []);
-
   return (
     <StudioContext.Provider
       value={{
@@ -371,11 +371,11 @@ export function StudioProvider({
         deletePackage,
         reorderPackages,
         createEventProject,
+        deleteEventProject,
         updateEventStage,
         updateEventFinancials,
         addEventPayment,
         deleteEventPayment,
-        resetDemoData,
       }}
     >
       {children}

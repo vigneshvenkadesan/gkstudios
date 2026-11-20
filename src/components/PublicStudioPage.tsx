@@ -32,7 +32,7 @@ function PublicStudioContent() {
   const prefersReducedMotion = Boolean(useReducedMotion());
   const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) =>
     translate(locale, key, params);
-  const [selectedPackageId, setSelectedPackageId] = useState<string>('pkg-grand');
+  const [selectedPackageId, setSelectedPackageId] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<EventCategory | null>(null);
   const [portfolioFilterCategory, setPortfolioFilterCategory] = useState<EventCategory | null>(
     null

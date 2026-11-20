@@ -30,7 +30,10 @@ export async function POST(request: Request) {
     const state = await reorderPackagesOnServer(orderedIds);
     return NextResponse.json(state);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to reorder packages';
-    return NextResponse.json({ error: message }, { status: 400 });
+    console.error('Could not reorder packages:', error);
+    return NextResponse.json(
+      { error: 'Could not reorder packages. Please try again.' },
+      { status: 400 }
+    );
   }
 }

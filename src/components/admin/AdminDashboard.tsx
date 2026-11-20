@@ -11,7 +11,6 @@ import {
   Lock,
   LogOut,
   Package as PackageIcon,
-  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
@@ -31,7 +30,7 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
-  const { bookings, calendarEntries, portfolio, packages, eventProjects, resetDemoData } = useStudio();
+  const { bookings, calendarEntries, portfolio, packages, eventProjects } = useStudio();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [authSubmitting, setAuthSubmitting] = useState(false);
@@ -76,32 +75,13 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
       });
       const data = (await res.json()) as { authenticated?: boolean; error?: string };
       if (!res.ok || !data.authenticated) {
-        toast.error(data.error || 'Incorrect PIN. Use 1234 or Demo Admin Login.');
+        toast.error(data.error || 'Invalid six-digit PIN.');
         return;
       }
       setIsAuthenticated(true);
       toast.success('Signed in to GK Studios Admin Portal.');
     } catch {
       toast.error('Unable to verify PIN right now.');
-    } finally {
-      setAuthSubmitting(false);
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    setAuthSubmitting(true);
-    try {
-      const res = await fetch('/api/admin/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ demo: true }),
-      });
-      if (res.ok) {
-        setIsAuthenticated(true);
-        toast.success('Signed in via Demo Admin Access.');
-      }
-    } catch {
-      toast.error('Demo login failed.');
     } finally {
       setAuthSubmitting(false);
     }
@@ -143,7 +123,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <form onSubmit={handlePinSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label htmlFor="adminPin" className="block text-xs font-medium text-[#D8C78E]">
-                  Studio PIN (Demo PIN: <span className="font-mono">1234</span>)
+                  Six-digit studio PIN
                 </label>
                 <div className="relative">
                   <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#D8C78E]" />
@@ -151,38 +131,29 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                     id="adminPin"
                     type="password"
                     inputMode="numeric"
+                    autoComplete="current-password"
                     value={pinInput}
-                    onChange={(e) => setPinInput(e.target.value)}
-                    placeholder="Enter 4-digit studio PIN"
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    minLength={6}
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                    required
+                    placeholder="Enter six digits"
                     className="h-11 w-full rounded-md border border-[#C5B378]/35 bg-[#072421] pl-10 pr-3 font-mono text-sm tracking-widest text-white focus:border-[#D8C78E] focus:outline-none"
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" size="lg" disabled={authSubmitting}>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={authSubmitting || pinInput.length !== 6}
+              >
                 <KeyRound className="h-4 w-4" />
                 {authSubmitting ? 'Verifying...' : 'Unlock Studio Admin'}
               </Button>
             </form>
-
-            <div className="relative flex items-center justify-center">
-              <div className="h-px w-full bg-[#C5B378]/20" />
-              <span className="bg-[#092E2B] px-3 text-xs text-[#E6ECEB]/60 whitespace-nowrap">
-                Quick Testing
-              </span>
-              <div className="h-px w-full bg-[#C5B378]/20" />
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              disabled={authSubmitting}
-              onClick={handleDemoLogin}
-            >
-              One-Click Demo Admin Login
-            </Button>
 
             <button
               type="button"
@@ -274,19 +245,6 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
               variant="ghost"
               size="sm"
               className="justify-start"
-              onClick={async () => {
-                await resetDemoData();
-                toast.info('Demo studio bookings, calendar, timeline, and gallery restored.');
-              }}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset Demo Data
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="justify-start"
               onClick={handleLogout}
             >
               <LogOut className="h-3.5 w-3.5" />
@@ -318,18 +276,6 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             </div>
 
             <div className="flex items-center gap-2 lg:hidden">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  await resetDemoData();
-                  toast.info('Demo data restored.');
-                }}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </Button>
               <Button type="button" variant="outline" size="sm" onClick={onExitAdmin}>
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Public Site

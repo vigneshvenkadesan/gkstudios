@@ -2,11 +2,12 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 const ADMIN_COOKIE = 'gk_admin_session';
-const VALID_PIN = process.env.ADMIN_PIN || '1234';
+const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
 
 export async function GET() {
   const cookieStore = await cookies();
-  const isAuthenticated = cookieStore.get(ADMIN_COOKIE)?.value === 'authenticated';
+  const isAuthenticated =
+    cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
   return NextResponse.json({ authenticated: isAuthenticated });
 }
 
@@ -24,18 +25,26 @@ function getCookieOptions(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { pin?: string; demo?: boolean };
+    const body = (await request.json()) as { pin?: string };
     const providedPin = body.pin?.trim();
+    const configuredPin = process.env.ADMIN_PIN;
 
-    if (!body.demo && providedPin !== VALID_PIN) {
+    if (!configuredPin || !/^\d{6}$/.test(configuredPin)) {
       return NextResponse.json(
-        { error: 'Invalid studio PIN. Use 1234 or Demo Admin Login.' },
+        { error: 'Admin sign-in is unavailable. Contact the administrator.' },
+        { status: 503 }
+      );
+    }
+
+    if (!providedPin || !/^\d{6}$/.test(providedPin) || providedPin !== configuredPin) {
+      return NextResponse.json(
+        { error: 'Invalid six-digit studio PIN.' },
         { status: 401 }
       );
     }
 
     const response = NextResponse.json({ authenticated: true });
-    response.cookies.set(ADMIN_COOKIE, 'authenticated', getCookieOptions(request));
+    response.cookies.set(ADMIN_COOKIE, AUTHENTICATED_COOKIE_VALUE, getCookieOptions(request));
     return response;
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });

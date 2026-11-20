@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createEventProjectOnServer } from '@/src/server/studioStore';
-import { EventCategory } from '@/src/types/studio';
+import { CUSTOM_PACKAGE_NAME, EventCategory } from '@/src/types/studio';
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       eventDate: body.eventDate,
       endDate: body.endDate,
       venue: body.venue,
-      packageName: body.packageName || 'Traditional Grand Wedding',
+      packageName: body.packageName || CUSTOM_PACKAGE_NAME,
       assignedCrew: body.assignedCrew || 'G Krishna & Studio Unit',
       agreedAmount: Number(body.agreedAmount) || 0,
       initialAdvance: Number(body.initialAdvance) || 0,
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create event project';
-    return NextResponse.json({ error: message }, { status: 400 });
+    console.error('Failed to create event project.', error);
+    return NextResponse.json({ error: 'Unable to create event project.' }, { status: 500 });
   }
 }

@@ -14,6 +14,7 @@ import { useStudio } from '@/src/context/StudioContext';
 import {
   EVENT_CATEGORIES,
   EVENT_STAGES,
+  CUSTOM_PACKAGE_NAME,
   EventCategory,
   EventProject,
   EventStage,
@@ -56,6 +57,7 @@ export function AdminEventsTimelineModule() {
     eventProjects,
     packages,
     createEventProject,
+    deleteEventProject,
     updateEventStage,
     updateEventFinancials,
     addEventPayment,
@@ -83,10 +85,10 @@ export function AdminEventsTimelineModule() {
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEventType, setNewEventType] = useState<EventCategory>('Weddings');
-  const [newEventDate, setNewEventDate] = useState('2026-12-08');
+  const [newEventDate, setNewEventDate] = useState(() => toISODate(new Date()));
   const [newVenue, setNewVenue] = useState('');
-  const [newPackageName, setNewPackageName] = useState(packages[1]?.name || 'Traditional Grand Wedding');
-  const [newAgreedAmount, setNewAgreedAmount] = useState(packages[1]?.price || 52000);
+  const [newPackageName, setNewPackageName] = useState(packages[0]?.name || CUSTOM_PACKAGE_NAME);
+  const [newAgreedAmount, setNewAgreedAmount] = useState(packages[0]?.price ?? 0);
   const [newInitialAdvance, setNewInitialAdvance] = useState('');
   const [newCrew, setNewCrew] = useState('G Krishna + Studio Unit');
 
@@ -114,14 +116,9 @@ export function AdminEventsTimelineModule() {
         acc.contractValue += netTotal;
         acc.collected += paidTotal;
         acc.receivable += balanceDue;
-        if (proj.currentStage === 'Delivered') {
-          acc.delivered += 1;
-        } else {
-          acc.inProgress += 1;
-        }
         return acc;
       },
-      { contractValue: 0, collected: 0, receivable: 0, delivered: 0, inProgress: 0 }
+      { contractValue: 0, collected: 0, receivable: 0 }
     );
   }, [eventProjects]);
 
@@ -168,9 +165,25 @@ export function AdminEventsTimelineModule() {
         assignedCrew: editCrew.trim(),
         deliveryNotes: editDeliveryNotes.trim(),
       });
-      toast.success('Billing & delivery notes saved to backend.');
+      toast.success('Billing and delivery notes saved.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save billing.');
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!activeProject) return;
+    const confirmed = window.confirm(
+      `Delete ${activeProject.clientName}'s project and payment ledger? The original booking will remain.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteEventProject(activeProject.id);
+      setActiveProjectId(null);
+      toast.success('Event project deleted.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to delete event project.');
     }
   };
 
@@ -231,36 +244,36 @@ export function AdminEventsTimelineModule() {
   return (
     <div className="space-y-6">
       {/* Financial & Production Overview Strip */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-4">
-          <p className="text-xs text-[#D8C78E]">Total Contract Value</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-white tabular-nums">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-3 sm:p-4">
+          <p className="text-[11px] text-[#D8C78E] sm:text-xs">Contract</p>
+          <p className="mt-1 font-mono text-lg font-bold text-white tabular-nums sm:text-2xl">
             {formatINR(summary.contractValue)}
           </p>
         </div>
-        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-4">
-          <p className="text-xs text-[#D8C78E]">Payments Collected</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-emerald-300 tabular-nums">
+        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-3 sm:p-4">
+          <p className="text-[11px] text-[#D8C78E] sm:text-xs">Paid</p>
+          <p className="mt-1 font-mono text-lg font-bold text-emerald-300 tabular-nums sm:text-2xl">
             {formatINR(summary.collected)}
           </p>
         </div>
-        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-4">
-          <p className="text-xs text-[#D8C78E]">Balance Receivable</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-amber-300 tabular-nums">
+        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-3 sm:p-4">
+          <p className="text-[11px] text-[#D8C78E] sm:text-xs">Due</p>
+          <p className="mt-1 font-mono text-lg font-bold text-amber-300 tabular-nums sm:text-2xl">
             {formatINR(summary.receivable)}
           </p>
         </div>
-        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-4">
-          <p className="text-xs text-[#D8C78E]">Active / Delivered Events</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-white tabular-nums">
-            {summary.inProgress} Active · {summary.delivered} Done
+        <div className="rounded-xl border border-[#C5B378]/20 bg-[#0E423E] p-3 sm:p-4">
+          <p className="text-[11px] text-[#D8C78E] sm:text-xs">Projects</p>
+          <p className="mt-1 font-mono text-lg font-bold text-white tabular-nums sm:text-2xl">
+            {eventProjects.length}
           </p>
         </div>
       </div>
 
       {/* Filter & Actions Bar */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[#C5B378]/20 bg-[#072421] p-1">
+        <div className="flex max-w-full flex-nowrap items-center gap-1.5 overflow-x-auto rounded-lg border border-[#C5B378]/20 bg-[#072421] p-1">
           {(['All', 'In Production', 'Balance Due', 'Delivered'] as TimelineFilter[]).map((tab) => {
             const active = filter === tab;
             return (
@@ -287,14 +300,14 @@ export function AdminEventsTimelineModule() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search client, ref, venue..."
+              placeholder="Search projects..."
               className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] pl-9 pr-3 text-sm text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
             />
           </div>
 
           <Button type="button" onClick={() => setCreateModalOpen(true)}>
             <Plus className="h-4 w-4" />
-            New Event Project
+            New project
           </Button>
         </div>
       </div>
@@ -303,10 +316,7 @@ export function AdminEventsTimelineModule() {
       {filteredProjects.length === 0 ? (
         <Card className="bg-[#0E423E] p-12 text-center">
           <p className="text-base font-semibold text-white">No event projects found</p>
-          <p className="mt-1 text-sm text-[#E6ECEB]/75">
-            Approve a booking inquiry or click &ldquo;New Event Project&rdquo; to track timeline
-            stages and payments.
-          </p>
+          <p className="mt-1 text-sm text-[#E6ECEB]/75">Create a project to track delivery and payments.</p>
         </Card>
       ) : (
         <div className="space-y-5">
@@ -329,84 +339,51 @@ export function AdminEventsTimelineModule() {
                         {balanceDue === 0 ? 'Paid in Full' : `Balance ${formatINR(balanceDue)}`}
                       </Badge>
                     </div>
-                    <CardTitle className="text-xl text-white pt-1">
+                    <CardTitle className="text-lg text-white pt-1">
                       {project.clientName} — {project.eventType}
                     </CardTitle>
                     <CardDescription>
                       {formatDateDisplay(project.eventDate)}
                       {project.endDate ? ` to ${formatDateDisplay(project.endDate)}` : ''} ·{' '}
-                      {project.venue} · {project.packageName}
+                      {project.venue}
                     </CardDescription>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-4 lg:text-right">
                     <div className="space-y-0.5 text-xs">
                       <p className="text-[#E6ECEB]/70">
-                        Total <span className="font-mono text-white tabular-nums">{formatINR(netTotal)}</span>
-                        {' · '}Paid{' '}
-                        <span className="font-mono text-emerald-300 tabular-nums">
-                          {formatINR(paidTotal)}
-                        </span>
+                        {formatINR(paidTotal)} paid of {formatINR(netTotal)}
                       </p>
                       <p className="font-mono text-sm font-semibold text-[#D8C78E] tabular-nums">
-                        Due: {formatINR(balanceDue)}
+                        {formatINR(balanceDue)} due
                       </p>
                     </div>
                     <Button size="sm" onClick={() => openProjectDetail(project)}>
-                      Manage Timeline &amp; Payments
+                      Manage
                     </Button>
                   </div>
                 </CardHeader>
 
-                <CardContent className="pt-5 space-y-4">
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-                    {EVENT_STAGES.map((stage, idx) => {
-                      const isDone = idx <= activeStageIdx;
-                      const isCurrent = idx === activeStageIdx;
-                      const info = project.stageUpdates[stage];
-                      return (
-                        <button
-                          key={stage}
-                          type="button"
-                          onClick={async () => {
-                            await updateEventStage(project.id, stage);
-                            toast.success(`${project.clientName}: moved to "${stage}"`);
-                          }}
-                          className={`flex flex-col justify-between rounded-lg border p-3 text-left transition-colors cursor-pointer ${
-                            isCurrent
-                              ? 'border-[#D8C78E] bg-[#134E49]'
-                              : isDone
-                              ? 'border-emerald-400/35 bg-emerald-950/35'
-                              : 'border-[#C5B378]/15 bg-[#092E2B]/60 opacity-75 hover:opacity-100'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-1.5">
-                            <span className="font-mono text-[10px] text-[#D8C78E] tabular-nums">
-                              0{idx + 1}
-                            </span>
-                            {isDone ? (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
-                            ) : (
-                              <Circle className="h-3.5 w-3.5 text-[#E6ECEB]/35 shrink-0" />
-                            )}
-                          </div>
-                          <p className="mt-2 text-xs font-semibold text-white leading-snug">
-                            {stage}
-                          </p>
-                          <p className="mt-1 font-mono text-[10px] text-[#E6ECEB]/65 tabular-nums">
-                            {info?.completedAt ? formatDateDisplay(info.completedAt) : 'Pending'}
-                          </p>
-                        </button>
-                      );
-                    })}
+                <CardContent className="space-y-2.5 pt-4">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="font-medium text-white">{project.currentStage}</span>
+                    <span className="shrink-0 text-[#D8C78E]">
+                      {activeStageIdx + 1} of {EVENT_STAGES.length}
+                    </span>
                   </div>
-
-                  {project.deliveryNotes && (
-                    <p className="text-xs text-[#E6ECEB]/80 border-t border-[#C5B378]/15 pt-3">
-                      <span className="font-semibold text-[#D8C78E]">Production Note: </span>
-                      {project.deliveryNotes}
-                    </p>
-                  )}
+                  <div
+                    className="h-1.5 overflow-hidden rounded-full bg-[#072421]"
+                    role="progressbar"
+                    aria-label={`${project.clientName} delivery progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={EVENT_STAGES.length}
+                    aria-valuenow={activeStageIdx + 1}
+                  >
+                    <div
+                      className="h-full rounded-full bg-[#D8C78E] transition-all"
+                      style={{ width: `${((activeStageIdx + 1) / EVENT_STAGES.length) * 100}%` }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -431,15 +408,23 @@ export function AdminEventsTimelineModule() {
                   {activeProject.venue} · {activeProject.packageName}
                 </DialogDescription>
               </DialogHeader>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteProject}
+                className="absolute right-16 top-4 border-red-400/40 text-red-200 hover:bg-red-950/50"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Delete</span>
+              </Button>
 
               <div className="space-y-6 pt-2">
                 <div className="rounded-xl border border-[#C5B378]/20 bg-[#072421] p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-white">
-                      Delivery Timeline Stage (Click a stage to update)
-                    </h4>
+                    <h4 className="text-sm font-semibold text-white">Delivery stage</h4>
                     <span className="text-xs text-[#D8C78E]">
-                      Current: {activeProject.currentStage}
+                      {activeProject.currentStage}
                     </span>
                   </div>
 
@@ -473,14 +458,12 @@ export function AdminEventsTimelineModule() {
                   </div>
 
                   <div className="space-y-1.5 pt-1">
-                    <label className="block text-xs font-medium text-[#D8C78E]">
-                      Stage Milestone Note (saved when clicking a stage above)
-                    </label>
+                    <label className="block text-xs font-medium text-[#D8C78E]">Stage note</label>
                     <input
                       type="text"
                       value={stageNoteInput}
                       onChange={(e) => setStageNoteInput(e.target.value)}
-                      placeholder="e.g., 50-sheet Karizma layout sent on WhatsApp for couple approval"
+                      placeholder="Add a note about this stage"
                       className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                     />
                   </div>
@@ -491,11 +474,9 @@ export function AdminEventsTimelineModule() {
                   className="rounded-xl border border-[#C5B378]/20 bg-[#072421] p-4 space-y-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-white">
-                      Contract Billing &amp; Crew Assignment
-                    </h4>
+                    <h4 className="text-sm font-semibold text-white">Billing &amp; delivery</h4>
                     <div className="font-mono text-xs tabular-nums text-[#D8C78E]">
-                      Net Payable:{' '}
+                      Total:{' '}
                       {formatINR(
                         Math.max(0, Number(editAgreed) + Number(editExtras) - Number(editDiscount))
                       )}
@@ -504,7 +485,7 @@ export function AdminEventsTimelineModule() {
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <label className="block text-xs text-[#D8C78E]">Agreed Package (₹)</label>
+                      <label className="block text-xs text-[#D8C78E]">Package (₹)</label>
                       <input
                         type="number"
                         value={editAgreed}
@@ -513,7 +494,7 @@ export function AdminEventsTimelineModule() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-xs text-[#D8C78E]">Add-Ons / Extras (₹)</label>
+                      <label className="block text-xs text-[#D8C78E]">Extras (₹)</label>
                       <input
                         type="number"
                         value={editExtras}
@@ -544,7 +525,7 @@ export function AdminEventsTimelineModule() {
                     </div>
                     <div className="space-y-1">
                       <label className="block text-xs text-[#D8C78E]">
-                        Delivery &amp; Album Deliverables Note
+                        Delivery note
                       </label>
                       <input
                         type="text"
@@ -556,9 +537,7 @@ export function AdminEventsTimelineModule() {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button type="submit" size="sm" variant="outline">
-                      Save Billing &amp; Notes
-                    </Button>
+                    <Button type="submit" size="sm" variant="outline">Save changes</Button>
                   </div>
                 </form>
 
@@ -567,9 +546,9 @@ export function AdminEventsTimelineModule() {
                     const { netTotal, paidTotal, balanceDue } = getProjectTotals(activeProject);
                     return (
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h4 className="text-sm font-semibold text-white">Payment Ledger</h4>
+                        <h4 className="text-sm font-semibold text-white">Payments</h4>
                         <div className="flex flex-wrap items-center gap-4 font-mono text-xs tabular-nums">
-                          <span className="text-[#E6ECEB]">Net: {formatINR(netTotal)}</span>
+                          <span className="text-[#E6ECEB]">Total: {formatINR(netTotal)}</span>
                           <span className="text-emerald-300">Paid: {formatINR(paidTotal)}</span>
                           <span className="text-amber-300 font-semibold">
                             Balance: {formatINR(balanceDue)}
@@ -580,52 +559,60 @@ export function AdminEventsTimelineModule() {
                   })()}
 
                   {activeProject.payments.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Installment</TableHead>
-                          <TableHead>Mode</TableHead>
-                          <TableHead>Reference</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead className="text-right">Remove</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {activeProject.payments.map((pay) => (
-                          <TableRow key={pay.id}>
-                            <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
-                              {formatDateDisplay(pay.date)}
-                            </TableCell>
-                            <TableCell className="text-xs text-white">{pay.label}</TableCell>
-                            <TableCell className="text-xs text-[#D8C78E]">{pay.method}</TableCell>
-                            <TableCell className="text-xs text-[#E6ECEB]/70">
-                              {pay.referenceNote || '—'}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-xs font-semibold text-emerald-300 tabular-nums">
-                              {formatINR(pay.amount)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <button
-                                type="button"
-                                aria-label="Delete payment entry"
-                                onClick={async () => {
-                                  await deleteEventPayment(activeProject.id, pay.id);
-                                  toast.info('Payment receipt removed.');
-                                }}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Installment</TableHead>
+                            <TableHead>Mode</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead className="text-right">Remove</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {activeProject.payments.map((pay) => (
+                            <TableRow key={pay.id}>
+                              <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
+                                {formatDateDisplay(pay.date)}
+                              </TableCell>
+                              <TableCell className="text-xs text-white">{pay.label}</TableCell>
+                              <TableCell className="text-xs text-[#D8C78E]">{pay.method}</TableCell>
+                              <TableCell className="text-xs text-[#E6ECEB]/70">
+                                {pay.referenceNote || '—'}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-xs font-semibold text-emerald-300 tabular-nums">
+                                {formatINR(pay.amount)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <button
+                                  type="button"
+                                  aria-label="Delete payment entry"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteEventPayment(activeProject.id, pay.id);
+                                      toast.info('Payment entry removed.');
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : 'Unable to remove payment.'
+                                      );
+                                    }
+                                  }}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
-                    <p className="text-xs text-[#E6ECEB]/70">
-                      No payment receipts recorded yet. Add an advance or installment below.
-                    </p>
+                    <p className="text-xs text-[#E6ECEB]/70">No payments yet.</p>
                   )}
 
                   <form
@@ -702,11 +689,8 @@ export function AdminEventsTimelineModule() {
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DialogContent className="max-w-lg bg-[#092E2B] border-[#C5B378]/35">
           <DialogHeader>
-            <DialogTitle>New Event Timeline Project</DialogTitle>
-            <DialogDescription>
-              Create a booking-to-delivery tracker and payment ledger for a walk-in or offline
-              client.
-            </DialogDescription>
+            <DialogTitle>New project</DialogTitle>
+            <DialogDescription>Track delivery progress and payments.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateProject} className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -785,6 +769,7 @@ export function AdminEventsTimelineModule() {
                   }}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-2.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
                 >
+                  <option value={CUSTOM_PACKAGE_NAME}>{CUSTOM_PACKAGE_NAME}</option>
                   {packages.map((p) => (
                     <option key={p.id} value={p.name}>
                       {p.name}

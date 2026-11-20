@@ -4,6 +4,7 @@ import {
   BOOKING_SERVICE_OPTIONS,
   BookingServiceOption,
   BookingStatus,
+  CUSTOM_PACKAGE_ID,
   EventCategory,
 } from '@/src/types/studio';
 
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
       endDate: body.endDate,
       eventTime: body.eventTime,
       venue: body.venue,
-      packageId: body.packageId || 'pkg-grand',
+      packageId: body.packageId || CUSTOM_PACKAGE_ID,
       packageName: body.packageName,
       quotedAmount: body.quotedAmount,
       requestedServices: Array.isArray(body.requestedServices)

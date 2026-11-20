@@ -47,18 +47,6 @@ const BOOKING_SERVICE_LABEL_KEYS: Record<BookingServiceOption, Parameters<typeof
   'LED Wall': 'booking.service.ledWall',
 };
 
-const DEFAULT_SERVICES_BY_PACKAGE: Record<string, BookingServiceOption[]> = {
-  'pkg-essential': ['Traditional Camera', 'Candid Camera', 'Traditional Video'],
-  'pkg-grand': [
-    'Traditional Camera',
-    'Candid Camera',
-    'Traditional Video',
-    'Candid Video',
-  ],
-  'pkg-royal': ['Traditional Camera', 'Candid Camera', 'Candid Video', 'Drone'],
-  'pkg-custom': ['Candid Camera', 'Candid Video'],
-};
-
 export function BookingSection({
   preselectedPackageId,
   preselectedCategory,
@@ -89,11 +77,9 @@ export function BookingSection({
   }, [packages]);
 
   const [packageId, setPackageId] = useState(
-    preselectedPackageId || activePackages[0]?.id || packages[0]?.id || 'pkg-grand'
+    preselectedPackageId || activePackages[0]?.id || CUSTOM_PACKAGE_ID
   );
-  const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>(
-    () => DEFAULT_SERVICES_BY_PACKAGE[packageId] || []
-  );
+  const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>([]);
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -107,7 +93,7 @@ export function BookingSection({
   }, [preselectedPackageId]);
 
   useEffect(() => {
-    setRequestedServices(DEFAULT_SERVICES_BY_PACKAGE[packageId] || []);
+    setRequestedServices([]);
   }, [packageId]);
 
   useEffect(() => {
@@ -125,7 +111,7 @@ export function BookingSection({
   const isCustomPackage = packageId === CUSTOM_PACKAGE_ID;
   const selectedPackage = isCustomPackage
     ? undefined
-    : packages.find((p) => p.id === packageId) || packages[0];
+    : packages.find((p) => p.id === packageId);
   const submittedPackage = lastSubmitted
     ? packages.find((pkg) => pkg.id === lastSubmitted.packageId)
     : undefined;
@@ -210,7 +196,7 @@ export function BookingSection({
       setVenue('');
       setEndDate('');
       setEventTime('');
-      setRequestedServices(DEFAULT_SERVICES_BY_PACKAGE[packageId] || []);
+      setRequestedServices([]);
       setNotes('');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '';

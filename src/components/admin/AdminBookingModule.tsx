@@ -137,8 +137,10 @@ export function AdminBookingModule() {
   const [leadEndDate, setLeadEndDate] = useState('');
   const [leadEventTime, setLeadEventTime] = useState('');
   const [leadVenue, setLeadVenue] = useState('');
-  const [leadPackageId, setLeadPackageId] = useState<string>(packages[1]?.id || 'pkg-grand');
-  const [leadQuotedAmount, setLeadQuotedAmount] = useState<number>(packages[1]?.price || 52000);
+  const [leadPackageId, setLeadPackageId] = useState<string>(
+    packages[0]?.id || CUSTOM_PACKAGE_ID
+  );
+  const [leadQuotedAmount, setLeadQuotedAmount] = useState<number>(packages[0]?.price ?? 0);
   const [leadSource, setLeadSource] = useState<string>('Direct Referral');
   const [leadStatus, setLeadStatus] = useState<BookingStatus>('In Discussion');
   const [leadAssignedCrew, setLeadAssignedCrew] = useState('G Krishna + Studio Unit');
@@ -165,8 +167,8 @@ export function AdminBookingModule() {
     setLeadEndDate('');
     setLeadEventTime('');
     setLeadVenue('');
-    setLeadPackageId(packages[1]?.id || 'pkg-grand');
-    setLeadQuotedAmount(packages[1]?.price || 52000);
+    setLeadPackageId(packages[0]?.id || CUSTOM_PACKAGE_ID);
+    setLeadQuotedAmount(packages[0]?.price ?? 0);
     setLeadSource('Direct Referral');
     setLeadStatus('In Discussion');
     setLeadAssignedCrew('G Krishna + Studio Unit');

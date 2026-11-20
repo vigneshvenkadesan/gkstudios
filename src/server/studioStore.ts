@@ -52,9 +52,17 @@ async function requireCalendarScheduleModel() {
 async function requireEventProjectModel() {
   const projects = await getEventProjectModel();
   if (!projects) {
-    throw new Error('MongoDB is not configured. Event projects cannot be stored.');
+    throw new Error('Event data is unavailable.');
   }
   return projects;
+}
+
+async function requirePackageModel() {
+  const packages = await getPackageModel();
+  if (!packages) {
+    throw new Error('Package storage is unavailable.');
+  }
+  return packages;
 }
 
 function normalizeState(raw: Partial<StudioState>): StudioState {
@@ -68,15 +76,10 @@ function normalizeState(raw: Partial<StudioState>): StudioState {
 
   return {
     portfolio,
-    packages:
-      Array.isArray(raw.packages) && raw.packages.length > 0
-        ? raw.packages
-        : INITIAL_STUDIO_STATE.packages,
+    packages: [],
     bookings: [],
     calendarEntries: [],
-    eventProjects: Array.isArray(raw.eventProjects)
-      ? raw.eventProjects
-      : INITIAL_STUDIO_STATE.eventProjects,
+    eventProjects: [],
   };
 }
 
@@ -101,11 +104,33 @@ async function readFromDisk(): Promise<StudioState> {
 }
 
 async function writeToDisk(nextState: StudioState): Promise<void> {
+  let legacyEventProjects: EventProject[] | undefined;
+  try {
+    const existingContent = await fs.readFile(PRIMARY_DB_PATH, 'utf-8');
+    const existingState = JSON.parse(existingContent) as Partial<StudioState>;
+    if (Array.isArray(existingState.eventProjects)) {
+      legacyEventProjects = existingState.eventProjects;
+    }
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !('code' in error) ||
+      error.code !== 'ENOENT'
+    ) {
+      throw error;
+    }
+  }
+
   await fs.mkdir(path.dirname(PRIMARY_DB_PATH), { recursive: true });
   await fs.writeFile(
     PRIMARY_DB_PATH,
     JSON.stringify(
-      { ...nextState, bookings: [], calendarEntries: [], eventProjects: [] },
+      {
+        portfolio: nextState.portfolio,
+        bookings: [],
+        calendarEntries: [],
+        ...(legacyEventProjects ? { eventProjects: legacyEventProjects } : {}),
+      },
       null,
       2
     ),
@@ -138,6 +163,20 @@ export function toPlainPackage(doc: unknown): StudioPackage {
     createdAt: p.createdAt ? String(p.createdAt) : undefined,
     updatedAt: p.updatedAt ? String(p.updatedAt) : undefined,
   };
+}
+
+export async function getPackagesFromMongo(): Promise<StudioPackage[]> {
+  const packageModel = await getPackageModel();
+  if (!packageModel) {
+    throw new Error('Package data is unavailable.');
+  }
+
+  const mongoPackages = await packageModel
+    .find({})
+    .sort({ sortOrder: 1, createdAt: 1 })
+    .lean()
+    .exec();
+  return mongoPackages.map(toPlainPackage);
 }
 
 function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; packageSnapshot?: unknown }): BookingRequest {
@@ -234,39 +273,9 @@ export async function getStudioState(): Promise<StudioState> {
   });
 
   const eventProjects = await requireEventProjectModel();
-  let mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
-  if (mongoProjects.length === 0 && memoryCache.eventProjects.length > 0) {
-    await eventProjects.bulkWrite(
-      memoryCache.eventProjects.map((project) => ({
-        updateOne: {
-          filter: { id: project.id },
-          update: { $setOnInsert: project },
-          upsert: true,
-        },
-      }))
-    );
-    mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
-  }
+  const mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
 
-  const packageModel = await getPackageModel();
-  let plainPackages: StudioPackage[] = [];
-  if (packageModel) {
-    try {
-      const mongoPackages = await packageModel.find({}).sort({ sortOrder: 1, createdAt: 1 }).lean().exec();
-      if (mongoPackages && mongoPackages.length > 0) {
-        plainPackages = mongoPackages.map(toPlainPackage);
-      }
-    } catch (err) {
-      console.warn('Could not query packages from MongoDB:', err);
-    }
-  }
-
-  if (plainPackages.length === 0) {
-    plainPackages =
-      memoryCache && memoryCache.packages && memoryCache.packages.length > 0
-        ? memoryCache.packages
-        : INITIAL_STUDIO_STATE.packages;
-  }
+  const plainPackages = await getPackagesFromMongo();
 
   memoryCache = {
     ...memoryCache,
@@ -287,23 +296,6 @@ export async function saveStudioState(nextState: StudioState): Promise<StudioSta
   };
   await writeToDisk({ ...nextState, bookings: [], calendarEntries: [] });
   return memoryCache;
-}
-
-export async function resetStudioState(): Promise<StudioState> {
-  const bookings = await requireBookingModel();
-  const schedule = await requireCalendarScheduleModel();
-  const eventProjects = await requireEventProjectModel();
-  await bookings.deleteMany({});
-  await schedule.deleteMany({});
-  await eventProjects.deleteMany({});
-
-  const seed = cloneInitialState();
-  seed.bookings = [];
-  seed.calendarEntries = [];
-  if (seed.eventProjects.length > 0) {
-    await eventProjects.insertMany(seed.eventProjects);
-  }
-  return saveStudioState(seed);
 }
 
 export async function createBookingOnServer(input: {
@@ -331,7 +323,10 @@ export async function createBookingOnServer(input: {
   const isCustomPackage = input.packageId === CUSTOM_PACKAGE_ID;
   const selectedPkg = isCustomPackage
     ? undefined
-    : state.packages.find((p) => p.id === input.packageId) || state.packages[0];
+    : state.packages.find((p) => p.id === input.packageId);
+  if (!isCustomPackage && !selectedPkg) {
+    throw new Error('Selected package is unavailable. Please choose another package.');
+  }
   const now = new Date();
   const refNumber = String(Math.floor(100 + Math.random() * 900));
 
@@ -663,7 +658,6 @@ export async function createEventProjectOnServer(input: {
   initialAdvance?: number;
   deliveryNotes?: string;
 }): Promise<{ state: StudioState; created: EventProject }> {
-  const state = await getStudioState();
   const todayIso = new Date().toISOString().slice(0, 10);
   const refNumber = String(Math.floor(100 + Math.random() * 900));
 
@@ -806,6 +800,15 @@ export async function deleteEventPaymentOnServer(
   return getStudioState();
 }
 
+export async function deleteEventProjectOnServer(projectId: string): Promise<StudioState> {
+  const projects = await requireEventProjectModel();
+  const result = await projects.deleteOne({ id: projectId });
+  if (result.deletedCount === 0) {
+    throw new Error('Event project not found.');
+  }
+  return getStudioState();
+}
+
 export async function createPackageOnServer(
   input: Partial<StudioPackage>
 ): Promise<{ state: StudioState; created: StudioPackage }> {
@@ -854,10 +857,8 @@ export async function createPackageOnServer(
     updatedAt: new Date().toISOString(),
   };
 
-  const packageModel = await getPackageModel();
-  if (packageModel) {
-    await packageModel.updateOne({ id }, { $set: newPackage }, { upsert: true });
-  }
+  const packageModel = await requirePackageModel();
+  await packageModel.updateOne({ id }, { $set: newPackage }, { upsert: true });
 
   const nextPackages = [...state.packages, newPackage].sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
@@ -867,13 +868,6 @@ export async function createPackageOnServer(
     ...state,
     packages: nextPackages,
   };
-
-  await writeToDisk({
-    ...memoryCache,
-    packages: nextPackages,
-    bookings: [],
-    calendarEntries: [],
-  });
 
   return { state: memoryCache, created: newPackage };
 }
@@ -922,10 +916,8 @@ export async function updatePackageOnServer(
     updatedAt: new Date().toISOString(),
   };
 
-  const packageModel = await getPackageModel();
-  if (packageModel) {
-    await packageModel.updateOne({ id }, { $set: updatedPackage }, { upsert: true });
-  }
+  const packageModel = await requirePackageModel();
+  await packageModel.updateOne({ id }, { $set: updatedPackage }, { upsert: true });
 
   const nextPackages = state.packages
     .map((p) => (p.id === id ? updatedPackage : p))
@@ -935,13 +927,6 @@ export async function updatePackageOnServer(
     ...state,
     packages: nextPackages,
   };
-
-  await writeToDisk({
-    ...memoryCache,
-    packages: nextPackages,
-    bookings: [],
-    calendarEntries: [],
-  });
 
   return memoryCache;
 }
@@ -953,10 +938,8 @@ export async function deletePackageOnServer(id: string): Promise<StudioState> {
     throw new Error(`Package with ID "${id}" not found.`);
   }
 
-  const packageModel = await getPackageModel();
-  if (packageModel) {
-    await packageModel.deleteOne({ id });
-  }
+  const packageModel = await requirePackageModel();
+  await packageModel.deleteOne({ id });
 
   const nextPackages = state.packages.filter((p) => p.id !== id);
 
@@ -965,32 +948,23 @@ export async function deletePackageOnServer(id: string): Promise<StudioState> {
     packages: nextPackages,
   };
 
-  await writeToDisk({
-    ...memoryCache,
-    packages: nextPackages,
-    bookings: [],
-    calendarEntries: [],
-  });
-
   return memoryCache;
 }
 
 export async function reorderPackagesOnServer(orderedIds: string[]): Promise<StudioState> {
   const state = await getStudioState();
-  const packageModel = await getPackageModel();
+  const packageModel = await requirePackageModel();
 
   const idToOrder = new Map(orderedIds.map((id, index) => [id, index + 1]));
 
-  if (packageModel) {
-    const bulkOps = orderedIds.map((id, index) => ({
-      updateOne: {
-        filter: { id },
-        update: { $set: { sortOrder: index + 1, updatedAt: new Date().toISOString() } },
-      },
-    }));
-    if (bulkOps.length > 0) {
-      await packageModel.bulkWrite(bulkOps);
-    }
+  const bulkOps = orderedIds.map((id, index) => ({
+    updateOne: {
+      filter: { id },
+      update: { $set: { sortOrder: index + 1, updatedAt: new Date().toISOString() } },
+    },
+  }));
+  if (bulkOps.length > 0) {
+    await packageModel.bulkWrite(bulkOps);
   }
 
   const nextPackages = [...state.packages]
