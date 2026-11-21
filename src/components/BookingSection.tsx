@@ -32,8 +32,12 @@ import {
   translateCategory,
 } from '@/src/i18n/translations';
 
+import { EventSelector } from '@/src/components/common/EventSelector';
+import { useEvents } from '@/src/hooks/useEvents';
+
 interface BookingSectionProps {
   preselectedPackageId: string;
+  preselectedEventId?: string;
   preselectedCategory: EventCategory | null;
 }
 
@@ -49,9 +53,11 @@ const BOOKING_SERVICE_LABEL_KEYS: Record<BookingServiceOption, Parameters<typeof
 
 export function BookingSection({
   preselectedPackageId,
+  preselectedEventId,
   preselectedCategory,
 }: BookingSectionProps) {
   const { packages, calendarEntries, submitBooking } = useStudio();
+  const { events: dynamicEvents, activeEvents } = useEvents();
   const { locale } = usePublicPreferences();
   const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) =>
     translate(locale, key, params);
@@ -66,7 +72,7 @@ export function BookingSection({
 
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
-  const [eventType, setEventType] = useState<EventCategory>('Weddings');
+  const [eventId, setEventId] = useState<string>(preselectedEventId || 'wedding');
   const [endDate, setEndDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [venue, setVenue] = useState('');
@@ -89,8 +95,18 @@ export function BookingSection({
   useEffect(() => {
     if (preselectedPackageId) {
       setPackageId(preselectedPackageId);
+      const pkg = packages.find((p) => p.id === preselectedPackageId);
+      if (pkg?.eventId) {
+        setEventId(pkg.eventId);
+      }
     }
-  }, [preselectedPackageId]);
+  }, [preselectedPackageId, packages]);
+
+  useEffect(() => {
+    if (preselectedEventId) {
+      setEventId(preselectedEventId);
+    }
+  }, [preselectedEventId]);
 
   useEffect(() => {
     setRequestedServices([]);
@@ -98,9 +114,18 @@ export function BookingSection({
 
   useEffect(() => {
     if (preselectedCategory) {
-      setEventType(normalizeEventCategory(preselectedCategory));
+      const normalized = normalizeEventCategory(preselectedCategory);
+      // Try to find matching event in dynamic events
+      const match = dynamicEvents.find(
+        (e) =>
+          e.name.toLowerCase().includes(normalized.toLowerCase()) ||
+          (e.category && normalized.toLowerCase().includes(e.category.toLowerCase()))
+      );
+      if (match) {
+        setEventId(match.id);
+      }
     }
-  }, [preselectedCategory]);
+  }, [preselectedCategory, dynamicEvents]);
 
   const calendarEntryMap = useMemo(() => {
     const map = new Map<string, CalendarDayEntry>();
@@ -169,13 +194,18 @@ export function BookingSection({
     setIsTermsModalOpen(true);
   };
 
+  const selectedEvent = dynamicEvents.find((e) => e.id === eventId);
+  const eventDisplayName = selectedEvent
+    ? (locale === 'ta' && selectedEvent.tamilName ? selectedEvent.tamilName : selectedEvent.name)
+    : eventId;
+
   const handleAcceptAndConfirmBooking = async () => {
     setIsSubmitting(true);
     try {
       const created = await submitBooking({
         clientName: clientName.trim(),
         phone: phone.trim(),
-        eventType,
+        eventType: (selectedEvent?.name || eventId) as EventCategory,
         preferredDate: selectedDate,
         endDate: endDate && endDate >= selectedDate ? endDate : undefined,
         eventTime: eventTime || undefined,
@@ -229,8 +259,8 @@ export function BookingSection({
     ? buildWhatsAppUrl(
         STUDIO_INFO.phone,
         locale === 'ta'
-          ? `வணக்கம் GK STUDIOS! ${lastSubmitted.referenceCode} என்ற முன்பதிவு கோரிக்கையை அனுப்பியுள்ளேன். ${displayDate(lastSubmitted.preferredDate)} அன்று நடைபெறும் ${translateCategory(locale, lastSubmitted.eventType)} நிகழ்வுக்கான தொகுப்பு: ${submittedPackageName}. இடம்: ${lastSubmitted.venue}. பெயர்: ${lastSubmitted.clientName}. ${submittedRequestDetails}`
-          : `Vanakkam GK Studios! I just submitted booking inquiry ${lastSubmitted.referenceCode} for ${lastSubmitted.eventType} on ${formatDateDisplay(
+          ? `வணக்கம் GK STUDIOS! ${lastSubmitted.referenceCode} என்ற முன்பதிவு கோரிக்கையை அனுப்பியுள்ளேன். ${displayDate(lastSubmitted.preferredDate)} அன்று நடைபெறும் ${eventDisplayName} நிகழ்வுக்கான தொகுப்பு: ${submittedPackageName}. இடம்: ${lastSubmitted.venue}. பெயர்: ${lastSubmitted.clientName}. ${submittedRequestDetails}`
+          : `Vanakkam GK Studios! I just submitted booking inquiry ${lastSubmitted.referenceCode} for ${eventDisplayName} on ${formatDateDisplay(
               lastSubmitted.preferredDate
             )} (${lastSubmitted.packageName}) at ${lastSubmitted.venue}. Name: ${lastSubmitted.clientName}. ${submittedRequestDetails}`
       )
@@ -366,21 +396,20 @@ export function BookingSection({
 
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label htmlFor="eventType" className="block text-xs font-medium text-[#D8C78E]">
-                    {t('booking.eventType')} <span className="text-rose-300">*</span>
-                  </label>
-                  <select
-                    id="eventType"
-                    value={eventType}
-                    onChange={(e) => setEventType(e.target.value as EventCategory)}
-                    className={`${inputBaseClass} studio-select cursor-pointer`}
-                  >
-                    {EVENT_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat} className="bg-[#072421] text-white">
-                        {translateCategory(locale, cat)}
-                      </option>
-                    ))}
-                  </select>
+                  <EventSelector
+                    id="booking-event-selector"
+                    label={t('booking.eventType')}
+                    required
+                    value={eventId}
+                    onChange={(selectedId) => {
+                      setEventId(selectedId);
+                      const matching = activePackages.filter((p) => (p.eventId || 'wedding') === selectedId);
+                      if (matching.length > 0 && !matching.some((p) => p.id === packageId)) {
+                        setPackageId(matching[0].id);
+                      }
+                    }}
+                    showTamilName={true}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -393,13 +422,39 @@ export function BookingSection({
                     onChange={(e) => setPackageId(e.target.value)}
                     className={`${inputBaseClass} studio-select cursor-pointer`}
                   >
-                    {activePackages.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white">
-                        {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
-                      </option>
-                    ))}
-                    <option value={CUSTOM_PACKAGE_ID} className="bg-[#072421] text-white">
-                      {t('booking.customPackage')}
+                    {activePackages.some((p) => (p.eventId || 'wedding') === eventId) ? (
+                      <>
+                        <optgroup
+                          label={`Recommended for ${selectedEvent?.name || 'this ceremony'}`}
+                          className="bg-[#051B19] text-[#D8C78E] font-semibold"
+                        >
+                          {activePackages
+                            .filter((p) => (p.eventId || 'wedding') === eventId)
+                            .map((pkg) => (
+                              <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white font-normal">
+                                {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Other Studio Collections" className="bg-[#051B19] text-[#D8C78E]/60 font-semibold">
+                          {activePackages
+                            .filter((p) => (p.eventId || 'wedding') !== eventId)
+                            .map((pkg) => (
+                              <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white font-normal">
+                                {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
+                              </option>
+                            ))}
+                        </optgroup>
+                      </>
+                    ) : (
+                      activePackages.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white">
+                          {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
+                        </option>
+                      ))
+                    )}
+                    <option value={CUSTOM_PACKAGE_ID} className="bg-[#072421] text-[#D8C78E]">
+                      ✨ {t('booking.customPackage')}
                     </option>
                   </select>
                 </div>

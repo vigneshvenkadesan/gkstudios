@@ -27,6 +27,7 @@ import {
   EVENT_CATEGORIES,
   EventCategory,
 } from '@/src/types/studio';
+import { EventSelector } from '@/src/components/common/EventSelector';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
 import { Badge } from '@/src/components/ui/badge';
@@ -649,20 +650,16 @@ export function AdminBookingModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">
-                  Event Category *
-                </label>
-                <select
+                <EventSelector
+                  id="admin-lead-event"
+                  label="Ceremony / Event Type"
                   value={leadEventType}
-                  onChange={(e) => setLeadEventType(e.target.value as EventCategory)}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  {EVENT_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(selectedId, selectedEv) => {
+                    setLeadEventType((selectedEv?.name || selectedId) as EventCategory);
+                  }}
+                  showTamilName={true}
+                  required
+                />
               </div>
 
               <div className="space-y-1.5">

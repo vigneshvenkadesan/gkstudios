@@ -40,6 +40,8 @@ export async function PATCH(
   }
 }
 
+export const PUT = PATCH;
+
 export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }

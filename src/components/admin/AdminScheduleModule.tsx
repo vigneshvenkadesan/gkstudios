@@ -32,6 +32,7 @@ import {
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
+import { useEvents } from '@/src/hooks/useEvents';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
@@ -47,6 +48,7 @@ import {
 
 export function AdminScheduleModule() {
   const { calendarEntries, bookings, upsertCalendarEntry, removeCalendarEntry } = useStudio();
+  const { activeEvents } = useEvents();
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string>(toISODate(new Date()));
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -638,13 +640,17 @@ export function AdminScheduleModule() {
                   }
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 >
-                  {EVENT_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                  <option value="Muhurtham Rush">Muhurtham Rush</option>
-                  <option value="Studio Maintenance">Studio Maintenance</option>
+                  <optgroup label="Ceremonies & Events" className="bg-[#051B19] text-[#D8C78E]">
+                    {activeEvents.map((ev) => (
+                      <option key={ev.id} value={ev.name} className="bg-[#072421] text-white">
+                        {ev.name} {ev.tamilName ? `— ${ev.tamilName}` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Studio Operations" className="bg-[#051B19] text-[#D8C78E]">
+                    <option value="Muhurtham Rush" className="bg-[#072421] text-amber-300">Muhurtham Rush</option>
+                    <option value="Studio Maintenance" className="bg-[#072421] text-stone-300">Studio Maintenance</option>
+                  </optgroup>
                 </select>
               </div>
 

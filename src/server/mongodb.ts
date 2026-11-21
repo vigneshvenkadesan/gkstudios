@@ -3,6 +3,7 @@ import type {
   BookingRequest,
   CalendarDayEntry,
   EventProject,
+  StudioEvent,
   StudioPackage,
 } from '../types/studio';
 
@@ -81,19 +82,48 @@ export async function getBookingModel(): Promise<Model<BookingRequestDocument> |
   ) || mongoose.model<BookingRequestDocument>('BookingRequest', BookingSchema);
 }
 
-interface StudioPackageDocument extends StudioPackage, mongoose.Document {}
+interface StudioEventDocument extends StudioEvent, mongoose.Document {}
+
+const EventSchema = new Schema<StudioEventDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    tamilName: { type: String, default: '' },
+    category: { type: String, required: true },
+    status: { type: String, default: 'active' },
+    sortOrder: { type: Number, default: 0 },
+    createdAt: String,
+    updatedAt: String,
+  },
+  { collection: 'events', strict: false, timestamps: true }
+);
+
+export async function getEventModel(): Promise<Model<StudioEventDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    mongoose.models.Event as Model<StudioEventDocument> | undefined
+  ) || mongoose.model<StudioEventDocument>('Event', EventSchema);
+}
+
+interface StudioPackageDocument extends Omit<StudioPackage, '_id'>, mongoose.Document {}
 
 const PackageSchema = new Schema<StudioPackageDocument>(
   {
     id: { type: String, required: true, unique: true },
+    eventId: { type: String, index: true },
+    tier: { type: String, enum: ['essential', 'signature', 'premium'] },
     name: { type: String, required: true },
     audience: { type: String, required: true },
     price: { type: Number, required: true },
+    currency: { type: String, default: 'INR' },
     priceLabel: String,
     duration: { type: String, required: true },
     highlighted: { type: Boolean, default: false },
-    deliverables: { type: [String], default: [] },
+    featured: { type: Boolean, default: false },
+    deliverables: { type: Schema.Types.Mixed, default: {} },
     imageUrl: String,
+    image: String,
     category: String,
     status: { type: String, default: 'active' },
     displayOnPortfolio: { type: Boolean, default: true },

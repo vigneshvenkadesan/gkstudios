@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
-import { CUSTOM_PACKAGE_ID, PortfolioItem, StudioPackage } from '@/src/types/studio';
+import { CUSTOM_PACKAGE_ID, PackageDeliverables, PortfolioItem, StudioPackage } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR } from '@/src/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/src/components/ui/dialog';
 import { Button } from '@/src/components/ui/button';
@@ -171,14 +171,29 @@ export function WhatsAppTemplateModal({
   const resolvedQuotedAmount = currentQuote ?? booking?.quotedAmount ?? matchedPackage?.price ?? 0;
   const resolvedNote = currentNote ?? booking?.acknowledgementNote ?? booking?.notes ?? '';
 
+  const formatDeliverablesForWhatsApp = (
+    deliverables: PackageDeliverables | string[] | undefined | null,
+    indent = '  • '
+  ) => {
+    if (!deliverables) return '';
+    if (Array.isArray(deliverables)) {
+      return deliverables.map((d) => `${indent}${d}`).join('\n');
+    }
+    if (typeof deliverables === 'object') {
+      return Object.entries(deliverables)
+        .filter(([_, val]) => Boolean(val && typeof val === 'string' && val.trim()))
+        .map(([cat, val]) => `${indent}${cat}: ${val}`)
+        .join('\n');
+    }
+    return '';
+  };
+
   // 1. Template 1 Text: Package Details (Single Chosen Package OR All Packages)
   const template1Text = useMemo(() => {
     if (selectedPackageChoice === 'all') {
       const allPackagesFormatted = packages
         .map((pkg, idx) => {
-          const deliverables = pkg.deliverables?.length
-            ? pkg.deliverables.map((d) => `  • ${d}`).join('\n')
-            : '';
+          const deliverables = formatDeliverablesForWhatsApp(pkg.deliverables, '  • ');
           const popularTag = pkg.highlighted ? ' ⭐ (Most Popular)' : '';
           return [
             `----------------------------------------`,
@@ -209,9 +224,7 @@ export function WhatsAppTemplateModal({
     const pkgName = pkg?.name || booking?.packageName || 'Photography Collection';
     const pkgPrice = pkg?.price ? formatINR(pkg.price) : 'Custom Quote';
 
-    const deliverablesList = pkg?.deliverables?.length
-      ? pkg.deliverables.map((d) => `• ${d}`).join('\n')
-      : '';
+    const deliverablesList = formatDeliverablesForWhatsApp(pkg?.deliverables, '• ');
 
     return [
       `Hi ${resolvedClientName}! 👋`,

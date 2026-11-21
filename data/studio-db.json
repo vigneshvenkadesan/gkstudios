@@ -1,6 +1,46 @@
 {
   "portfolio": [
     {
+      "id": "pf-cloudinary-bride-wedding-portrait",
+      "title": "Bride Portrait",
+      "category": "Weddings",
+      "location": "Tamil Nadu",
+      "imageUrl": "https://res.cloudinary.com/dlwe1mqv/image/upload/v1795245742/1P4A0228_copy.jpg",
+      "shootNotes": "An intimate wedding portrait celebrating the bride with timeless detail and natural emotion.",
+      "exif": "GK Studios · Bride Portrait",
+      "dateLabel": "November 2026",
+      "isHeroFeatured": true,
+      "isVisible": true,
+      "aspect": "standard"
+    },
+     {
+      "id": "pf-cloudinary-kid-portrait",
+      "title": "Kid Portrait",
+      "category": "Outdoor Shoots",
+      "location": "Tamil Nadu",
+      "imageUrl": "https://res.cloudinary.com/dlwe1mqv/image/upload/v1795247494/1P4A1037_copy.jpg",
+      "shootNotes": "An intimate wedding portrait celebrating the bride with timeless detail and natural emotion.",
+      "exif": "GK Studios · Bride Portrait",
+      "dateLabel": "November 2026",
+      "isHeroFeatured": true,
+      "isVisible": true,
+      "aspect": "standard"
+    },
+    
+    {
+      "id": "pf-cloudinary-wedding-1",
+      "title": "Wedding Celebration",
+      "category": "Weddings",
+      "location": "Tamil Nadu",
+      "imageUrl": "https://res.cloudinary.com/dlwe1mqv/image/upload/v1795245771/1P4A2283_copy.jpg",
+      "shootNotes": "A timeless wedding portrait preserving the celebration, emotion, and detail of the occasion.",
+      "exif": "GK Studios · Wedding Photography",
+      "dateLabel": "November 2026",
+      "isHeroFeatured": true,
+      "isVisible": true,
+      "aspect": "wide"
+    },
+    {
       "id": "pf-iyer-oonjal",
       "title": "Kaveri & Subramanian — Oonjal & Muhurtham",
       "category": "Iyer Weddings",

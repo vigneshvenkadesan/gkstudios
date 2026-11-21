@@ -8,7 +8,6 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  Phone,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
@@ -29,8 +28,11 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const prefersReducedMotion = useReducedMotion();
 
-  const featuredSlides = portfolio.filter((item) => item.isVisible && item.isHeroFeatured);
-  const slides = featuredSlides.length > 0 ? featuredSlides : portfolio.filter((p) => p.isVisible);
+  const uniquePortfolio = Array.from(
+    new Map(portfolio.map((item) => [item.id, item])).values()
+  );
+  const featuredSlides = uniquePortfolio.filter((item) => item.isVisible && item.isHeroFeatured);
+  const slides = featuredSlides.length > 0 ? featuredSlides : uniquePortfolio.filter((p) => p.isVisible);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
@@ -165,17 +167,8 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="grid w-full grid-cols-3 items-stretch gap-1.5 mt-8 pt-0 sm:flex sm:w-auto sm:max-w-none sm:mt-0 sm:flex-wrap sm:items-center sm:gap-3.5 sm:pt-2"
+            className="grid w-full grid-cols-2 items-stretch gap-1.5 mt-8 pt-0 sm:flex sm:w-auto sm:max-w-none sm:mt-0 sm:flex-wrap sm:items-center sm:gap-3.5 sm:pt-2"
           >
-            <a
-              href="tel:+917418543123"
-              aria-label="Call GK Studios"
-              className="inline-flex h-9 min-w-0 items-center justify-center gap-1 rounded-sm bg-[#C5B378] px-1.5 text-[11px] font-semibold tracking-[0.01em] text-[#061E1C] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_0_24px_rgba(197,179,120,0.16)] transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-[#D8C78E] hover:shadow-[0_0_28px_rgba(216,199,142,0.28)] active:scale-[0.99] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#092E2B] sm:h-12 sm:w-auto sm:gap-2 sm:px-7 sm:text-sm"
-            >
-              <Phone className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-              <span className="sm:hidden">{locale === 'ta' ? 'அழைப்பு' : 'Call'}</span>
-              <span className="hidden sm:inline">Call GK Studios</span>
-            </a>
             <Button
               size="sm"
               variant="secondary"

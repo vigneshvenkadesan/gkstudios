@@ -1,4 +1,4 @@
-import { EventCategory, StudioPackage } from '@/src/types/studio';
+import { EventCategory, PackageDeliverables, StudioPackage } from '@/src/types/studio';
 
 export type PublicLocale = 'en' | 'ta';
 export type PublicTheme = 'dark' | 'light';
@@ -380,7 +380,7 @@ export function formatLocalizedMonthLabel(monthLabel: string, locale: PublicLoca
 
 export function getPackageCopy(
   pkg: StudioPackage
-): { name: string; audience: string; duration: string; deliverables: string[] } {
+): { name: string; audience: string; duration: string; deliverables: PackageDeliverables } {
   return {
     name: pkg.name,
     audience: pkg.audience,

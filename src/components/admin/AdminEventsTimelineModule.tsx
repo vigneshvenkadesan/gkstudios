@@ -20,6 +20,7 @@ import {
   EventStage,
   PaymentMethod,
 } from '@/src/types/studio';
+import { EventSelector } from '@/src/components/common/EventSelector';
 import { formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
@@ -720,18 +721,16 @@ export function AdminEventsTimelineModule() {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-[#D8C78E]">Event Type</label>
-                <select
+                <EventSelector
+                  id="admin-timeline-event"
+                  label="Event Type"
                   value={newEventType}
-                  onChange={(e) => setNewEventType(e.target.value as EventCategory)}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  {EVENT_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(selectedId, selectedEv) => {
+                    setNewEventType((selectedEv?.name || selectedId) as EventCategory);
+                  }}
+                  showTamilName={true}
+                  required
+                />
               </div>
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-[#D8C78E]">Event Date</label>

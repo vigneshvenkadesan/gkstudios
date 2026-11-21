@@ -42,6 +42,7 @@ function PublicStudioContent() {
     params?: Record<string, string | number>,
   ) => translate(locale, key, params);
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] =
     useState<EventCategory | null>(null);
   const [portfolioFilterCategory, setPortfolioFilterCategory] =
@@ -84,8 +85,13 @@ function PublicStudioContent() {
     });
   };
 
-  const handleSelectPackage = (pkg: StudioPackage) => {
+  const handleSelectPackage = (pkg: StudioPackage, eventId?: string) => {
     setSelectedPackageId(pkg.id);
+    if (eventId) {
+      setSelectedEventId(eventId);
+    } else if (pkg.eventId) {
+      setSelectedEventId(pkg.eventId);
+    }
     toast.success(
       t("packages.selectedToast", { name: getPackageCopy(pkg).name }),
     );
@@ -136,6 +142,7 @@ function PublicStudioContent() {
           <StudioAboutSection onMeetStudio={() => jumpToSection("contact")} />
           <BookingSection
             preselectedPackageId={selectedPackageId}
+            preselectedEventId={selectedEventId}
             preselectedCategory={selectedCategory}
           />
         </main>

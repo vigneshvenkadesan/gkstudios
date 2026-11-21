@@ -15,9 +15,29 @@ async function isAuthorizedAdmin(): Promise<boolean> {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const packages = await getPackagesFromMongo();
+    const { searchParams } = new URL(request.url);
+    const eventId = searchParams.get('eventId');
+    const status = searchParams.get('status');
+    const all = searchParams.get('all') === 'true';
+
+    let packages = await getPackagesFromMongo();
+
+    if (eventId) {
+      packages = packages.filter((pkg) => pkg.eventId === eventId);
+    }
+
+    if (!all) {
+      if (status) {
+        packages = packages.filter((pkg) => (pkg.status ?? 'active') === status);
+      } else {
+        packages = packages.filter((pkg) => (pkg.status ?? 'active') === 'active');
+      }
+    }
+
+    packages.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
     return NextResponse.json(packages);
   } catch (error) {
     console.error('Could not load package data:', error);

@@ -11,6 +11,7 @@ import {
   EventStage,
   PaymentRecord,
   PortfolioItem,
+  StudioEvent,
   StudioPackage,
   StudioState,
 } from '@/src/types/studio';
@@ -65,6 +66,7 @@ interface StudioContextValue {
   state: StudioState;
   isLoading: boolean;
   packages: StudioPackage[];
+  events: StudioEvent[];
   portfolio: PortfolioItem[];
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
@@ -353,6 +355,7 @@ export function StudioProvider({
         state,
         isLoading,
         packages: state.packages,
+        events: state.events ?? [],
         portfolio: state.portfolio,
         bookings: state.bookings,
         calendarEntries: state.calendarEntries,

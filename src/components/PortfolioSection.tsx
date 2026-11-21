@@ -82,10 +82,13 @@ export function PortfolioSection({
   }, [visiblePortfolio]);
 
   const filteredItems = useMemo(() => {
-    if (selectedCategory === 'All Events') return visiblePortfolio;
-    return visiblePortfolio.filter(
+    const categoryItems =
+      selectedCategory === 'All Events'
+        ? visiblePortfolio
+        : visiblePortfolio.filter(
       (item) => normalizeEventCategory(item.category) === selectedCategory
     );
+    return Array.from(new Map(categoryItems.map((item) => [item.id, item])).values());
   }, [visiblePortfolio, selectedCategory]);
 
   const activeLightboxIndex = lightboxItem

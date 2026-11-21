@@ -30,6 +30,27 @@ export const EVENT_CATEGORIES: CoreEventCategory[] = [
   'Corporate Events',
 ];
 
+export interface StudioEvent {
+  id: string; // Unique event identifier (e.g. 'wedding', 'engagement', 'valai-kaapu')
+  name: string;
+  tamilName?: string;
+  category: string; // Event category identifier (e.g. 'wedding', 'baby-maternity', 'birthday-kids', 'family-traditional', 'corporate-business')
+  status: 'active' | 'inactive';
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const EVENT_CATEGORY_GROUPS = [
+  { id: 'wedding', label: 'Wedding', tamilLabel: 'திருமணம்', icon: 'Heart' },
+  { id: 'baby-maternity', label: 'Baby & Maternity', tamilLabel: 'தாய்மை & குழந்தை', icon: 'Baby' },
+  { id: 'birthday-kids', label: 'Birthday & Kids', tamilLabel: 'பிறந்தநாள் & குழந்தைகள்', icon: 'Cake' },
+  { id: 'family-traditional', label: 'Family & Traditional', tamilLabel: 'குடும்பம் & பாரம்பரியம்', icon: 'Flame' },
+  { id: 'corporate-business', label: 'Corporate & Business', tamilLabel: 'வணிகம் & நிறுவனம்', icon: 'Briefcase' },
+] as const;
+
+export type EventCategoryGroupId = (typeof EVENT_CATEGORY_GROUPS)[number]['id'];
+
 export function normalizeEventCategory(category?: string): CoreEventCategory {
   switch (category) {
     case 'Weddings':
@@ -153,31 +174,42 @@ export interface PortfolioItem {
   aspect?: 'wide' | 'standard';
 }
 
+export interface PackageDeliverables {
+  "Event Coverage & Crew"?: string;
+  "Albums & Photo Frames"?: string;
+  "Digital Deliverables"?: string;
+  [key: string]: string | undefined; // Allow dynamic category keys
+}
+
 export interface PackageSnapshot {
   id: string;
   name: string;
   price: number;
   duration?: string;
-  deliverables?: string[];
+  deliverables?: PackageDeliverables | string[];
   snapshotAt: string;
 }
 
 export interface StudioPackage {
-  id: string;
-  name: string;
-  audience: string;
-  price: number;
-  priceLabel?: string;
-  duration: string;
-  highlighted?: boolean;
-  featured?: boolean;
-  deliverables: string[];
-  imageUrl?: string;
+  _id?: string;
+  id: string; // e.g., "pkg-engagement-essential"
+  eventId?: string; // Matches event.id (e.g., "engagement", "wedding")
+  tier?: 'essential' | 'signature' | 'premium';
+  name: string; // e.g., "Essential Engagement"
+  audience: string; // e.g., "Most Popular — Complete event coverage"
+  price: number; // Numeric value for sorting/calculations (e.g., 18000)
+  currency?: string; // e.g., "INR"
+  priceLabel?: string; // Formatted display string (e.g., "₹18,000")
+  duration: string; // e.g., "Up to 4 Hours"
+  highlighted?: boolean; // Marks the recommended/"Most Popular" tier
+  deliverables: PackageDeliverables;
+  category?: string; // Matches eventId
   image?: string;
-  category?: string;
+  imageUrl?: string;
   status?: 'active' | 'inactive';
   displayOnPortfolio?: boolean;
-  sortOrder?: number;
+  sortOrder?: number; // 1 = Essential, 2 = Signature, 3 = Premium
+  featured?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -227,6 +259,7 @@ export interface CalendarDayEntry {
 export interface StudioState {
   portfolio: PortfolioItem[];
   packages: StudioPackage[];
+  events?: StudioEvent[];
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
   eventProjects: EventProject[];
