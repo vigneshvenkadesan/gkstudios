@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -35,17 +35,136 @@ import {
   Clock,
   HardDriveDownload,
   Zap,
+  RotateCcw,
+  Sliders,
+  SunMedium,
+  CalendarDays,
+  Home,
+  Users,
+  Heart,
+  Baby,
+  Cake,
+  Flame,
+  Briefcase,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import { useEvents } from '@/src/hooks/useEvents';
-import { PackageDeliverables, StudioPackage } from '@/src/types/studio';
-import { PROPOSAL_ADDONS, ProposalAddon } from '@/src/config/packageAddons';
+import {
+  EVENT_CATEGORY_GROUPS,
+  PackageDeliverables,
+  PackageIncludedFeatures,
+  StudioPackage,
+} from '@/src/types/studio';
+import { PROPOSAL_ADDONS } from '@/src/config/packageAddons';
 import { CAMERA_TEAM_GUIDES, CameraTeamMemberGuide } from '@/src/config/cameraGuide';
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
+import {
+  SESSION_PLANS,
+  GUEST_SCALES,
+  SessionPlan,
+  GuestScale,
+} from '@/src/components/packages/FastIntakeWizard';
+
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  wedding: <Heart className="h-4 w-4" />,
+  'baby-maternity': <Baby className="h-4 w-4" />,
+  'birthday-kids': <Cake className="h-4 w-4" />,
+  'family-traditional': <Flame className="h-4 w-4" />,
+  'corporate-business': <Briefcase className="h-4 w-4" />,
+};
+
+function matchesCategory(eventCategory?: string, groupId?: string): boolean {
+  if (!eventCategory || !groupId) return false;
+  const evCat = eventCategory.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  const grp = groupId.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  if (evCat === grp) return true;
+  if (grp.includes('wedding') && evCat.includes('wedding')) return true;
+  if ((grp.includes('baby') || grp.includes('maternity')) && (evCat.includes('baby') || evCat.includes('maternity'))) return true;
+  if ((grp.includes('birthday') || grp.includes('kid')) && (evCat.includes('birthday') || evCat.includes('kid'))) return true;
+  if ((grp.includes('family') || grp.includes('traditional')) && (evCat.includes('family') || evCat.includes('traditional'))) return true;
+  if ((grp.includes('corporate') || grp.includes('business')) && (evCat.includes('corporate') || evCat.includes('business'))) return true;
+  return false;
+}
+
+interface FeatureMeta {
+  key: keyof PackageIncludedFeatures;
+  label: string;
+  tamilLabel?: string;
+  defaultDeduction: number;
+  description: string;
+  downgradeLabel: string;
+}
+
+const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
+  traditionalPhoto: {
+    key: 'traditionalPhoto',
+    label: 'Traditional Photography',
+    tamilLabel: 'பாரம்பரியப் புகைப்படம்',
+    defaultDeduction: -5000,
+    description: 'Stage group photos, sacred rituals & complete attendance archive.',
+    downgradeLabel: 'Opt-out of Traditional Photo',
+  },
+  traditionalVideo: {
+    key: 'traditionalVideo',
+    label: 'Traditional Video (Full Ceremony)',
+    tamilLabel: 'பாரம்பரிய வீடியோ பதிவு',
+    defaultDeduction: -6000,
+    description: 'Full-length Full HD recording of all rituals, mantras & speeches.',
+    downgradeLabel: 'Opt-out of Traditional Video',
+  },
+  candidPhoto: {
+    key: 'candidPhoto',
+    label: 'Candid Photography',
+    tamilLabel: 'கேன்டிட் புகைப்படம்',
+    defaultDeduction: -8000,
+    description: 'Unposed emotions, magazine portraits & soft background blur.',
+    downgradeLabel: 'Opt-out of Candid Photo',
+  },
+  candidVideo: {
+    key: 'candidVideo',
+    label: 'Candid Cinematography & Reels',
+    tamilLabel: 'சினிமாடிக் வீடியோ & ரீல்ஸ்',
+    defaultDeduction: -10000,
+    description: '3–5 min emotional highlight movie on gimbal + 60s Instagram reels.',
+    downgradeLabel: 'Opt-out of Candid Cinema',
+  },
+  printedAlbum: {
+    key: 'printedAlbum',
+    label: 'Printed Heirloom Album & Presentation Box',
+    tamilLabel: 'அச்சு ஆல்பம் & பெட்டி',
+    defaultDeduction: -4000,
+    description: 'Layflat Karizma album with presentation keepsake box.',
+    downgradeLabel: 'Digital-Only (Remove Printed Album)',
+  },
+  drone: {
+    key: 'drone',
+    label: 'Drone Aerial Coverage',
+    tamilLabel: 'ட்ரோன் வான்வழிப் படப்பிடிப்பு',
+    defaultDeduction: -8000,
+    description: '4K aerial flyovers of venue, grand entries & crowd scale.',
+    downgradeLabel: 'Opt-out of Drone Aerial',
+  },
+  ledWall: {
+    key: 'ledWall',
+    label: 'Live LED Wall Screen',
+    tamilLabel: 'நேரடி எல்.ஈ.டி திரை',
+    defaultDeduction: -10000,
+    description: 'Live stage broadcast across the hall for all guests.',
+    downgradeLabel: 'Opt-out of Live LED Wall',
+  },
+  outdoorShoot: {
+    key: 'outdoorShoot',
+    label: 'Outdoor Couple Shoot',
+    tamilLabel: 'அவுட்டோர் ஜோடி படப்பிடிப்பு',
+    defaultDeduction: -5000,
+    description: 'Pre/post celebration couple portrait session.',
+    downgradeLabel: 'Opt-out of Outdoor Shoot',
+  },
+};
 
 function parseDeliverables(
   deliverables: PackageDeliverables | string[] | undefined | null
@@ -77,32 +196,92 @@ export function ProposalPageClient() {
   const { packages, submitBooking } = useStudio();
   const { activeEvents } = useEvents();
 
-  // URL Query Params: ?event=<id>&plan=<single|half|full>&guests=<intimate|classic|grand>&tier=<2|3>&addons=<id1,id2>
-  const eventIdParam = searchParams.get('event') || 'wedding';
-  const planParam = searchParams.get('plan') || 'half';
-  const guestsParam = searchParams.get('guests') || 'classic';
-  const tierParam = parseInt(searchParams.get('tier') || '2', 10);
-  const initialAddonsParam = searchParams.get('addons')
+  // URL Query Params detection for Fallback / Standalone mode
+  const rawEventParam = searchParams.get('event');
+  const rawPlanParam = searchParams.get('plan');
+  const rawGuestsParam = searchParams.get('guests');
+  const rawTierParam = searchParams.get('tier');
+  const hasQueryParams = Boolean(rawEventParam || rawPlanParam);
+
+  // Active intake states
+  const [activeEventId, setActiveEventId] = useState<string>(rawEventParam || 'wedding');
+  const [activePlan, setActivePlan] = useState<SessionPlan>(
+    (rawPlanParam as SessionPlan) || 'half'
+  );
+  const [activeGuests, setActiveGuests] = useState<GuestScale>(
+    (rawGuestsParam as GuestScale) || 'classic'
+  );
+  const [isEditingIntake, setIsEditingIntake] = useState(!hasQueryParams);
+  const [intakeCategory, setIntakeCategory] = useState<string>('wedding');
+
+  // Sync state if query params change
+  useEffect(() => {
+    if (rawEventParam) setActiveEventId(rawEventParam);
+    if (rawPlanParam) setActivePlan(rawPlanParam as SessionPlan);
+    if (rawGuestsParam) setActiveGuests(rawGuestsParam as GuestScale);
+  }, [rawEventParam, rawPlanParam, rawGuestsParam]);
+
+  // Recommended tier based on intake plan and guests scale
+  const recommendedTier = useMemo(() => {
+    if (rawTierParam) return parseInt(rawTierParam, 10);
+    if (activePlan === 'full' || activeGuests === 'grand') return 3;
+    return 2;
+  }, [rawTierParam, activePlan, activeGuests]);
+
+  // Helper to sync URL state smoothly
+  const updateUrlParams = (
+    eventId: string,
+    plan: string,
+    guests: string,
+    tier: number,
+    removedKeys: string[],
+    addonIds: string[]
+  ) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('event', eventId);
+    url.searchParams.set('plan', plan);
+    url.searchParams.set('guests', guests);
+    url.searchParams.set('tier', String(tier));
+    if (removedKeys.length > 0) {
+      url.searchParams.set('removed', removedKeys.join(','));
+    } else {
+      url.searchParams.delete('removed');
+    }
+    if (addonIds.length > 0) {
+      url.searchParams.set('addons', addonIds.join(','));
+    } else {
+      url.searchParams.delete('addons');
+    }
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  // Customizer checkbox states
+  const initialRemoved = searchParams.get('removed')
+    ? searchParams.get('removed')!.split(',').filter(Boolean)
+    : [];
+  const initialAddons = searchParams.get('addons')
     ? searchParams.get('addons')!.split(',').filter(Boolean)
     : [];
 
-  // Active custom add-ons state
-  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>(initialAddonsParam);
+  const [unselectedIncludedIds, setUnselectedIncludedIds] = useState<string[]>(
+    initialRemoved.map((k) => `inc-${k}`)
+  );
+  const [selectedUpgradeIds, setSelectedUpgradeIds] = useState<string[]>(initialAddons);
 
-  // Accordion open states (Camera styles EXPANDED by default as requested)
-  const [isVisualGuideOpen, setIsVisualGuideOpen] = useState(true);
+  // Accordion open states
+  const [expandedCameraIds, setExpandedCameraIds] = useState<string[]>([]);
   const [isDeliverablesOpen, setIsDeliverablesOpen] = useState(false);
   const [isSlaAccordionOpen, setIsSlaAccordionOpen] = useState(false);
   const [isCompareTiersOpen, setIsCompareTiersOpen] = useState(false);
   const [isPolicyAccordionOpen, setIsPolicyAccordionOpen] = useState(false);
 
-  // Active modal for single camera pill preview
+  // Active modal for single camera preview
   const [activePillModal, setActivePillModal] = useState<CameraTeamMemberGuide | null>(null);
 
   // Tooltip helper state for add-on info
   const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null);
 
-  // Drawer / Order Modal state
+  // Order / Booking Drawer state
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
   // Booking Form State
@@ -117,14 +296,14 @@ export function ProposalPageClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Active Event Object
+  // Current active event object
   const currentEvent = useMemo(() => {
     return (
-      activeEvents.find((e) => e.id === eventIdParam) ||
+      activeEvents.find((e) => e.id === activeEventId) ||
       activeEvents.find((e) => e.id === 'wedding') ||
       activeEvents[0]
     );
-  }, [activeEvents, eventIdParam]);
+  }, [activeEvents, activeEventId]);
 
   // Packages for this event
   const eventPackages = useMemo(() => {
@@ -134,11 +313,11 @@ export function ProposalPageClient() {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages, currentEvent]);
 
-  // Recommended base package matching tierParam (2 = Signature, 3 = Premium)
+  // Recommended base package matching tier (2 = Signature, 3 = Premium)
   const basePackage = useMemo(() => {
     if (eventPackages.length === 0) return null;
 
-    let targetOrder = tierParam === 3 ? 3 : 2;
+    let targetOrder = recommendedTier === 3 ? 3 : 2;
     let match = eventPackages.find((p) => p.sortOrder === targetOrder);
 
     if (!match) {
@@ -149,84 +328,242 @@ export function ProposalPageClient() {
       }
     }
     return match || eventPackages[0];
-  }, [eventPackages, tierParam]);
+  }, [eventPackages, recommendedTier]);
 
-  // Available add-ons for the recommended package
-  const availableAddons = useMemo(() => {
-    if (basePackage?.customizer?.addons && basePackage.customizer.addons.length > 0) {
-      return basePackage.customizer.addons.map((addon) => {
-        const isDowngrade = addon.type === 'downgrade' || addon.priceDelta < 0;
-        return {
-          id: addon.id,
-          shortTitle: addon.label,
-          name: addon.label,
-          badge: addon.priceDelta > 0 ? `+${formatINR(addon.priceDelta)}` : formatINR(addon.priceDelta),
-          priceDelta: addon.priceDelta,
-          type: (isDowngrade ? 'remove' : 'add') as 'add' | 'remove',
-          description: isDowngrade
-            ? 'Digital-only / cost reduction option without physical printing.'
-            : `Add ${addon.label} to your package.`,
-        };
-      });
-    }
+  // ─── 1. Base Included Elements (Default Checked) ───
+  const baseIncludedElements = useMemo(() => {
+    if (!basePackage) return [];
 
-    if (!basePackage) return PROPOSAL_ADDONS;
-    return PROPOSAL_ADDONS.filter((addon) => {
-      if (!addon.applicableIf) return true;
-      return addon.applicableIf(basePackage);
+    const incMap = basePackage.customizer?.included;
+    const keys: (keyof PackageIncludedFeatures)[] = [
+      'traditionalPhoto',
+      'traditionalVideo',
+      'candidPhoto',
+      'candidVideo',
+      'printedAlbum',
+      'drone',
+      'ledWall',
+      'outdoorShoot',
+    ];
+
+    const results: {
+      id: string;
+      featureKey: string;
+      label: string;
+      tamilLabel?: string;
+      description: string;
+      isBaseIncluded: boolean;
+      priceDelta: number;
+      downgradeLabel: string;
+    }[] = [];
+
+    keys.forEach((k) => {
+      let isIncluded = false;
+      if (incMap) {
+        isIncluded = Boolean(incMap[k]);
+      } else {
+        if (basePackage.sortOrder === 3) {
+          isIncluded = ['traditionalPhoto', 'traditionalVideo', 'candidPhoto', 'candidVideo', 'printedAlbum', 'drone'].includes(k);
+        } else if (basePackage.sortOrder === 2) {
+          isIncluded = ['traditionalPhoto', 'traditionalVideo', 'candidPhoto', 'printedAlbum'].includes(k);
+        } else {
+          isIncluded = ['traditionalPhoto', 'traditionalVideo', 'printedAlbum'].includes(k);
+        }
+      }
+
+      if (isIncluded) {
+        const meta = BASE_FEATURE_DEFINITIONS[k];
+        let deduction = meta.defaultDeduction;
+
+        if (k === 'printedAlbum' && basePackage.customizer?.addons) {
+          const removeAddon = basePackage.customizer.addons.find(
+            (a) => a.id === 'remove-album' || a.type === 'downgrade' || a.priceDelta < 0
+          );
+          if (removeAddon) {
+            deduction = -Math.abs(removeAddon.priceDelta);
+          }
+        }
+
+        results.push({
+          id: `inc-${k}`,
+          featureKey: k,
+          label: meta.label,
+          tamilLabel: meta.tamilLabel,
+          description: meta.description,
+          isBaseIncluded: true,
+          priceDelta: deduction,
+          downgradeLabel: meta.downgradeLabel,
+        });
+      }
     });
+
+    return results;
   }, [basePackage]);
 
-  // Active Addon Objects & Dynamic Pricing Calculation
-  const { activeAddonsList, totalDelta, finalPrice } = useMemo(() => {
-    const active = availableAddons.filter((a) => selectedAddonIds.includes(a.id));
-    const delta = active.reduce((sum, curr) => sum + curr.priceDelta, 0);
-    const base = basePackage?.price || 0;
-    return {
-      activeAddonsList: active,
-      totalDelta: delta,
-      finalPrice: Math.max(0, base + delta),
-    };
-  }, [availableAddons, selectedAddonIds, basePackage?.price]);
+  // ─── 2. Available Upgrades (Default Unchecked) ───
+  const availableUpgrades = useMemo(() => {
+    if (!basePackage) return [];
 
-  // Sync active add-ons to URL for shareability
-  const handleToggleAddon = (addonId: string) => {
-    setSelectedAddonIds((prev) => {
-      const next = prev.includes(addonId) ? prev.filter((id) => id !== addonId) : [...prev, addonId];
-      const url = new URL(window.location.href);
-      if (next.length > 0) {
-        url.searchParams.set('addons', next.join(','));
-      } else {
-        url.searchParams.delete('addons');
+    const incKeys = baseIncludedElements.map((b) => b.featureKey);
+
+    if (basePackage.customizer?.addons && basePackage.customizer.addons.length > 0) {
+      return basePackage.customizer.addons
+        .filter((a) => a.type === 'upgrade' || a.priceDelta > 0)
+        .filter((a) => {
+          if (a.id.includes('candid-photo') && incKeys.includes('candidPhoto')) return false;
+          if (a.id.includes('candid-video') && incKeys.includes('candidVideo')) return false;
+          if (a.id.includes('drone') && incKeys.includes('drone')) return false;
+          if (a.id.includes('led') && incKeys.includes('ledWall')) return false;
+          return true;
+        })
+        .map((a) => ({
+          id: a.id,
+          label: a.label,
+          description: `Add ${a.label} to your package coverage.`,
+          isBaseIncluded: false,
+          priceDelta: Math.abs(a.priceDelta),
+          badge: `+${formatINR(Math.abs(a.priceDelta))}`,
+        }));
+    }
+
+    return PROPOSAL_ADDONS
+      .filter((a) => a.type === 'add')
+      .filter((a) => (!a.applicableIf ? true : a.applicableIf(basePackage)))
+      .filter((a) => {
+        if (a.id.includes('candid-photo') && incKeys.includes('candidPhoto')) return false;
+        if (a.id.includes('candid-cinema') && incKeys.includes('candidVideo')) return false;
+        if (a.id.includes('drone') && incKeys.includes('drone')) return false;
+        if (a.id.includes('led') && incKeys.includes('ledWall')) return false;
+        return true;
+      })
+      .map((a) => ({
+        id: a.id,
+        label: a.shortTitle || a.name,
+        description: a.description,
+        isBaseIncluded: false,
+        priceDelta: Math.abs(a.priceDelta),
+        badge: `+${formatINR(Math.abs(a.priceDelta))}`,
+      }));
+  }, [basePackage, baseIncludedElements]);
+
+  // ─── 3. Custom Plan Detection & Pricing Calculation ───
+  const isCustomModified = unselectedIncludedIds.length > 0 || selectedUpgradeIds.length > 0;
+
+  const { finalPrice, totalDelta, customizedModifications } = useMemo(() => {
+    const base = basePackage?.price || 0;
+    const mods: { id: string; label: string; badge: string; isDeduction: boolean; amount: number }[] = [];
+
+    let deductionSum = 0;
+    baseIncludedElements.forEach((el) => {
+      if (unselectedIncludedIds.includes(el.id)) {
+        deductionSum += el.priceDelta; // negative number
+        mods.push({
+          id: el.id,
+          label: el.downgradeLabel,
+          badge: formatINR(el.priceDelta),
+          isDeduction: true,
+          amount: el.priceDelta,
+        });
       }
-      window.history.replaceState({}, '', url.toString());
+    });
+
+    let additionSum = 0;
+    availableUpgrades.forEach((el) => {
+      if (selectedUpgradeIds.includes(el.id)) {
+        additionSum += el.priceDelta; // positive number
+        mods.push({
+          id: el.id,
+          label: el.label,
+          badge: `+${formatINR(el.priceDelta)}`,
+          isDeduction: false,
+          amount: el.priceDelta,
+        });
+      }
+    });
+
+    const delta = deductionSum + additionSum;
+    return {
+      finalPrice: Math.max(0, base + delta),
+      totalDelta: delta,
+      customizedModifications: mods,
+    };
+  }, [basePackage?.price, baseIncludedElements, unselectedIncludedIds, availableUpgrades, selectedUpgradeIds]);
+
+  // Handlers for toggles
+  const handleToggleBaseIncluded = (id: string) => {
+    setUnselectedIncludedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      const removedKeys = next.map((i) => i.replace('inc-', ''));
+      updateUrlParams(
+        activeEventId,
+        activePlan,
+        activeGuests,
+        recommendedTier,
+        removedKeys,
+        selectedUpgradeIds
+      );
       return next;
     });
   };
 
-  // Copy shareable proposal link
+  const handleToggleUpgrade = (id: string) => {
+    setSelectedUpgradeIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      const removedKeys = unselectedIncludedIds.map((i) => i.replace('inc-', ''));
+      updateUrlParams(
+        activeEventId,
+        activePlan,
+        activeGuests,
+        recommendedTier,
+        removedKeys,
+        next
+      );
+      return next;
+    });
+  };
+
+  const handleResetToDefault = () => {
+    setUnselectedIncludedIds([]);
+    setSelectedUpgradeIds([]);
+    updateUrlParams(
+      activeEventId,
+      activePlan,
+      activeGuests,
+      recommendedTier,
+      [],
+      []
+    );
+    toast.success('Reset package to standard preset.');
+  };
+
+  const toggleCameraExpanded = (id: string) => {
+    setExpandedCameraIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   const handleShareLink = () => {
     const url = window.location.href;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url);
-      toast.success('Link copied! Ready to share with family.');
+      toast.success('Custom proposal link copied! Ready to share with family.');
     } else {
       toast.info('Share URL: ' + url);
     }
   };
 
-  // Short Human-readable labels
+  // Human-readable labels
   const planShortLabel =
-    planParam === 'single'
+    activePlan === 'single'
       ? 'Single Session (4h)'
-      : planParam === 'full'
+      : activePlan === 'full'
       ? 'Full-Day (1.5–2d)'
-      : 'Half-Day (5–6h)';
+      : 'Half-Day (6h)';
 
   const guestsShortLabel =
-    guestsParam === 'intimate'
+    activeGuests === 'intimate'
       ? '< 100 Guests'
-      : guestsParam === 'grand'
+      : activeGuests === 'grand'
       ? '300+ Guests'
       : '100–300 Guests';
 
@@ -240,14 +577,14 @@ export function ProposalPageClient() {
         currentEvent?.tamilName ? ` (${currentEvent.tamilName})` : ''
       }`,
       `⏱️ Plan: ${planShortLabel} • ${guestsShortLabel}`,
-      `📦 Base Tier: ${basePackage?.name || 'Custom Plan'} (${formatINR(basePackage?.price || 0)})`,
+      `📦 Base Plan: ${basePackage?.name || 'Custom Plan'} (${formatINR(basePackage?.price || 0)})`,
     ];
 
-    if (activeAddonsList.length > 0) {
+    if (customizedModifications.length > 0) {
       lines.push(``);
-      lines.push(`🛠️ Selected Options:`);
-      activeAddonsList.forEach((a) => {
-        lines.push(`  • ${a.shortTitle || a.name} (${a.badge})`);
+      lines.push(`🛠️ Custom Adjustments:`);
+      customizedModifications.forEach((m) => {
+        lines.push(`  • ${m.label} (${m.badge})`);
       });
     }
 
@@ -280,11 +617,11 @@ export function ProposalPageClient() {
 
     setIsSubmitting(true);
     try {
-      const addonNotes = activeAddonsList.map((a) => `${a.shortTitle} (${a.badge})`).join(', ');
+      const customNotes = customizedModifications.map((m) => `${m.label} (${m.badge})`).join(', ');
       const combinedNotes = [
         `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}, ${guestsShortLabel})`,
         `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
-        addonNotes ? `Options: ${addonNotes}` : '',
+        customNotes ? `Customizations: ${customNotes}` : '',
         `Estimated Total: ${formatINR(finalPrice)}`,
         notes ? `Client Notes: ${notes}` : '',
       ]
@@ -327,7 +664,7 @@ export function ProposalPageClient() {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#D8C78E] hover:text-white transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
+            <span>Studio Home</span>
           </Link>
 
           <div className="flex items-center gap-2">
@@ -339,14 +676,181 @@ export function ProposalPageClient() {
               className="gap-1.5 border-[#C5B378]/40 text-[#D8C78E] hover:bg-[#C5B378]/15 text-xs h-8 px-3"
             >
               <Share2 className="h-3.5 w-3.5" />
-              <span>Share Link</span>
+              <span>Share Quote</span>
             </Button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        {/* ─── A. Minimal Top Header Bar (Zero Walls of Text) ─── */}
+        {/* ─── 3. Fallback / Direct Intake Mode (Rendered when no query params or when editing) ─── */}
+        <AnimatePresence>
+          {isEditingIntake && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="rounded-sm border-2 border-[#D8C78E]/60 bg-[#0E423E] p-4 sm:p-6 space-y-5 shadow-xl"
+            >
+              <div className="flex items-center justify-between border-b border-[#C5B378]/20 pb-3">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Interactive Proposal Selector
+                  </span>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-white">
+                    Customize Your 3 Celebration Questions
+                  </h3>
+                </div>
+
+                {hasQueryParams && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingIntake(false)}
+                    className="text-xs text-[#E6ECEB]/70 hover:text-white flex items-center gap-1 bg-[#061E1C] px-2.5 py-1 rounded border border-[#C5B378]/30"
+                  >
+                    <span>Close</span>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Question 1: Milestone Event */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                  1. What milestone are we capturing?
+                </label>
+                {/* Category Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {EVENT_CATEGORY_GROUPS.map((group) => {
+                    const isSelected = intakeCategory === group.id;
+                    const icon = CATEGORY_ICONS[group.id] || <Sparkles className="h-3.5 w-3.5" />;
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => {
+                          setIntakeCategory(group.id);
+                          const first = activeEvents.find((e) => matchesCategory(e.category, group.id));
+                          if (first) setActiveEventId(first.id);
+                        }}
+                        className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                          isSelected
+                            ? 'bg-[#D8C78E] text-[#061E1C] font-bold shadow'
+                            : 'bg-[#092E2B] text-[#E6ECEB]/80 border border-[#C5B378]/25 hover:text-white'
+                        }`}
+                      >
+                        {icon}
+                        <span>{group.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Event Chips */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
+                  {activeEvents
+                    .filter((e) => matchesCategory(e.category, intakeCategory))
+                    .map((ev) => {
+                      const isSelected = activeEventId === ev.id;
+                      return (
+                        <button
+                          key={ev.id}
+                          type="button"
+                          onClick={() => setActiveEventId(ev.id)}
+                          className={`flex items-center justify-between text-left p-2.5 rounded border text-xs transition-all ${
+                            isSelected
+                              ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold shadow ring-1 ring-[#D8C78E]'
+                              : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
+                          }`}
+                        >
+                          <span className="truncate">{ev.name}</span>
+                          {isSelected && <Check className="h-3.5 w-3.5 text-[#D8C78E] shrink-0 ml-1" />}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Question 2: Duration */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                  2. Celebration Duration
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {SESSION_PLANS.map((plan) => {
+                    const isSelected = activePlan === plan.id;
+                    return (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => setActivePlan(plan.id)}
+                        className={`flex items-center justify-between p-3 rounded border text-xs transition-all ${
+                          isSelected
+                            ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
+                            : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
+                        }`}
+                      >
+                        <span>{plan.label}</span>
+                        <span className="text-[10px] text-[#D8C78E] font-bold">{plan.badge}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Question 3: Guest Scale */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                  3. Expected Guest Count
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {GUEST_SCALES.map((scale) => {
+                    const isSelected = activeGuests === scale.id;
+                    return (
+                      <button
+                        key={scale.id}
+                        type="button"
+                        onClick={() => setActiveGuests(scale.id)}
+                        className={`flex items-center justify-between p-3 rounded border text-xs transition-all ${
+                          isSelected
+                            ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
+                            : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
+                        }`}
+                      >
+                        <span>{scale.label}</span>
+                        <span className="text-[10px] text-[#D8C78E] font-bold">{scale.badge}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingIntake(false);
+                    updateUrlParams(
+                      activeEventId,
+                      activePlan,
+                      activeGuests,
+                      recommendedTier,
+                      unselectedIncludedIds.map((i) => i.replace('inc-', '')),
+                      selectedUpgradeIds
+                    );
+                    toast.success('Updated proposal parameters!');
+                  }}
+                  className="bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold px-6 py-2 text-xs"
+                >
+                  <span>View Customized Proposal →</span>
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ─── Top Header Bar ─── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#C5B378]/15">
           <div className="flex items-baseline gap-2.5 flex-wrap">
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
@@ -366,12 +870,14 @@ export function ProposalPageClient() {
               <span>{guestsShortLabel}</span>
             </span>
 
-            <Link
-              href="/#packages"
-              className="text-xs font-semibold text-[#D8C78E] hover:text-white underline underline-offset-4 ml-1 transition-colors"
+            <button
+              type="button"
+              onClick={() => setIsEditingIntake((prev) => !prev)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#D8C78E] hover:text-white underline underline-offset-4 ml-1 transition-colors"
             >
-              Edit
-            </Link>
+              <Sliders className="h-3 w-3" />
+              <span>{isEditingIntake ? 'Hide Questions' : 'Edit Intake ▾'}</span>
+            </button>
           </div>
         </div>
 
@@ -379,188 +885,136 @@ export function ProposalPageClient() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* ══════════ LEFT COLUMN (65% on Desktop) ══════════ */}
           <div className="lg:col-span-8 space-y-6">
-            {/* ─── B. Camera Styles & Crew Elements (Expanded by Default & All 6 Styles Shown) ─── */}
-            <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] p-4 sm:p-5 space-y-4">
+            {/* ─── 2. Bilingual Camera Types (Collapsed by Default) ─── */}
+            <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="space-y-0.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
-                    <Camera className="h-3.5 w-3.5" />
-                    Camera Styles & Crew Elements
-                  </span>
-                  <p className="text-xs text-[#E6ECEB]/70">
-                    See how each camera element lights up your celebration
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsVisualGuideOpen((prev) => !prev)}
-                  className="text-xs font-semibold text-[#D8C78E] hover:text-white flex items-center gap-1 transition-colors px-2 py-1 rounded bg-[#0E423E]/60 border border-[#C5B378]/20"
-                >
-                  <span>{isVisualGuideOpen ? 'Collapse' : 'Expand All Styles'}</span>
-                  {isVisualGuideOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                </button>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
+                  <Camera className="h-3.5 w-3.5" />
+                  Camera Styles & Crew Elements
+                </span>
+                <span className="text-[10px] text-[#E6ECEB]/60">Tap any style to learn how it lights up your event</span>
               </div>
 
-              {/* Quick Jump Thumbnail Pills for Mobile & Desktop */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none scroll-smooth">
-                {CAMERA_TEAM_GUIDES.map((g) => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => setActivePillModal(g)}
-                    className="flex shrink-0 items-center gap-2 rounded-full border border-[#C5B378]/30 bg-[#0E423E]/80 hover:bg-[#114A45] hover:border-[#D8C78E] px-3 py-1 text-left transition-all duration-200 group"
-                  >
-                    <div className="h-5 w-5 rounded-full overflow-hidden bg-black shrink-0 border border-[#C5B378]/40">
-                      <img src={g.previewImage} alt={g.title} className="h-full w-full object-cover" />
-                    </div>
-                    <span className="text-xs font-medium text-white group-hover:text-[#F4E8C1] whitespace-nowrap">
-                      {g.title.replace('Photography', 'Photo').replace('Cinematography', 'Cinema').replace(' (Full Ceremony)', '')}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {CAMERA_TEAM_GUIDES.map((guide) => {
+                  const isExpanded = expandedCameraIds.includes(guide.id);
+                  return (
+                    <div
+                      key={guide.id}
+                      className="rounded-sm border border-[#C5B378]/20 bg-[#061E1C]/80 hover:border-[#C5B378]/40 transition-colors overflow-hidden"
+                    >
+                      {/* Header Format (Always Visible): English Title + Tamil Subtitle + Expand Chevron */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCameraExpanded(guide.id)}
+                        className="w-full flex items-center justify-between p-3 text-left hover:bg-[#0E423E]/50 transition-colors gap-2"
+                      >
+                        <div className="min-w-0">
+                          <h5 className="font-serif text-sm font-bold text-white truncate">
+                            {guide.title}
+                          </h5>
+                          <p className="text-[11px] text-[#D8C78E] font-medium leading-tight truncate">
+                            {guide.tamilTitle}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-[#D8C78E] p-1">
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
 
-              {/* Expanded View: All 6 Camera Styles in Mobile-Friendly Grid */}
-              <AnimatePresence>
-                {isVisualGuideOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden pt-2 space-y-4"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                      {CAMERA_TEAM_GUIDES.map((guide) => (
-                        <div
-                          key={guide.id}
-                          className="group rounded-sm border border-[#C5B378]/20 bg-[#061E1C]/80 hover:border-[#D8C78E]/60 hover:bg-[#0E423E]/90 transition-all duration-200 p-3.5 flex flex-col justify-between space-y-3"
-                        >
-                          <div className="space-y-2.5">
-                            {/* Sample Visual Image */}
-                            <div className="relative aspect-[16/10] w-full rounded overflow-hidden bg-black border border-[#C5B378]/20">
-                              <img
-                                src={guide.previewImage}
-                                alt={guide.title}
-                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-
-                              <div className="absolute top-2 left-2">
-                                <span className="rounded-full bg-[#072421]/90 border border-[#C5B378]/40 px-2 py-0.5 text-[10px] font-bold text-[#D8C78E] uppercase tracking-wider backdrop-blur-sm shadow">
-                                  {guide.sampleType === 'photo' || guide.sampleType === 'candid-photo'
-                                    ? 'Photo'
-                                    : guide.sampleType === 'drone'
-                                    ? 'Aerial Drone'
-                                    : guide.sampleType === 'led-wall'
-                                    ? 'Live LED'
-                                    : 'Video'}
-                                </span>
-                              </div>
-
-                              <div className="absolute bottom-2 left-2 right-2">
-                                <span className="text-[10px] font-semibold text-[#F4E8C1] drop-shadow line-clamp-1">
-                                  {guide.tagline}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Title & Explanations */}
-                            <div className="space-y-1">
-                              <h5 className="font-serif text-base sm:text-lg font-bold text-white group-hover:text-[#F4E8C1] transition-colors leading-snug">
-                                {guide.title}
-                              </h5>
-                              {guide.tamilTitle && (
-                                <p className="text-[11px] text-[#D8C78E] font-medium leading-tight line-clamp-1">
-                                  {guide.tamilTitle}
-                                </p>
-                              )}
-                              <p className="text-xs text-[#E6ECEB]/80 leading-relaxed pt-1">
-                                {guide.howItLightsUp}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Action Button & Best For */}
-                          <div className="pt-2 border-t border-[#C5B378]/15 flex items-center justify-between gap-2">
-                            <span className="text-[10px] text-[#E6ECEB]/65 truncate">
-                              <strong className="text-white">Best:</strong> {guide.bestFor.split(',')[0]}
-                            </span>
+                      {/* Expanded Content (Collapsed by Default) */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="px-3 pb-3 pt-1 border-t border-[#C5B378]/15 space-y-2.5"
+                          >
+                            <p className="text-xs text-[#E6ECEB]/85 leading-relaxed">
+                              {guide.howItLightsUp}
+                            </p>
                             <button
                               type="button"
                               onClick={() => setActivePillModal(guide)}
-                              className="shrink-0 text-xs font-semibold text-[#D8C78E] hover:text-white flex items-center gap-0.5 transition-colors"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D8C78E] hover:text-white transition-colors bg-[#0E423E] border border-[#C5B378]/30 px-2 py-1 rounded"
                             >
-                              <span>Specs & Sample</span>
-                              <ChevronRight className="h-3 w-3" />
+                              <Eye className="h-3 w-3" />
+                              <span>See Sample</span>
                             </button>
-                          </div>
-                        </div>
-                      ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* ─── C. Recommended Package Card (Scannable Chips + Collapsible Full List) ─── */}
+            {/* ─── 1. Unified "Included + Add-ons" Checkable Configurator ─── */}
             {basePackage && (
-              <div className="rounded-sm border-2 border-[#D8C78E] bg-[#0E423E] p-5 sm:p-6 space-y-4 shadow-[0_12px_36px_rgba(216,199,142,0.15)]">
-                {/* Header */}
-                <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#C5B378]/20 pb-3">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
+              <div className="rounded-sm border-2 border-[#D8C78E] bg-[#0E423E] p-5 sm:p-6 space-y-5 shadow-[0_12px_36px_rgba(216,199,142,0.15)]">
+                {/* Header with Custom Plan Detection */}
+                <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[#C5B378]/20 pb-3.5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                        Recommended Base Plan
+                        Recommended Plan
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#D8C78E]/40 px-2 py-0.5 text-[10px] font-bold text-[#D8C78E]">
                         {basePackage.sortOrder === 3 ? '👑 Royal Tier' : '⭐ Signature Tier'}
                       </span>
+                      {isCustomModified ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#C5B378]/20 border border-[#D8C78E]/50 px-2 py-0.5 text-[10px] font-bold text-[#D8C78E]">
+                          Custom Plan Modified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#072421]/60 border border-[#C5B378]/30 px-2 py-0.5 text-[10px] text-[#E6ECEB]/70">
+                          Package Preset
+                        </span>
+                      )}
                     </div>
                     <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white">
                       {basePackage.name}
                     </h2>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-[#D8C78E]">Starting Rate</span>
+                  <div className="text-right flex flex-col items-end">
+                    <span className="text-[10px] uppercase font-bold text-[#D8C78E]">
+                      {isCustomModified ? 'Tailored Total' : 'Starting Rate'}
+                    </span>
                     <p className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                      {formatINR(basePackage.price)}
+                      {formatINR(finalPrice)}
                     </p>
+                    {isCustomModified && (
+                      <button
+                        type="button"
+                        onClick={handleResetToDefault}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D8C78E] hover:text-white transition-colors mt-1"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Reset to Default</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Scannable At-a-Glance Icon Chips (Max 4 items) */}
+                {/* Scannable At-a-Glance Icon Chips (Reflects live active coverage) */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                   <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
                     <Camera className="h-4 w-4 text-[#D8C78E] shrink-0" />
                     <span className="font-medium text-white truncate">
-                      {basePackage.customizer?.included
-                        ? basePackage.customizer.included.traditionalPhoto && basePackage.customizer.included.candidPhoto
-                          ? 'Traditional + Candid Photo'
-                          : basePackage.customizer.included.candidPhoto
-                          ? 'Lead Candid Photo'
-                          : 'Traditional Photo'
-                        : basePackage.sortOrder === 3
-                        ? 'Dual Candid + Trad'
-                        : 'Traditional + Candid'}
+                      {!unselectedIncludedIds.includes('inc-candidPhoto') || selectedUpgradeIds.some((id) => id.includes('candid-photo'))
+                        ? 'Trad + Lead Candid'
+                        : 'Traditional Photo'}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
                     <Film className="h-4 w-4 text-[#D8C78E] shrink-0" />
                     <span className="font-medium text-white truncate">
-                      {basePackage.customizer?.included
-                        ? basePackage.customizer.included.traditionalVideo && basePackage.customizer.included.candidVideo
-                          ? 'Traditional + Candid Cinema'
-                          : basePackage.customizer.included.candidVideo
-                          ? 'Candid Cinema & Film'
-                          : basePackage.customizer.included.traditionalVideo
-                          ? 'Full HD Video'
-                          : 'Digital Highlights'
-                        : basePackage.sortOrder === 3
-                        ? '4K Cinema + Teaser'
+                      {!unselectedIncludedIds.includes('inc-candidVideo') || selectedUpgradeIds.some((id) => id.includes('candid-video'))
+                        ? 'Full HD + Cinema Film'
                         : 'Full HD Video'}
                     </span>
                   </div>
@@ -568,36 +1022,24 @@ export function ProposalPageClient() {
                   <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
                     <BookOpen className="h-4 w-4 text-[#D8C78E] shrink-0" />
                     <span className="font-medium text-white truncate">
-                      {basePackage.customizer?.included
-                        ? basePackage.customizer.included.printedAlbum
-                          ? basePackage.sortOrder === 3
-                            ? '70-Sheet Box Album'
-                            : '30-Sheet Karizma Album'
-                          : 'Digital-Only (No Album)'
-                        : basePackage.sortOrder === 3
-                        ? '70-Sheet Box Album'
-                        : '50-Sheet Album'}
+                      {!unselectedIncludedIds.includes('inc-printedAlbum')
+                        ? 'Printed Heirloom Album'
+                        : 'Digital-Only (No Album)'}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
                     <HardDriveDownload className="h-4 w-4 text-[#D8C78E] shrink-0" />
                     <span className="font-medium text-white truncate">
-                      {basePackage.customizer?.included
-                        ? basePackage.customizer.included.drone
-                          ? 'Drone Aerial Included'
-                          : basePackage.customizer.included.ledWall
-                          ? 'Live LED Wall Included'
-                          : basePackage.customizer.included.outdoorShoot
-                          ? 'Outdoor Shoot Included'
-                          : 'Full Raw Data Drive'
+                      {!unselectedIncludedIds.includes('inc-drone') || selectedUpgradeIds.some((id) => id.includes('drone'))
+                        ? 'Drone Aerial Included'
                         : 'Full Raw Data Drive'}
                     </span>
                   </div>
                 </div>
 
-                {/* Collapsed by Default Full Deliverable Accordion */}
-                <div className="pt-2">
+                {/* Deliverables Breakdown Collapsible */}
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={() => setIsDeliverablesOpen((prev) => !prev)}
@@ -605,7 +1047,7 @@ export function ProposalPageClient() {
                   >
                     <span>
                       {isDeliverablesOpen
-                        ? 'Hide detailed deliverable breakdown'
+                        ? 'Hide full deliverable breakdown'
                         : 'View full deliverable breakdown ▾'}
                     </span>
                     {isDeliverablesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -637,111 +1079,169 @@ export function ProposalPageClient() {
                     )}
                   </AnimatePresence>
                 </div>
+
+                {/* ─── Unified Interactive Checklist: Base Inclusions + Upgrades ─── */}
+                <div className="pt-2 border-t border-[#C5B378]/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E] block">
+                        Interactive Plan Configurator
+                      </span>
+                      <p className="text-[11px] text-[#E6ECEB]/70">
+                        Default included features are checked. Uncheck any item to apply deductions, or check upgrades below.
+                      </p>
+                    </div>
+
+                    {isCustomModified && (
+                      <button
+                        type="button"
+                        onClick={handleResetToDefault}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D8C78E] hover:text-white transition-colors bg-[#061E1C] border border-[#C5B378]/30 px-2.5 py-1 rounded"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Reset</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {/* A. Base Included Features (Default Checked) */}
+                    {baseIncludedElements.map((el) => {
+                      const isChecked = !unselectedIncludedIds.includes(el.id);
+                      return (
+                        <div
+                          key={el.id}
+                          className={`group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
+                            isChecked
+                              ? 'border-[#C5B378]/40 bg-[#061E1C]/90 hover:border-[#D8C78E]'
+                              : 'border-rose-500/40 bg-rose-950/30'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBaseIncluded(el.id)}
+                            className="flex-1 flex items-center gap-2.5 text-left"
+                          >
+                            <div
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                isChecked
+                                  ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
+                                  : 'border-rose-400 bg-transparent text-rose-300'
+                              }`}
+                            >
+                              {isChecked ? (
+                                <Check className="h-3 w-3 stroke-[3]" />
+                              ) : (
+                                <Minus className="h-3 w-3 stroke-[3]" />
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-xs font-semibold ${
+                                    isChecked
+                                      ? 'text-white'
+                                      : 'text-rose-200 line-through decoration-rose-400/60'
+                                  }`}
+                                >
+                                  {el.label}
+                                </span>
+                                {el.tamilLabel && (
+                                  <span className="text-[10px] text-[#D8C78E]/80 hidden sm:inline">
+                                    ({el.tamilLabel})
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                {el.description}
+                              </p>
+                            </div>
+                          </button>
+
+                          <span
+                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                              isChecked
+                                ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
+                                : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                            }`}
+                          >
+                            {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {/* Subtitle for Upgrades */}
+                    {availableUpgrades.length > 0 && (
+                      <div className="pt-2 pb-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]/80 block">
+                          Available Upgrades & Add-ons (Tap to Add)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* B. Available Upgrades (Default Unchecked) */}
+                    {availableUpgrades.map((el) => {
+                      const isChecked = selectedUpgradeIds.includes(el.id);
+                      return (
+                        <div
+                          key={el.id}
+                          className={`group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
+                            isChecked
+                              ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_2px_12px_rgba(216,199,142,0.15)] ring-1 ring-[#D8C78E]'
+                              : 'border-[#C5B378]/20 bg-[#061E1C]/60 hover:border-[#C5B378]/50 hover:bg-[#0E423E]'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUpgrade(el.id)}
+                            className="flex-1 flex items-center gap-2.5 text-left"
+                          >
+                            <div
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                isChecked
+                                  ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
+                                  : 'border-[#C5B378]/40 bg-transparent'
+                              }`}
+                            >
+                              {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+
+                            <div>
+                              <span
+                                className={`text-xs font-semibold ${
+                                  isChecked ? 'text-white' : 'text-[#E6ECEB]/90 group-hover:text-white'
+                                }`}
+                              >
+                                {el.label}
+                              </span>
+                              <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                {el.description}
+                              </p>
+                            </div>
+                          </button>
+
+                          <span
+                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                              isChecked
+                                ? 'bg-[#D8C78E] text-[#061E1C]'
+                                : 'text-[#D8C78E] bg-[#072421] border border-[#C5B378]/30'
+                            }`}
+                          >
+                            +{formatINR(el.priceDelta)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* ─── D. Clean "Customize Your Plan" Toggle Pills ─── */}
-            <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                  Customize Your Plan (Add-ons & Swaps)
-                </span>
-                <span className="text-[11px] text-[#E6ECEB]/60">Tap to toggle</span>
-              </div>
-
-              {/* Single-line Interactive Toggle Cards */}
-              <div className="space-y-2">
-                {availableAddons.map((addon) => {
-                  const isActive = selectedAddonIds.includes(addon.id);
-                  const isRemoval = addon.type === 'remove' || (addon as any).type === 'downgrade' || addon.priceDelta < 0;
-
-                  return (
-                    <div
-                      key={addon.id}
-                      className={`group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
-                        isActive
-                          ? isRemoval
-                            ? 'border-rose-400/50 bg-rose-950/30'
-                            : 'border-[#D8C78E] bg-[#114A45] shadow-[0_2px_12px_rgba(216,199,142,0.15)] ring-1 ring-[#D8C78E]'
-                          : 'border-[#C5B378]/20 bg-[#061E1C]/60 hover:border-[#C5B378]/50 hover:bg-[#0E423E]'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleToggleAddon(addon.id)}
-                        className="flex-1 flex items-center gap-2.5 text-left"
-                      >
-                        <div
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                            isActive
-                              ? isRemoval
-                                ? 'border-rose-400 bg-rose-500 text-white'
-                                : 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
-                              : 'border-[#C5B378]/40 bg-transparent'
-                          }`}
-                        >
-                          {isActive && (isRemoval ? <Minus className="h-3 w-3 stroke-[3]" /> : <Check className="h-3 w-3 stroke-[3]" />)}
-                        </div>
-
-                        <span
-                          className={`text-xs font-semibold ${
-                            isActive
-                              ? isRemoval
-                                ? 'text-rose-200'
-                                : 'text-white'
-                              : 'text-[#E6ECEB]/90 group-hover:text-white'
-                          }`}
-                        >
-                          {addon.shortTitle}
-                        </span>
-                      </button>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* 1-line Info Tooltip */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActiveTooltipId((curr) => (curr === addon.id ? null : addon.id))
-                            }
-                            onMouseEnter={() => setActiveTooltipId(addon.id)}
-                            onMouseLeave={() => setActiveTooltipId(null)}
-                            className="text-[#E6ECEB]/40 hover:text-[#D8C78E] p-1"
-                            aria-label="Info"
-                          >
-                            <HelpCircle className="h-3.5 w-3.5" />
-                          </button>
-
-                          {activeTooltipId === addon.id && (
-                            <div className="absolute right-0 bottom-full mb-1 z-30 w-56 rounded bg-[#041513] border border-[#C5B378]/40 p-2 text-[10px] text-white shadow-lg pointer-events-none">
-                              {addon.description}
-                            </div>
-                          )}
-                        </div>
-
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            isActive
-                              ? isRemoval
-                                ? 'bg-rose-500/20 text-rose-300'
-                                : 'bg-[#D8C78E] text-[#061E1C]'
-                              : isRemoval
-                              ? 'text-rose-400 bg-rose-950/40 border border-rose-500/30'
-                              : 'text-[#D8C78E] bg-[#072421] border border-[#C5B378]/30'
-                          }`}
-                        >
-                          {addon.badge}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ─── E. Collapsed Trust, SLA & Policy Accordions (Closed by Default) ─── */}
-            <div className="space-y-2 pt-2">
-              {/* Accordion 1: Delivery Timelines & Studio Guarantees */}
+            {/* ─── Collapsible Accordions (SLA, Tiers & Policies) ─── */}
+            <div className="space-y-3 pt-2">
+              {/* Accordion 1: SLA & Studio Guarantees */}
               <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] overflow-hidden">
                 <button
                   type="button"
@@ -913,18 +1413,22 @@ export function ProposalPageClient() {
               </div>
 
               {/* Compact Breakdown Chip */}
-              <div className="rounded-sm bg-[#061E1C]/80 border border-[#C5B378]/20 p-3 space-y-1 text-xs">
+              <div className="rounded-sm bg-[#061E1C]/80 border border-[#C5B378]/20 p-3 space-y-1.5 text-xs">
                 <div className="flex justify-between font-medium">
                   <span className="text-white">{basePackage?.name || 'Base Plan'}</span>
                   <span className="text-[#D8C78E]">{formatINR(basePackage?.price || 0)}</span>
                 </div>
 
-                {activeAddonsList.length > 0 && (
+                {customizedModifications.length > 0 && (
                   <div className="pt-1.5 border-t border-[#C5B378]/15 space-y-1">
-                    {activeAddonsList.map((a) => (
-                      <div key={a.id} className="flex justify-between text-[11px] text-[#E6ECEB]/80">
-                        <span>{a.priceDelta < 0 ? '− ' : '+ '}{a.shortTitle}</span>
-                        <span className="font-semibold text-[#D8C78E]">{a.badge}</span>
+                    {customizedModifications.map((m) => (
+                      <div key={m.id} className="flex justify-between text-[11px] text-[#E6ECEB]/80">
+                        <span className={m.isDeduction ? 'text-rose-200' : 'text-white'}>
+                          {m.isDeduction ? '− ' : '+ '}{m.label}
+                        </span>
+                        <span className={`font-semibold ${m.isDeduction ? 'text-rose-300' : 'text-[#D8C78E]'}`}>
+                          {m.badge}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1023,7 +1527,7 @@ export function ProposalPageClient() {
                   Camera Element
                 </span>
                 <h4 className="font-serif text-xl font-bold text-white">{activePillModal.title}</h4>
-                <p className="text-xs text-[#D8C78E] font-medium">{activePillModal.tagline}</p>
+                <p className="text-xs text-[#D8C78E] font-medium">{activePillModal.tamilTitle}</p>
               </div>
 
               <div className="aspect-[16/10] w-full rounded overflow-hidden border border-[#C5B378]/25 bg-black">
@@ -1035,11 +1539,10 @@ export function ProposalPageClient() {
               </div>
 
               <p className="text-xs text-[#E6ECEB]/85 leading-relaxed">
-                <strong className="text-white">How it lights up your event: </strong>
                 {activePillModal.howItLightsUp}
               </p>
 
-              <div className="pt-2 flex justify-end">
+              <div className="flex justify-end pt-2">
                 <Button
                   size="sm"
                   onClick={() => setActivePillModal(null)}
@@ -1111,20 +1614,20 @@ export function ProposalPageClient() {
                           required
                           value={clientName}
                           onChange={(e) => setClientName(e.target.value)}
-                          placeholder="e.g. Vignesh & Sneha"
-                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                          placeholder="e.g. Vignesh & Meera"
+                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">Phone / WhatsApp *</label>
+                        <label className="text-xs font-semibold text-white/90">WhatsApp Number *</label>
                         <input
                           type="tel"
                           required
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="e.g. 98401 12233"
-                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                          placeholder="e.g. 98400 12345"
+                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
                     </div>
@@ -1142,66 +1645,96 @@ export function ProposalPageClient() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">Venue & City *</label>
+                        <label className="text-xs font-semibold text-white/90">Venue / City *</label>
                         <input
                           type="text"
                           required
                           value={venue}
                           onChange={(e) => setVenue(e.target.value)}
-                          placeholder="e.g. SV Mahal, Panruti"
-                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                          placeholder="e.g. Mayor Ramanathan Hall, Chennai"
+                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-white/90">Notes (Optional)</label>
+                      <label className="text-xs font-semibold text-white/90">Notes / Specific Rituals (Optional)</label>
                       <textarea
                         rows={2}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        placeholder="e.g. Early morning Muhurtham at 6 AM"
-                        className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        placeholder="e.g. Morning Muhurtham at 6 AM, evening reception at 7 PM"
+                        className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                       />
                     </div>
 
-                    <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
-                      <button
-                        type="button"
-                        onClick={handleWhatsAppSend}
-                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-sm bg-[#25D366] px-4 py-2.5 text-xs font-bold text-[#061E1C] hover:brightness-105"
-                      >
-                        <MessageCircle className="h-4 w-4 fill-[#061E1C]" />
-                        <span>Send on WhatsApp</span>
-                      </button>
+                    <div className="flex items-center gap-2 pt-1 text-[11px] text-[#E6ECEB]/70">
+                      <ShieldCheck className="h-4 w-4 text-[#D8C78E] shrink-0" />
+                      <span>Zero obligation · No instant payment · Date confirmed in 2 hours</span>
+                    </div>
 
+                    <div className="flex gap-2 pt-2">
                       <Button
                         type="submit"
                         disabled={isSubmitting}
-                        className="flex-1 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold text-xs py-2.5"
+                        className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold py-2.5 text-xs hover:brightness-105 shadow"
                       >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        <span>Submit Online</span>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Checking Availability...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span>Submit Online Inquiry</span>
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleWhatsAppSend}
+                        className="gap-1.5 border-[#25D366]/60 bg-[#25D366]/15 text-emerald-300 hover:bg-[#25D366]/25 text-xs py-2.5 px-4"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        <span>Send via WhatsApp</span>
                       </Button>
                     </div>
                   </form>
                 </>
               ) : (
-                <div className="py-6 text-center space-y-3">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#114A45] text-[#D8C78E] border border-[#D8C78E]/40">
-                    <CheckCircle2 className="h-6 w-6" />
+                <div className="py-6 text-center space-y-4">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#D8C78E]/20 border border-[#D8C78E]">
+                    <Check className="h-6 w-6 text-[#D8C78E]" />
                   </div>
-                  <h4 className="font-serif text-xl font-bold text-white">Inquiry Received!</h4>
-                  <p className="text-xs text-[#E6ECEB]/75 max-w-sm mx-auto">
-                    We will review your date ({eventDate}) and get back to you shortly.
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => setIsOrderModalOpen(false)}
-                    className="bg-[#D8C78E] text-[#061E1C] text-xs"
-                  >
-                    Close
-                  </Button>
+
+                  <div className="space-y-1">
+                    <h3 className="font-serif text-2xl font-bold text-white">Inquiry Received!</h3>
+                    <p className="text-xs text-[#E6ECEB]/80 max-w-sm mx-auto">
+                      Vanakkam {clientName}! We have received your inquiry for {currentEvent?.name}. We will review date availability and contact you on WhatsApp at {phone}.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleWhatsAppSend}
+                      className="gap-2 bg-[#25D366] text-[#061E1C] font-bold text-xs"
+                    >
+                      <MessageCircle className="h-4 w-4 fill-[#061E1C]" />
+                      <span>Also Open in WhatsApp</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsOrderModalOpen(false)}
+                      className="border-[#C5B378]/30 text-white text-xs"
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
               )}
             </motion.div>

@@ -132,18 +132,18 @@ export function PackagesSection({
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6"
         >
-          <div className="max-w-2xl space-y-3">
+          <div className="max-w-2xl space-y-2">
             <p className="text-xs font-semibold tracking-[0.24em] text-[#D8C78E]">
               {t('packages.eyebrow')}
             </p>
             <h2 className="font-serif text-3xl font-semibold tracking-[-0.015em] text-white leading-[1.06] sm:text-4xl lg:text-5xl">
               {viewMode === 'intake'
-                ? 'Design Your Event Photography Plan'
+                ? 'Build Your Event Package'
                 : t('packages.heading')}
             </h2>
             <p className="text-sm leading-relaxed text-[#E6ECEB]/78 sm:text-base">
               {viewMode === 'intake'
-                ? 'Answer 3 quick questions about your celebration. We build a personalized visual proposal with real equipment samples, delivery SLAs, and transparent live pricing.'
+                ? 'Answer 3 quick questions'
                 : t('packages.included')}
             </p>
           </div>

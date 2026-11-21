@@ -50,9 +50,9 @@ export const CAMERA_TEAM_GUIDES: CameraTeamMemberGuide[] = [
     id: 'candid-photo',
     title: 'Candid Photography',
     tagline: 'Unscripted Emotions & Magazine Portraits',
-    tamilTitle: 'கேண்டிட் புகைப்படம் (இயற்கையான உணர்வுகள் & போர்ட்ரெய்ட்ஸ்)',
+    tamilTitle: 'கேன்டிட் புகைப்படம் (இயல்பான உணர்வுகள் & தருணங்கள்)',
     howItLightsUp:
-      'Captures natural laughter, emotional tears, stolen glances, and intricate decor details with artistic depth and soft background blur—perfect for wall frames and luxury album covers.',
+      'Captures unscripted laughter, emotional tears, stolen glances, and intricate details with artistic background blur—ideal for frames and album covers.',
     bestFor: 'Bride getting ready, tears during vidai, laughing candid moments, couple chemistry & floral decor',
     gearUsed: 'Ultra-fast 35mm, 50mm & 85mm f/1.2 - f/1.4 prime portrait lenses with natural ambient lighting',
     previewImage: '/images/guide/candid-photo-emotion.jpg',
@@ -69,11 +69,11 @@ export const CAMERA_TEAM_GUIDES: CameraTeamMemberGuide[] = [
   },
   {
     id: 'traditional-video',
-    title: 'Traditional Video (Full Ceremony)',
+    title: 'Traditional Video',
     tagline: 'Your Complete Ceremony Archive',
-    tamilTitle: 'முழு நீள வீடியோ பதிவு (சடங்குகளின் ஆவணம்)',
+    tamilTitle: 'பாரம்பரிய வீடியோ (முழு நிகழ்வுப் பதிவு)',
     howItLightsUp:
-      'Records the entire event from start to finish in crisp Full HD with clear live audio so elders and out-of-town family can relive every sacred mantra, song, and conversation without cuts.',
+      'Full-length Full HD recording of all rituals, blessings, and speeches with clear audio so elders and distant relatives can watch the entire ceremony.',
     bestFor: 'Complete ritual recording, stage speeches, welcoming entries & playback for family abroad',
     gearUsed: 'Broadcast-grade video camcorders with directional wireless lapel microphones & continuous lighting',
     previewImage: '/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg',
@@ -99,11 +99,11 @@ export const CAMERA_TEAM_GUIDES: CameraTeamMemberGuide[] = [
   },
   {
     id: 'candid-cinema',
-    title: 'Candid Cinematography & Reels',
+    title: 'Candid Cinematography',
     tagline: 'Your Movie Trailer & Instagram Reels',
-    tamilTitle: 'சினிமாட்டிக் வீடியோ (திரைப்பட பாணி & ரீல்ஸ்)',
+    tamilTitle: 'சினிமாடிக் வீடியோ (ஹைலைட்ஸ் & ரீல்ஸ்)',
     howItLightsUp:
-      'Filmed on cinema 3-axis motorized stabilizers and edited to music into a 3–5 minute emotional highlight film + 60-second vertical Reels ready to share on WhatsApp & Instagram.',
+      'Filmed on cinema stabilizers and edited to music into a 3–5 minute emotional highlight movie trailer + 60-second vertical Reels for WhatsApp & Instagram.',
     bestFor: 'Slow-motion cinematic cuts, cinematic music teaser, emotional story-driven film & social media reels',
     gearUsed: 'Sony FX3 cinema cameras on DJI Ronin 3-axis motorized gimbals with 4K 120fps slow-motion',
     previewImage: '/images/guide/candid-photo-emotion.jpg',
@@ -131,9 +131,9 @@ export const CAMERA_TEAM_GUIDES: CameraTeamMemberGuide[] = [
     id: 'drone-aerial',
     title: 'Drone Aerial Coverage',
     tagline: 'Grand Venue & Crowd Scale',
-    tamilTitle: 'ட்ரோன் வான்வழி படப்பிடிப்பு (மண்டபம் & பிரம்மாண்டம்)',
+    tamilTitle: 'ட்ரோன் வான்வழிப் படப்பிடிப்பு (பிரம்மாண்ட காட்சிகள்)',
     howItLightsUp:
-      'Sweeping aerial shots of the mandapam/venue, grand baraat or welcoming entries, and bird’s-eye crowd energy that ground cameras simply cannot capture.',
+      "Sweeping bird's-eye aerial shots of your venue, grand welcoming entries, and crowd scale that ground cameras cannot capture.",
     bestFor: 'Temple gopurams, outdoor mandapam arrivals, car processions & sweeping guest views',
     gearUsed: 'Licensed 4K DJI Aerial Drone with ultra-high dynamic range sensor & omnidirectional obstacle sensing',
     previewImage: '/images/guide/drone-aerial-mandapam.jpg',
@@ -158,11 +158,11 @@ export const CAMERA_TEAM_GUIDES: CameraTeamMemberGuide[] = [
   },
   {
     id: 'led-wall',
-    title: 'Live LED Wall Setup',
+    title: 'Live LED Wall',
     tagline: 'Everyone Sees Every Ritual Live',
-    tamilTitle: 'லைவ் எல்இடி திரை அமைப்பு (நேரலை ஒளிபரப்பு)',
+    tamilTitle: 'நேரடி எல்.ஈ.டி திரை (அனைவரும் காணும் வகையில்)',
     howItLightsUp:
-      'Streams close-up stage rituals live to the entire hall so guests seated in the back feel right in the front row without crowding around the stage.',
+      'Streams close-up stage rituals live across the hall so every guest seated at the back feels right in the front row.',
     bestFor: 'Large wedding halls with 300+ guests where the mandapam stage is far from back seating',
     gearUsed: 'High-brightness P2.9 Indoor LED Wall panel with multi-camera live video mixer setup',
     previewImage: '/images/guide/led-wall-hall.jpg',

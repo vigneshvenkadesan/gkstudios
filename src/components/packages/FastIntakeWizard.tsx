@@ -58,50 +58,56 @@ function matchesCategory(eventCategory?: string, groupId?: string): boolean {
   return false;
 }
 
-const SESSION_PLANS = [
+export const SESSION_PLANS = [
   {
     id: 'single' as SessionPlan,
     title: 'Single Session',
-    badge: 'Up to 4 Hours',
-    description: 'Focused ceremony or intimate gathering (e.g. Kaathu Kuthi, Seemantham, Baby Milestone, Housewarming).',
+    label: 'Single Session • 4h',
+    badge: '4 Hours',
+    description: 'Focused ceremony or intimate gathering (e.g. Kaathu Kuthi, Seemantham, Housewarming).',
     icon: <Clock className="h-5 w-5" />,
   },
   {
     id: 'half' as SessionPlan,
     title: 'Half-Day Celebration',
-    badge: '5 – 6 Hours',
-    description: 'Traditional rituals + family feast / reception (e.g. Engagement, Muhurtham ceremony, 60th Birthday).',
+    label: 'Half-Day • 6h',
+    badge: '6 Hours',
+    description: 'Traditional rituals + family feast / reception (e.g. Engagement, Muhurtham, 60th Birthday).',
     icon: <SunMedium className="h-5 w-5" />,
   },
   {
     id: 'full' as SessionPlan,
     title: 'Full-Day / Multi-Session',
-    badge: '1.5 – 2 Days',
-    description: 'Complete multi-ceremony festivities (e.g. Janavasam + Muhurtham, Sangeet + Wedding + Reception).',
+    label: 'Full-Day • Multi-Session',
+    badge: '1.5–2 Days',
+    description: 'Complete multi-ceremony festivities (e.g. Janavasam + Muhurtham, Sangeet + Wedding).',
     icon: <CalendarDays className="h-5 w-5" />,
   },
 ];
 
-const GUEST_SCALES = [
+export const GUEST_SCALES = [
   {
     id: 'intimate' as GuestScale,
     title: 'Intimate Gathering',
+    label: '< 100 Guests',
     badge: '< 100 Guests',
-    description: 'Home or small hall. Close-knit family rituals with discreet, non-intrusive camera presence.',
+    description: 'Home or small hall with discreet, non-intrusive camera presence.',
     icon: <Home className="h-5 w-5" />,
   },
   {
     id: 'classic' as GuestScale,
     title: 'Classic Celebration',
-    badge: '100 – 300 Guests',
-    description: 'Marriage hall or banquet. Balanced traditional coverage + natural unposed guest reactions.',
+    label: '100–300 Guests',
+    badge: '100–300 Guests',
+    description: 'Marriage hall with balanced traditional coverage & natural candid reactions.',
     icon: <Users className="h-5 w-5" />,
   },
   {
     id: 'grand' as GuestScale,
     title: 'Grand Event',
+    label: '300+ Guests',
     badge: '300+ Guests',
-    description: 'Large mandapam or multi-venue. Multi-camera crew with simultaneous stage, ritual & drone coverage.',
+    description: 'Large mandapam with multi-camera crew & simultaneous stage and drone coverage.',
     icon: <Crown className="h-5 w-5" />,
   },
 ];
@@ -259,10 +265,11 @@ export function FastIntakeWizard({
               })}
             </div>
 
-            {/* Event Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {/* Event Cards Grid - Compact Mobile 2-col, Icon + Name + Tamil Name */}
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
               {filteredEvents.map((ev) => {
                 const isSelected = selectedEventId === ev.id;
+                const catIcon = CATEGORY_ICONS[selectedCategoryId] || <Sparkles className="h-4 w-4" />;
 
                 return (
                   <motion.button
@@ -271,25 +278,28 @@ export function FastIntakeWizard({
                     onClick={() => onChangeEvent(ev.id)}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`flex flex-col justify-between text-left p-4 rounded-sm border transition-all ${
+                    className={`flex items-center justify-between text-left p-2.5 sm:p-3.5 rounded-sm border transition-all ${
                       isSelected
-                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_8px_24px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
                         : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                     }`}
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-serif text-base sm:text-lg font-semibold text-white leading-snug">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`shrink-0 ${isSelected ? 'text-[#F4E8C1]' : 'text-[#D8C78E]'}`}>
+                        {catIcon}
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className="font-serif text-xs sm:text-sm font-semibold text-white leading-tight truncate">
                           {ev.name}
                         </h4>
-                        {isSelected && <CheckCircle2 className="h-5 w-5 text-[#D8C78E] shrink-0" />}
+                        {ev.tamilName && (
+                          <p className="text-[10px] sm:text-[11px] text-[#D8C78E] font-medium tracking-wide truncate">
+                            {ev.tamilName}
+                          </p>
+                        )}
                       </div>
-                      {ev.tamilName && (
-                        <p className="text-xs text-[#D8C78E] font-medium tracking-wide">
-                          {ev.tamilName}
-                        </p>
-                      )}
                     </div>
+                    {isSelected && <CheckCircle2 className="h-4 w-4 text-[#D8C78E] shrink-0 ml-1" />}
                   </motion.button>
                 );
               })}
@@ -334,7 +344,7 @@ export function FastIntakeWizard({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
               {SESSION_PLANS.map((plan) => {
                 const isSelected = sessionPlan === plan.id;
 
@@ -345,39 +355,38 @@ export function FastIntakeWizard({
                     onClick={() => setSessionPlan(plan.id)}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`flex flex-col justify-between text-left p-5 rounded-sm border transition-all ${
+                    className={`flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
                       isSelected
-                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_8px_24px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
                         : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-sm transition-colors ${
-                            isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
-                          }`}
-                        >
-                          {plan.icon}
-                        </div>
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            isSelected
-                              ? 'bg-[#061E1C]/30 text-[#F4E8C1]'
-                              : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
-                          }`}
-                        >
-                          {plan.badge}
-                        </span>
+                    <div className="flex sm:flex-col items-center sm:items-start gap-2.5 min-w-0">
+                      <div
+                        className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-sm shrink-0 transition-colors ${
+                          isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
+                        }`}
+                      >
+                        {plan.icon}
                       </div>
-
-                      <div className="mt-4 space-y-1">
-                        <h4 className="font-serif text-xl font-semibold text-white">{plan.title}</h4>
-                        <p className="text-xs text-[#E6ECEB]/75 leading-relaxed pt-1">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-xs sm:text-sm text-white block truncate">
+                          {plan.label}
+                        </span>
+                        <p className="text-[11px] text-[#E6ECEB]/70 hidden sm:block pt-0.5 line-clamp-2">
                           {plan.description}
                         </p>
                       </div>
                     </div>
+                    <span
+                      className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        isSelected
+                          ? 'bg-[#061E1C]/40 text-[#F4E8C1]'
+                          : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
+                      }`}
+                    >
+                      {plan.badge}
+                    </span>
                   </motion.button>
                 );
               })}
@@ -422,7 +431,7 @@ export function FastIntakeWizard({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
               {GUEST_SCALES.map((scale) => {
                 const isSelected = guestScale === scale.id;
 
@@ -433,47 +442,46 @@ export function FastIntakeWizard({
                     onClick={() => setGuestScale(scale.id)}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`flex flex-col justify-between text-left p-5 rounded-sm border transition-all ${
+                    className={`flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
                       isSelected
-                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_8px_24px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
                         : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-sm transition-colors ${
-                            isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
-                          }`}
-                        >
-                          {scale.icon}
-                        </div>
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            isSelected
-                              ? 'bg-[#061E1C]/30 text-[#F4E8C1]'
-                              : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
-                          }`}
-                        >
-                          {scale.badge}
-                        </span>
+                    <div className="flex sm:flex-col items-center sm:items-start gap-2.5 min-w-0">
+                      <div
+                        className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-sm shrink-0 transition-colors ${
+                          isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
+                        }`}
+                      >
+                        {scale.icon}
                       </div>
-
-                      <div className="mt-4 space-y-1">
-                        <h4 className="font-serif text-xl font-semibold text-white">{scale.title}</h4>
-                        <p className="text-xs text-[#E6ECEB]/75 leading-relaxed pt-1">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-xs sm:text-sm text-white block truncate">
+                          {scale.label}
+                        </span>
+                        <p className="text-[11px] text-[#E6ECEB]/70 hidden sm:block pt-0.5 line-clamp-2">
                           {scale.description}
                         </p>
                       </div>
                     </div>
+                    <span
+                      className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        isSelected
+                          ? 'bg-[#061E1C]/40 text-[#F4E8C1]'
+                          : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
+                      }`}
+                    >
+                      {scale.badge}
+                    </span>
                   </motion.button>
                 );
               })}
             </div>
 
-            {/* Recommendation Preview Banner */}
-            <div className="rounded-sm border border-[#D8C78E]/40 bg-gradient-to-r from-[#0E423E] to-[#092E2B] p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="space-y-1 text-left">
+            {/* Recommendation Preview Banner & Full-width CTA */}
+            <div className="rounded-sm border border-[#D8C78E]/40 bg-gradient-to-r from-[#0E423E] to-[#092E2B] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1 text-left w-full sm:w-auto">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-[#D8C78E]" />
                   <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
@@ -482,7 +490,7 @@ export function FastIntakeWizard({
                 </div>
                 <p className="text-xs text-[#E6ECEB]/80 max-w-xl">
                   {recommendedTier === 3
-                    ? 'Engineered for full-day or high-attendance weddings: multi-camera crew, cinema gimbal operator & drone coverage.'
+                    ? 'Engineered for full-day or high-attendance weddings with cinema operators & drone coverage.'
                     : 'Our most loved configuration: dedicated candid storytelling, complete ritual coverage & a heirloom Karizma photo album.'}
                 </p>
               </div>
@@ -492,8 +500,7 @@ export function FastIntakeWizard({
                 onClick={handleBuildProposal}
                 className="w-full sm:w-auto shrink-0 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold hover:brightness-105 shadow-[0_4px_16px_rgba(216,199,142,0.35)] px-7 py-3 text-sm"
               >
-                <span>Build My Proposal</span>
-                <ArrowRight className="h-4 w-4" />
+                <span>See My Custom Plan →</span>
               </Button>
             </div>
           </motion.div>
