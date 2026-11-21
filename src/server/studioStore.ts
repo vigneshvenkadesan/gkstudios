@@ -10,6 +10,7 @@ import {
   EventCategory,
   EventProject,
   EventStage,
+  PackageCustomizer,
   PackageDeliverables,
   PackageSnapshot,
   PaymentRecord,
@@ -461,6 +462,10 @@ export function toPlainPackage(doc: unknown): StudioPackage {
     highlighted: Boolean(p.highlighted),
     featured: Boolean(p.featured),
     deliverables: normalizePackageDeliverables(p.deliverables),
+    customizer:
+      p.customizer && typeof p.customizer === 'object'
+        ? (p.customizer as PackageCustomizer)
+        : undefined,
     imageUrl: p.imageUrl ? String(p.imageUrl) : p.image ? String(p.image) : '',
     image: p.image ? String(p.image) : p.imageUrl ? String(p.imageUrl) : '',
     category: p.category ? String(p.category) : resolvedEventId,
@@ -1159,6 +1164,7 @@ export async function createPackageOnServer(
           'Albums & Photo Frames': 'Signature Layflat Photo Album',
           'Digital Deliverables': 'Full Event Edited Video + Raw Footage Drive',
         },
+    customizer: input.customizer,
     imageUrl: input.imageUrl?.trim() || input.image?.trim() || '',
     category: input.category?.trim() || 'Weddings',
     status: input.status === 'inactive' ? 'inactive' : 'active',
@@ -1221,6 +1227,7 @@ export async function updatePackageOnServer(
       patch.deliverables !== undefined
         ? normalizePackageDeliverables(patch.deliverables)
         : existing.deliverables,
+    customizer: patch.customizer !== undefined ? patch.customizer : existing.customizer,
     status: patch.status ? (patch.status === 'inactive' ? 'inactive' : 'active') : existing.status,
     displayOnPortfolio:
       patch.displayOnPortfolio !== undefined

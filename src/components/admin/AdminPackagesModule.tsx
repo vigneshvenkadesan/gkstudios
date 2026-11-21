@@ -42,7 +42,10 @@ import {
   EVENT_CATEGORIES,
   EVENT_CATEGORY_GROUPS,
   EventCategory,
+  PackageAddon,
+  PackageCustomizer,
   PackageDeliverables,
+  PackageIncludedFeatures,
   StudioEvent,
   StudioPackage,
 } from '@/src/types/studio';
@@ -216,6 +219,251 @@ export function getPackageTier(pkg: StudioPackage): PackageTier {
   return 'essential';
 }
 
+const DEFAULT_INCLUDED_FEATURES: PackageIncludedFeatures = {
+  traditionalPhoto: true,
+  traditionalVideo: true,
+  candidPhoto: false,
+  candidVideo: false,
+  drone: false,
+  ledWall: false,
+  outdoorShoot: false,
+  printedAlbum: true,
+};
+
+const DEFAULT_CUSTOMIZER_ADDONS: PackageAddon[] = [
+  { id: 'candid-photo', label: 'Candid Photography', priceDelta: 8000, type: 'upgrade' },
+  { id: 'candid-video', label: 'Candid Cinema & 3-Min Film', priceDelta: 12000, type: 'upgrade' },
+  { id: 'drone', label: 'Drone Aerial Coverage', priceDelta: 8000, type: 'upgrade' },
+  { id: 'extra-frame-16x24', label: 'Extra 16×24 Wall Frame', priceDelta: 2500, type: 'upgrade' },
+  { id: 'remove-album', label: 'Digital-Only (Remove Printed Album)', priceDelta: -4000, type: 'downgrade' },
+];
+
+const INCLUDED_FEATURE_CONFIG: { key: keyof PackageIncludedFeatures; label: string }[] = [
+  { key: 'traditionalPhoto', label: 'Traditional Photo' },
+  { key: 'traditionalVideo', label: 'Traditional Video' },
+  { key: 'candidPhoto', label: 'Candid Photo' },
+  { key: 'candidVideo', label: 'Candid Cinema' },
+  { key: 'drone', label: 'Drone Aerial' },
+  { key: 'ledWall', label: 'Live LED Wall' },
+  { key: 'outdoorShoot', label: 'Outdoor Shoot' },
+  { key: 'printedAlbum', label: 'Printed Album' },
+];
+
+function PackageCustomizerSection({
+  included,
+  onChangeIncluded,
+  addons,
+  onChangeAddons,
+  addonLabelInput,
+  setAddonLabelInput,
+  addonPriceDeltaInput,
+  setAddonPriceDeltaInput,
+  addonTypeInput,
+  setAddonTypeInput,
+}: {
+  included: PackageIncludedFeatures;
+  onChangeIncluded: (newInc: PackageIncludedFeatures) => void;
+  addons: PackageAddon[];
+  onChangeAddons: (newAddons: PackageAddon[]) => void;
+  addonLabelInput: string;
+  setAddonLabelInput: (val: string) => void;
+  addonPriceDeltaInput: number | '';
+  setAddonPriceDeltaInput: (val: number | '') => void;
+  addonTypeInput: 'upgrade' | 'downgrade';
+  setAddonTypeInput: (val: 'upgrade' | 'downgrade') => void;
+}) {
+  const handleToggleIncluded = (key: keyof PackageIncludedFeatures) => {
+    onChangeIncluded({
+      ...included,
+      [key]: !included[key],
+    });
+  };
+
+  const handleRemoveAddon = (index: number) => {
+    const next = [...addons];
+    next.splice(index, 1);
+    onChangeAddons(next);
+  };
+
+  const handleAddAddon = () => {
+    if (!addonLabelInput.trim() || addonPriceDeltaInput === '') {
+      toast.error('Please enter add-on title and price delta.');
+      return;
+    }
+    const rawDelta = Number(addonPriceDeltaInput);
+    const priceDelta = addonTypeInput === 'downgrade' ? -Math.abs(rawDelta) : Math.abs(rawDelta);
+    const slug =
+      addonLabelInput
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '') || `addon-${Date.now()}`;
+
+    onChangeAddons([
+      ...addons,
+      {
+        id: slug,
+        label: addonLabelInput.trim(),
+        priceDelta,
+        type: addonTypeInput,
+      },
+    ]);
+    setAddonLabelInput('');
+    setAddonPriceDeltaInput('');
+    setAddonTypeInput('upgrade');
+    toast.success(`Add-on "${addonLabelInput.trim()}" added.`);
+  };
+
+  return (
+    <div className="space-y-4 border-t border-[#C5B378]/20 pt-4">
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#D8C78E]" />
+          Proposal Customizer & Add-ons Configuration (customizer)
+        </h4>
+        <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
+          Configures the interactive checklist and dynamic add-on price recalculator on the Proposal page (<code className="text-[#D8C78E]">/packages/proposal</code>).
+        </p>
+      </div>
+
+      {/* 1. Base Included Features */}
+      <div className="space-y-2 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] block">
+          Base Included Features (Checkboxes)
+        </span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {INCLUDED_FEATURE_CONFIG.map(({ key, label }) => {
+            const isChecked = Boolean(included[key]);
+            return (
+              <label
+                key={key}
+                className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+                  isChecked
+                    ? 'border-[#D8C78E]/60 bg-[#0E423E] text-white font-medium'
+                    : 'border-[#C5B378]/15 bg-[#092E2B]/50 text-[#E6ECEB]/60 hover:border-[#C5B378]/30'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => handleToggleIncluded(key)}
+                  className="h-3.5 w-3.5 rounded border-[#C5B378]/40 bg-[#072421] text-[#C5B378] accent-[#C5B378]"
+                />
+                <span className="truncate">{label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2. Proposal Add-ons & Downgrades */}
+      <div className="space-y-2.5 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E]">
+            Proposal Add-ons & Downgrade Swaps ({addons.length})
+          </span>
+          <span className="text-[10px] text-[#E6ECEB]/50">Upgrades (+) & Downgrades (−)</span>
+        </div>
+
+        {/* Existing Add-ons List */}
+        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+          {addons.length === 0 ? (
+            <p className="text-xs text-[#E6ECEB]/50 italic p-2 text-center">
+              No custom add-ons configured. Add one below.
+            </p>
+          ) : (
+            addons.map((addon, idx) => {
+              const isDowngrade = addon.type === 'downgrade' || addon.priceDelta < 0;
+              return (
+                <div
+                  key={`${addon.id}-${idx}`}
+                  className="flex items-center justify-between gap-2 p-2 rounded-md bg-[#092E2B] border border-[#C5B378]/15 text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
+                        isDowngrade
+                          ? 'bg-rose-950/60 border border-rose-500/30 text-rose-300'
+                          : 'bg-[#C5B378]/20 border border-[#C5B378]/30 text-[#D8C78E]'
+                      }`}
+                    >
+                      {isDowngrade ? 'Downgrade' : 'Upgrade'}
+                    </span>
+                    <span className="text-white font-medium truncate">{addon.label}</span>
+                    <span className="text-[10px] text-[#E6ECEB]/40 font-mono hidden sm:inline">
+                      ({addon.id})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`font-semibold font-mono text-xs ${
+                        isDowngrade ? 'text-rose-300' : 'text-[#D8C78E]'
+                      }`}
+                    >
+                      {addon.priceDelta > 0 ? `+${formatINR(addon.priceDelta)}` : formatINR(addon.priceDelta)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAddon(idx)}
+                      className="p-1 text-[#E6ECEB]/40 hover:text-rose-400 transition-colors"
+                      title="Remove add-on"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Add New Add-on Input Row */}
+        <div className="pt-2 border-t border-[#C5B378]/15 space-y-1.5">
+          <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
+            + Add Proposal Add-on or Downgrade Option
+          </span>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={addonLabelInput}
+              onChange={(e) => setAddonLabelInput(e.target.value)}
+              placeholder="Add-on title (e.g. Drone Aerial Coverage)"
+              className="h-8 flex-[2] rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+            />
+            <select
+              value={addonTypeInput}
+              onChange={(e) => setAddonTypeInput(e.target.value as 'upgrade' | 'downgrade')}
+              className="h-8 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none shrink-0"
+            >
+              <option value="upgrade">Upgrade (+)</option>
+              <option value="downgrade">Downgrade (−)</option>
+            </select>
+            <input
+              type="number"
+              value={addonPriceDeltaInput}
+              onChange={(e) =>
+                setAddonPriceDeltaInput(e.target.value === '' ? '' : Math.abs(Number(e.target.value)))
+              }
+              placeholder="Amount (e.g. 8000)"
+              className="h-8 w-28 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none shrink-0 font-mono"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddAddon}
+              className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-3 shrink-0"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminPackagesModule() {
   const { packages, portfolio, addPackage, updatePackage, deletePackage, reorderPackages } =
     useStudio();
@@ -284,6 +532,13 @@ export function AdminPackagesModule() {
   const [newCustomCategoryInput, setNewCustomCategoryInput] = useState('');
   const [newCustomDetailInput, setNewCustomDetailInput] = useState('');
 
+  // Customizer State for New Package
+  const [newCustomizerIncluded, setNewCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
+  const [newCustomizerAddons, setNewCustomizerAddons] = useState<PackageAddon[]>(DEFAULT_CUSTOMIZER_ADDONS);
+  const [newAddonLabel, setNewAddonLabel] = useState('');
+  const [newAddonPriceDelta, setNewAddonPriceDelta] = useState<number | ''>('');
+  const [newAddonType, setNewAddonType] = useState<'upgrade' | 'downgrade'>('upgrade');
+
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
   const [editEventId, setEditEventId] = useState('wedding');
@@ -302,6 +557,13 @@ export function AdminPackagesModule() {
   const [editDeliverables, setEditDeliverables] = useState<PackageDeliverables>({});
   const [editCustomCategoryInput, setEditCustomCategoryInput] = useState('');
   const [editCustomDetailInput, setEditCustomDetailInput] = useState('');
+
+  // Customizer State for Editing Package
+  const [editCustomizerIncluded, setEditCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
+  const [editCustomizerAddons, setEditCustomizerAddons] = useState<PackageAddon[]>(DEFAULT_CUSTOMIZER_ADDONS);
+  const [editAddonLabel, setEditAddonLabel] = useState('');
+  const [editAddonPriceDelta, setEditAddonPriceDelta] = useState<number | ''>('');
+  const [editAddonType, setEditAddonType] = useState<'upgrade' | 'downgrade'>('upgrade');
 
   // Delete confirmation dialog
   const [deletingPackage, setDeletingPackage] = useState<StudioPackage | null>(null);
@@ -647,6 +909,10 @@ export function AdminPackagesModule() {
         duration: newDuration.trim(),
         category: newEventId, // Matches eventId per schema requirement
         deliverables: newDeliverables,
+        customizer: {
+          included: newCustomizerIncluded,
+          addons: newCustomizerAddons,
+        },
         imageUrl: newImageUrl.trim() || undefined,
         highlighted: isSig,
         featured: isSig,
@@ -673,6 +939,11 @@ export function AdminPackagesModule() {
         'Albums & Photo Frames': '30-Sheet Layflat Karizma Photo Album',
         'Digital Deliverables': 'Full Event Edited Video + Complete Raw Footage Drive',
       });
+      setNewCustomizerIncluded(DEFAULT_INCLUDED_FEATURES);
+      setNewCustomizerAddons(DEFAULT_CUSTOMIZER_ADDONS);
+      setNewAddonLabel('');
+      setNewAddonPriceDelta('');
+      setNewAddonType('upgrade');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create package.');
     } finally {
@@ -696,6 +967,20 @@ export function AdminPackagesModule() {
     setEditDeliverables(normalizePackageDeliverables(pkg.deliverables));
     setEditStatus(pkg.status === 'inactive' ? 'inactive' : 'active');
     setEditDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
+
+    // Initialize customizer
+    setEditCustomizerIncluded({
+      ...DEFAULT_INCLUDED_FEATURES,
+      ...(pkg.customizer?.included || {}),
+    });
+    setEditCustomizerAddons(
+      pkg.customizer?.addons && pkg.customizer.addons.length > 0
+        ? JSON.parse(JSON.stringify(pkg.customizer.addons))
+        : JSON.parse(JSON.stringify(DEFAULT_CUSTOMIZER_ADDONS))
+    );
+    setEditAddonLabel('');
+    setEditAddonPriceDelta('');
+    setEditAddonType('upgrade');
   };
 
   // Submit edit package
@@ -728,6 +1013,10 @@ export function AdminPackagesModule() {
         duration: editDuration.trim(),
         category: editEventId, // Matches eventId per schema requirement
         deliverables: editDeliverables,
+        customizer: {
+          included: editCustomizerIncluded,
+          addons: editCustomizerAddons,
+        },
         imageUrl: editImageUrl.trim(),
         highlighted: isSig,
         featured: isSig,
@@ -2144,6 +2433,20 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
+            {/* Customizer: Included Features & Proposal Add-ons */}
+            <PackageCustomizerSection
+              included={editCustomizerIncluded}
+              onChangeIncluded={setEditCustomizerIncluded}
+              addons={editCustomizerAddons}
+              onChangeAddons={setEditCustomizerAddons}
+              addonLabelInput={editAddonLabel}
+              setAddonLabelInput={setEditAddonLabel}
+              addonPriceDeltaInput={editAddonPriceDelta}
+              setAddonPriceDeltaInput={setEditAddonPriceDelta}
+              addonTypeInput={editAddonType}
+              setAddonTypeInput={setEditAddonType}
+            />
+
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
               <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
@@ -2512,6 +2815,20 @@ export function AdminPackagesModule() {
                 </div>
               </div>
             </div>
+
+            {/* Customizer: Included Features & Proposal Add-ons */}
+            <PackageCustomizerSection
+              included={newCustomizerIncluded}
+              onChangeIncluded={setNewCustomizerIncluded}
+              addons={newCustomizerAddons}
+              onChangeAddons={setNewCustomizerAddons}
+              addonLabelInput={newAddonLabel}
+              setAddonLabelInput={setNewAddonLabel}
+              addonPriceDeltaInput={newAddonPriceDelta}
+              setAddonPriceDeltaInput={setNewAddonPriceDelta}
+              addonTypeInput={newAddonType}
+              setAddonTypeInput={setNewAddonType}
+            />
 
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">

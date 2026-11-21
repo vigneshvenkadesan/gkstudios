@@ -181,6 +181,29 @@ export interface PackageDeliverables {
   [key: string]: string | undefined; // Allow dynamic category keys
 }
 
+export interface PackageIncludedFeatures {
+  traditionalPhoto: boolean;
+  traditionalVideo: boolean;
+  candidPhoto: boolean;
+  candidVideo: boolean;
+  drone: boolean;
+  ledWall: boolean;
+  outdoorShoot: boolean;
+  printedAlbum: boolean;
+}
+
+export interface PackageAddon {
+  id: string; // e.g., "drone", "candid-video", "remove-album"
+  label: string; // e.g., "Drone Aerial Coverage"
+  priceDelta: number; // Positive for upgrades (+8000), negative for downgrades (-5000)
+  type: "upgrade" | "downgrade";
+}
+
+export interface PackageCustomizer {
+  included: PackageIncludedFeatures;
+  addons: PackageAddon[];
+}
+
 export interface PackageSnapshot {
   id: string;
   name: string;
@@ -203,6 +226,7 @@ export interface StudioPackage {
   duration: string; // e.g., "Up to 4 Hours"
   highlighted?: boolean; // Marks the recommended/"Most Popular" tier
   deliverables: PackageDeliverables;
+  customizer?: PackageCustomizer;
   category?: string; // Matches eventId
   image?: string;
   imageUrl?: string;

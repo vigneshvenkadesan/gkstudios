@@ -122,6 +122,7 @@ const PackageSchema = new Schema<StudioPackageDocument>(
     highlighted: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
     deliverables: { type: Schema.Types.Mixed, default: {} },
+    customizer: { type: Schema.Types.Mixed, default: undefined },
     imageUrl: String,
     image: String,
     category: String,
