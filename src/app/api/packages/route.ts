@@ -7,10 +7,11 @@ import {
 import { StudioPackage } from '@/src/types/studio';
 
 const ADMIN_COOKIE = 'gk_admin_session';
+const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
 
 async function isAuthorizedAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === 'authenticated';
+  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
 }
 
 export const dynamic = 'force-dynamic';
