@@ -247,29 +247,98 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
         </div>
 
         {/* Package & Scope Details */}
-        <div className="rounded border border-slate-300 bg-slate-50/70 p-3.5 space-y-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#072421] border-b border-slate-300 pb-1 block">
-            Package Scope & Crew Allocation / தொகுப்பு & படப்பிடிப்புக் குழு
-          </span>
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-            <div>
+        <div className="rounded border border-slate-300 bg-slate-50/70 p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between border-b border-slate-300 pb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#072421]">
+              Included Services & Scope / சேர்க்கப்பட்ட சேவைகள்
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-bold uppercase bg-[#092E2B] text-[#D8C78E] px-2 py-0.5 rounded">
+                {bill.packageDetails.tierLabel || 'Signature'} Tier
+              </span>
               <span className="font-bold text-xs text-[#072421]">
                 {bill.packageDetails.basePackageName}
               </span>
-              <p className="text-[11px] text-slate-600 mt-0.5">
-                Assigned Crew:{' '}
-                <span className="font-medium text-slate-800">
-                  {bill.packageDetails.requiredCrew.length > 0
-                    ? bill.packageDetails.requiredCrew.join(' • ')
-                    : 'Lead Traditional & Candid Photographer'}
-                </span>
-              </p>
             </div>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#092E2B]/10 text-[#072421] font-semibold text-[11px] border border-[#092E2B]/20">
-              <CheckCircle2 className="h-3 w-3 text-[#9A7B38]" />
-              Confirmed Scope
-            </span>
           </div>
+
+          {/* Active Services Checklist */}
+          {bill.packageDetails.includedServices && bill.packageDetails.includedServices.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {bill.packageDetails.includedServices.map((svc, i) => (
+                <div key={i} className="flex items-start gap-2 bg-white p-2 rounded border border-slate-200">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-slate-900 block">{svc.en}</span>
+                    {svc.ta && (
+                      <span className="text-[10px] text-slate-500 font-tamil block">{svc.ta}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+              <div>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Assigned Crew:{' '}
+                  <span className="font-medium text-slate-800">
+                    {bill.packageDetails.requiredCrew.length > 0
+                      ? bill.packageDetails.requiredCrew.join(' • ')
+                      : 'Lead Traditional & Candid Photographer'}
+                  </span>
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#092E2B]/10 text-[#072421] font-semibold text-[11px] border border-[#092E2B]/20">
+                <CheckCircle2 className="h-3 w-3 text-[#9A7B38]" />
+                Confirmed Scope
+              </span>
+            </div>
+          )}
+
+          {/* Deliverables details */}
+          {bill.packageDetails.deliverables && Object.keys(bill.packageDetails.deliverables).length > 0 && (
+            <div className="pt-2 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-600">
+              {Object.entries(bill.packageDetails.deliverables).map(([cat, text]) => (
+                <div key={cat}>
+                  <strong className="text-slate-800">{cat}:</strong> {text}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Custom Upgrades & Excluded Items */}
+          {((bill.packageDetails.addons && bill.packageDetails.addons.length > 0) ||
+            (bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0)) && (
+            <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2 text-[10px]">
+              {bill.packageDetails.addons && bill.packageDetails.addons.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-bold uppercase tracking-wider text-slate-500">Upgrades Added:</span>
+                  {bill.packageDetails.addons.map((a, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-emerald-800 font-medium"
+                    >
+                      + {a.label} (+{formatINR(a.priceDelta)})
+                    </span>
+                  ))}
+                </div>
+              )}
+              {bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-bold uppercase tracking-wider text-red-600">Items Excluded:</span>
+                  {bill.packageDetails.excludedItems.map((e, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center bg-red-50 border border-red-200 px-2 py-0.5 rounded text-red-800 font-medium"
+                    >
+                      - {e.label} (-{formatINR(Math.abs(e.priceDelta))})
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Financial Payment Ledger Table */}

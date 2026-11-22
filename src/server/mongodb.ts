@@ -185,6 +185,7 @@ const EventProjectSchema = new Schema<EventProjectDocument>(
   {
     id: { type: String, required: true, unique: true },
     bookingId: String,
+    calendarEntryId: String,
     referenceCode: { type: String, required: true },
     clientName: { type: String, required: true },
     phone: { type: String, required: true },
@@ -226,8 +227,19 @@ const BillSchema = new Schema<BillDocument>(
     },
     packageDetails: {
       basePackageName: { type: String, default: '' },
+      tierLabel: { type: String, default: 'Signature' },
+      includedServices: [
+        {
+          key: String,
+          en: String,
+          ta: String,
+        },
+      ],
+      deliverables: { type: Schema.Types.Mixed, default: {} },
       requiredCrew: { type: [String], default: [] },
+      inclusions: { type: [String], default: [] },
       addons: [{ label: String, priceDelta: Number }],
+      excludedItems: [{ label: String, priceDelta: Number }],
     },
     financials: {
       totalPackageAmount: { type: Number, required: true },

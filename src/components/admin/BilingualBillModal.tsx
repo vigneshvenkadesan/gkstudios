@@ -261,19 +261,38 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
           </div>
 
           {/* ─── Package & Inclusions ─── */}
-          <div className="border border-slate-200 rounded p-4 space-y-2">
+          <div className="border border-slate-200 rounded p-4 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#072421] flex items-center gap-1.5">
-                <Camera className="h-3 w-3 text-[#C5B378]" />
-                Selected Package & Deliverables / தொகுப்பு விவரம்
+                <Camera className="h-3.5 w-3.5 text-[#C5B378]" />
+                Included Services & Deliverables / சேர்க்கப்பட்ட சேவைகள்
               </span>
-              <span className="font-serif font-bold text-sm text-[#072421]">
-                {bill.packageDetails.basePackageName}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase bg-[#092E2B] text-[#D8C78E] px-2 py-0.5 rounded">
+                  {bill.packageDetails.tierLabel || 'Signature'} Tier
+                </span>
+                <span className="font-serif font-bold text-sm text-[#072421]">
+                  {bill.packageDetails.basePackageName}
+                </span>
+              </div>
             </div>
 
-            {/* Deliverables Bullet List */}
-            {((bill.packageDetails.inclusions && bill.packageDetails.inclusions.length > 0) ||
+            {/* Resolved Active Services Checklist */}
+            {bill.packageDetails.includedServices && bill.packageDetails.includedServices.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700 pt-2 border-t border-slate-100">
+                {bill.packageDetails.includedServices.map((svc, i) => (
+                  <div key={i} className="flex items-start gap-2 bg-slate-50/80 p-2 rounded border border-slate-100">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-medium text-slate-900 block">{svc.en}</span>
+                      {svc.ta && (
+                        <span className="text-[10px] text-slate-500 font-tamil block">{svc.ta}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : ((bill.packageDetails.inclusions && bill.packageDetails.inclusions.length > 0) ||
               (bill.packageDetails.requiredCrew && bill.packageDetails.requiredCrew.length > 0)) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-700 pt-1 border-t border-slate-100">
                 {(bill.packageDetails.inclusions || bill.packageDetails.requiredCrew).map((inc, i) => (
@@ -285,22 +304,47 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
               </div>
             )}
 
-            {/* Custom Upgrades */}
-            {bill.packageDetails.addons && bill.packageDetails.addons.length > 0 && (
-              <div className="pt-2 border-t border-slate-100">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Customized Upgrades & Add-ons:
-                </span>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {bill.packageDetails.addons.map((a, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center text-[10px] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700"
-                    >
-                      {a.label} (+{formatINR(a.priceDelta)})
-                    </span>
-                  ))}
-                </div>
+            {/* Deliverables details */}
+            {bill.packageDetails.deliverables && Object.keys(bill.packageDetails.deliverables).length > 0 && (
+              <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-600">
+                {Object.entries(bill.packageDetails.deliverables).map(([cat, text]) => (
+                  <div key={cat}>
+                    <strong className="text-slate-800">{cat}:</strong> {text}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Custom Upgrades & Excluded Items */}
+            {((bill.packageDetails.addons && bill.packageDetails.addons.length > 0) ||
+              (bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0)) && (
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2 text-[10px]">
+                {bill.packageDetails.addons && bill.packageDetails.addons.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-bold uppercase tracking-wider text-slate-500">Upgrades Added:</span>
+                    {bill.packageDetails.addons.map((a, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-emerald-800 font-medium"
+                      >
+                        + {a.label} (+{formatINR(a.priceDelta)})
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-bold uppercase tracking-wider text-red-600">Items Excluded:</span>
+                    {bill.packageDetails.excludedItems.map((e, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center bg-red-50 border border-red-200 px-2 py-0.5 rounded text-red-800 font-medium"
+                      >
+                        - {e.label} (-{formatINR(Math.abs(e.priceDelta))})
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

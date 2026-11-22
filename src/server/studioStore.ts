@@ -12,6 +12,7 @@ import {
   EventStage,
   PackageCustomizer,
   PackageDeliverables,
+  PackageIncludedFeatures,
   PackageSnapshot,
   PaymentRecord,
   PortfolioItem,
@@ -543,6 +544,7 @@ function toPlainEventProject(project: EventProject & { _id?: unknown; packageSna
   return {
     id: String(project.id),
     ...(project.bookingId ? { bookingId: String(project.bookingId) } : {}),
+    ...(project.calendarEntryId ? { calendarEntryId: String(project.calendarEntryId) } : {}),
     referenceCode: String(project.referenceCode),
     clientName: String(project.clientName),
     phone: String(project.phone),
@@ -581,7 +583,22 @@ function toPlainBill(b: any): StudioBill {
     },
     packageDetails: b.packageDetails
       ? {
-          ...b.packageDetails,
+          basePackageName: String(b.packageDetails.basePackageName || ''),
+          tierLabel: b.packageDetails.tierLabel || 'Signature',
+          includedServices: Array.isArray(b.packageDetails.includedServices)
+            ? b.packageDetails.includedServices.map((svc: any) => ({
+                key: String(svc.key || ''),
+                en: String(svc.en || ''),
+                ta: String(svc.ta || ''),
+              }))
+            : [],
+          deliverables: b.packageDetails.deliverables || {},
+          requiredCrew: Array.isArray(b.packageDetails.requiredCrew)
+            ? b.packageDetails.requiredCrew.map(String)
+            : [],
+          inclusions: Array.isArray(b.packageDetails.inclusions)
+            ? b.packageDetails.inclusions.map(String)
+            : [],
           addons: Array.isArray(b.packageDetails.addons)
             ? b.packageDetails.addons.map(
                 (addon: { label: string; priceDelta: number }) => ({
@@ -590,11 +607,24 @@ function toPlainBill(b: any): StudioBill {
                 })
               )
             : [],
+          excludedItems: Array.isArray(b.packageDetails.excludedItems)
+            ? b.packageDetails.excludedItems.map(
+                (item: { label: string; priceDelta: number }) => ({
+                  label: item.label,
+                  priceDelta: item.priceDelta,
+                })
+              )
+            : [],
         }
       : {
           basePackageName: '',
+          tierLabel: 'Signature',
+          includedServices: [],
+          deliverables: {},
           requiredCrew: [],
+          inclusions: [],
           addons: [],
+          excludedItems: [],
         },
     financials: b.financials || {
       totalPackageAmount: 0,
@@ -985,6 +1015,104 @@ export async function upsertCalendarEntryOnServer(
     { upsert: true }
   );
 
+  // Auto-Sync to EventProject (Manage Payments / Event Times & Payments)
+  // Whenever an entry has client information or booked status (not a pure studio maintenance block)
+  const clientName = (entry.clientName || entry.title || '').trim();
+  const isMaintenance =
+    entry.eventType === 'Studio Maintenance' ||
+    entry.title.toLowerCase().includes('maintenance');
+  const isBooked = entry.status === 'Booked';
+
+  if (isBooked && clientName && !isMaintenance) {
+    try {
+      const eventProjects = await requireEventProjectModel();
+      // Look for an existing project linked to this calendar entry, or bookingId, or (phone + date)
+      const orConditions: any[] = [{ calendarEntryId: entryId }];
+      if (entry.bookingId) {
+        orConditions.push({ bookingId: entry.bookingId });
+      }
+      if (entry.phone && entry.date) {
+        orConditions.push({ phone: entry.phone, eventDate: entry.date });
+      }
+
+      const existingProject = await eventProjects.findOne({ $or: orConditions });
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const agreedAmount =
+        entry.totalPackageAmount && entry.totalPackageAmount > 0
+          ? entry.totalPackageAmount
+          : 0;
+
+      const projectPayload: Partial<EventProject> = {
+        calendarEntryId: entryId,
+        ...(entry.bookingId ? { bookingId: entry.bookingId } : {}),
+        clientName: entry.clientName ? entry.clientName.trim() : entry.title.trim(),
+        phone: entry.phone ? entry.phone.trim() : '',
+        eventType: (entry.eventType &&
+        entry.eventType !== 'Studio Maintenance' &&
+        entry.eventType !== 'Muhurtham Rush'
+          ? entry.eventType
+          : 'Weddings') as any,
+        eventDate: entry.date,
+        venue: entry.venue ? entry.venue.trim() : '',
+        packageName:
+          entry.packageName ||
+          `${entry.packageTier || 'Signature'} Package`,
+        assignedCrew: entry.assignedCrew || 'G Krishna + Studio Unit',
+        deliveryNotes: entry.notes || '',
+      };
+
+      if (agreedAmount > 0) {
+        projectPayload.agreedAmount = agreedAmount;
+      }
+
+      if (existingProject) {
+        await eventProjects.updateOne(
+          { id: existingProject.id },
+          {
+            $set: {
+              ...projectPayload,
+              ...(agreedAmount > 0 ? { agreedAmount } : {}),
+            },
+          }
+        );
+      } else {
+        const refNumber = String(Math.floor(100 + Math.random() * 900));
+        const newProjectId = `ev-${Date.now()}`;
+        const newProject: EventProject = {
+          id: newProjectId,
+          calendarEntryId: entryId,
+          ...(entry.bookingId ? { bookingId: entry.bookingId } : {}),
+          referenceCode: `GK-${entry.date.replace(/-/g, '').slice(2, 6)}-${refNumber}`,
+          clientName: projectPayload.clientName!,
+          phone: projectPayload.phone || '',
+          eventType: projectPayload.eventType || 'Weddings',
+          eventDate: entry.date,
+          venue: projectPayload.venue || '',
+          packageName: projectPayload.packageName || 'Signature Package',
+          assignedCrew: projectPayload.assignedCrew || 'G Krishna + Studio Unit',
+          currentStage: 'Booking Confirmed',
+          stageUpdates: {
+            'Booking Confirmed': {
+              completedAt: todayIso,
+              note: 'Auto-synced from Admin Calendar.',
+            },
+          },
+          agreedAmount: agreedAmount,
+          extraCharges: 0,
+          discount: 0,
+          payments: [],
+          deliveryNotes: projectPayload.deliveryNotes || '',
+        };
+        await eventProjects.create(newProject);
+      }
+    } catch (syncErr) {
+      console.error('Failed to sync booked calendar entry to EventProject:', syncErr);
+      throw new Error(
+        'The schedule entry was saved, but its payment project could not be created. Please edit and save the booking again.'
+      );
+    }
+  }
+
   return getStudioState();
 }
 
@@ -1241,8 +1369,201 @@ export async function addEventPaymentOnServer(
     }
   }
 
-  // Derive addons if any
+  // Find matching calendar entry
+  const matchingCalendarEntry = state.calendarEntries?.find(
+    (c) =>
+      c.id === project.calendarEntryId ||
+      (c.bookingId && c.bookingId === project.bookingId) ||
+      (c.phone && project.phone && c.phone === project.phone && c.date === project.eventDate)
+  );
+
+  // Find matching package
+  const matchedPkg =
+    state.packages?.find(
+      (p) =>
+        p.id === project.packageSnapshot?.id ||
+        p.id === matchingBooking?.packageId ||
+        p.id === matchingCalendarEntry?.packageId ||
+        p.name.toLowerCase() === basePackageName.toLowerCase()
+    ) ||
+    state.packages?.find((p) =>
+      basePackageName.toLowerCase().includes(p.name.toLowerCase())
+    );
+
+  // Determine tierLabel
+  let tierLabel: 'Essential' | 'Signature' | 'Premium' = 'Signature';
+  if (matchingCalendarEntry?.packageTier) {
+    tierLabel = matchingCalendarEntry.packageTier;
+  } else if (matchedPkg?.tier) {
+    tierLabel =
+      matchedPkg.tier === 'premium'
+        ? 'Premium'
+        : matchedPkg.tier === 'essential'
+        ? 'Essential'
+        : 'Signature';
+  } else if (matchedPkg?.sortOrder === 3 || /premium|royal/i.test(basePackageName)) {
+    tierLabel = 'Premium';
+  } else if (matchedPkg?.sortOrder === 1 || /essential|silver|classic/i.test(basePackageName)) {
+    tierLabel = 'Essential';
+  }
+
+  // Base included features
+  const baseInclusions: PackageIncludedFeatures = matchedPkg?.customizer?.included
+    ? { ...matchedPkg.customizer.included }
+    : tierLabel === 'Premium'
+    ? {
+        traditionalPhoto: true,
+        traditionalVideo: true,
+        candidPhoto: true,
+        candidVideo: true,
+        drone: true,
+        ledWall: false,
+        outdoorShoot: false,
+        printedAlbum: true,
+      }
+    : tierLabel === 'Essential'
+    ? {
+        traditionalPhoto: true,
+        traditionalVideo: true,
+        candidPhoto: false,
+        candidVideo: false,
+        drone: false,
+        ledWall: false,
+        outdoorShoot: false,
+        printedAlbum: true,
+      }
+    : {
+        traditionalPhoto: true,
+        traditionalVideo: true,
+        candidPhoto: true,
+        candidVideo: false,
+        drone: false,
+        ledWall: false,
+        outdoorShoot: false,
+        printedAlbum: true,
+      };
+
+  const activeServices: PackageIncludedFeatures = { ...baseInclusions };
+
+  // Resolve requested services from booking or calendar
+  const requestedServices = [
+    ...(matchingBooking?.requestedServices || []),
+    ...(matchingCalendarEntry?.requestedServices || []),
+  ];
+
+  requestedServices.forEach((svc) => {
+    if (svc === 'Drone') activeServices.drone = true;
+    if (svc === 'LED Wall' || svc === 'TV') activeServices.ledWall = true;
+    if (svc === 'Candid Video') activeServices.candidVideo = true;
+    if (svc === 'Candid Camera') activeServices.candidPhoto = true;
+    if (svc === 'Traditional Camera') activeServices.traditionalPhoto = true;
+    if (svc === 'Traditional Video') activeServices.traditionalVideo = true;
+  });
+
+  // Check text notes for customizer toggles
+  const notesText = [
+    matchingBooking?.notes || '',
+    project.deliveryNotes || '',
+    matchingCalendarEntry?.notes || '',
+  ].join(' ');
+
+  if (/drone/i.test(notesText)) activeServices.drone = true;
+  if (/candid\s*video|cinematic\s*(film|video)|highlight\s*film/i.test(notesText)) {
+    activeServices.candidVideo = true;
+  }
+  if (/led\s*wall|live\s*screen|live\s*display/i.test(notesText)) {
+    activeServices.ledWall = true;
+  }
+  if (/outdoor\s*(couple|shoot|session)|pre-wedding/i.test(notesText)) {
+    activeServices.outdoorShoot = true;
+  }
+  if (/without\s*album|no\s*album|remove\s*album/i.test(notesText)) {
+    activeServices.printedAlbum = false;
+  }
+
+  // Derive addons & exclusions
   const addons: Array<{ label: string; priceDelta: number }> = [];
+  const excludedItems: Array<{ label: string; priceDelta: number }> = [];
+
+  if (activeServices.drone && !baseInclusions.drone) {
+    addons.push({ label: 'Drone Aerial Cinematography', priceDelta: 8000 });
+  }
+  if (activeServices.candidVideo && !baseInclusions.candidVideo) {
+    addons.push({ label: 'Cinematic Highlight Video', priceDelta: 12000 });
+  }
+  if (activeServices.ledWall && !baseInclusions.ledWall) {
+    addons.push({ label: 'Live LED Screen Display', priceDelta: 10000 });
+  }
+  if (activeServices.outdoorShoot && !baseInclusions.outdoorShoot) {
+    addons.push({ label: 'Outdoor Couple Portrait Session', priceDelta: 7000 });
+  }
+  if (!activeServices.printedAlbum && baseInclusions.printedAlbum) {
+    excludedItems.push({ label: 'Printed Heirloom Album Removed', priceDelta: -5000 });
+  }
+
+  // Standard service metadata mapping (Bilingual EN + TA)
+  const SERVICE_METADATA_MAP: Record<string, { en: string; ta: string }> = {
+    traditionalPhoto: {
+      en: 'Traditional Photography',
+      ta: 'பாரம்பரியப் புகைப்படம்',
+    },
+    traditionalVideo: {
+      en: 'Traditional Video (Full HD)',
+      ta: 'பாரம்பரிய வீடியோ',
+    },
+    candidPhoto: {
+      en: 'Candid Photography (Portraits & Moments)',
+      ta: 'கேன்டிட் புகைப்படம்',
+    },
+    candidVideo: {
+      en: 'Cinematic Highlight Video',
+      ta: 'சினிமாடிக் ஹைலைட் வீடியோ',
+    },
+    drone: {
+      en: 'Drone Aerial Cinematography',
+      ta: 'ட்ரோன் வான்வழிப் படப்பிடிப்பு',
+    },
+    ledWall: {
+      en: 'Live LED Screen Display',
+      ta: 'நேரடி எல்.ஈ.டி திரை',
+    },
+    outdoorShoot: {
+      en: 'Outdoor Couple Portrait Session',
+      ta: 'அவுட்டோர் ஜோடி படப்பிடிப்பு',
+    },
+    printedAlbum: {
+      en: 'Heirloom Photobook / Album',
+      ta: 'பாரம்பரிய புகைப்பட ஆல்பம்',
+    },
+  };
+
+  const includedServices: Array<{ key: string; en: string; ta: string }> = [];
+  for (const [key, meta] of Object.entries(SERVICE_METADATA_MAP)) {
+    if (activeServices[key as keyof PackageIncludedFeatures]) {
+      includedServices.push({
+        key,
+        en: meta.en,
+        ta: meta.ta,
+      });
+    }
+  }
+
+  const deliverables: Record<string, string> = {
+    ...(matchedPkg?.deliverables || {}),
+  };
+  if (!deliverables['Event Coverage & Crew']) {
+    deliverables['Event Coverage & Crew'] = requiredCrew.join(' + ');
+  }
+  if (!deliverables['Albums & Photo Frames']) {
+    deliverables['Albums & Photo Frames'] = activeServices.printedAlbum
+      ? 'Heirloom Flush-Mount Album (40 Pages / 250+ Photos)'
+      : 'Digital Handover Only';
+  }
+  if (!deliverables['Digital Deliverables']) {
+    deliverables['Digital Deliverables'] = 'Online Cloud Gallery + High-Speed USB';
+  }
+
+  const inclusions = includedServices.map((s) => `${s.en} (${s.ta})`);
 
   const totalPackageAmount = Math.max(
     0,
@@ -1270,8 +1591,13 @@ export async function addEventPaymentOnServer(
     },
     packageDetails: {
       basePackageName,
+      tierLabel,
+      includedServices,
+      deliverables,
       requiredCrew,
+      inclusions,
       addons,
+      excludedItems,
     },
     financials: {
       totalPackageAmount,

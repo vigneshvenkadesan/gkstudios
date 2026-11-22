@@ -41,12 +41,18 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
   container.style.fontFamily =
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif';
 
-  const inclusions =
-    (bill.packageDetails.inclusions && bill.packageDetails.inclusions.length > 0)
-      ? bill.packageDetails.inclusions
-      : bill.packageDetails.requiredCrew || [];
+  const includedServices =
+    bill.packageDetails.includedServices && bill.packageDetails.includedServices.length > 0
+      ? bill.packageDetails.includedServices
+      : (bill.packageDetails.inclusions || bill.packageDetails.requiredCrew || []).map((inc) => ({
+          key: inc,
+          en: inc,
+          ta: '',
+        }));
 
   const addons = bill.packageDetails.addons || [];
+  const excludedItems = bill.packageDetails.excludedItems || [];
+  const tierLabel = bill.packageDetails.tierLabel || 'Signature';
 
   // ═══════════════════════════════════════════════════════════════════════
   // PAGE 1: OFFICIAL PAYMENT RECEIPT & INVOICE STATEMENT
@@ -136,33 +142,69 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
       </div>
 
       <!-- Package & Deliverables Summary -->
-      <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px; margin-bottom: 18px; background: #ffffff;">
+      <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px; margin-bottom: 16px; background: #ffffff;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px;">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px;">
-            Selected Package & Deliverables / தொகுப்பு விவரம்
-          </span>
-          <span style="font-size: 13px; font-weight: 700; color: #072421; font-family: serif;">
-            ${bill.packageDetails.basePackageName}
-          </span>
+          <div>
+            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px;">
+              Included Services & Deliverables / சேர்க்கப்பட்ட சேவைகள்
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; background: #092E2B; color: #D8C78E; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.5px;">
+              ${tierLabel} Tier
+            </span>
+            <span style="font-size: 13px; font-weight: 700; color: #072421; font-family: serif;">
+              ${bill.packageDetails.basePackageName}
+            </span>
+          </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 10px; color: #334155;">
-          ${inclusions
+        <!-- 2-Column Grid of Final Active Services with Bilingual labels -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 10px; color: #334155;">
+          ${includedServices
             .map(
-              (inc) =>
-                `<div style="display: flex; align-items: center; gap: 5px;">
-                  <span style="color: #059669; font-weight: bold;">✓</span>
-                  <span>${inc}</span>
+              (svc) =>
+                `<div style="display: flex; align-items: flex-start; gap: 6px; line-height: 1.3;">
+                  <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
+                  <div>
+                    <span style="font-weight: 600; color: #1e293b;">${svc.en}</span>
+                    ${
+                      svc.ta
+                        ? `<span style="display: block; font-size: 9px; color: #64748b; font-family: 'Noto Sans Tamil', 'Latha', sans-serif;">${svc.ta}</span>`
+                        : ''
+                    }
+                  </div>
                 </div>`
             )
             .join('')}
         </div>
 
         ${
-          addons.length > 0
-            ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #e2e8f0; font-size: 10px; color: #64748b;">
-                <strong style="color: #072421;">Custom Upgrades:</strong>
-                ${addons.map((a) => `<span style="display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 6px; margin-left: 4px; color: #334155;">${a.label} (+₹${Number(a.priceDelta).toLocaleString('en-IN')})</span>`).join('')}
+          bill.packageDetails.deliverables && Object.keys(bill.packageDetails.deliverables).length > 0
+            ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dotted #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 9.5px; color: #475569;">
+                ${Object.entries(bill.packageDetails.deliverables)
+                  .map(
+                    ([cat, text]) =>
+                      `<div><strong style="color: #072421;">${cat}:</strong> ${text}</div>`
+                  )
+                  .join('')}
+              </div>`
+            : ''
+        }
+
+        ${
+          addons.length > 0 || excludedItems.length > 0
+            ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #e2e8f0; font-size: 9.5px; color: #64748b; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                ${
+                  addons.length > 0
+                    ? `<div><strong style="color: #072421;">Upgrades Added:</strong> ${addons.map((a) => `<span style="display: inline-block; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 3px; padding: 1px 6px; color: #065f46; margin-left: 2px;">+ ${a.label} (+₹${Number(a.priceDelta).toLocaleString('en-IN')})</span>`).join('')}</div>`
+                    : ''
+                }
+                ${
+                  excludedItems.length > 0
+                    ? `<div><strong style="color: #991b1b;">Items Excluded:</strong> ${excludedItems.map((e) => `<span style="display: inline-block; background: #fef2f2; border: 1px solid #fecaca; border-radius: 3px; padding: 1px 6px; color: #991b1b; margin-left: 2px;">- ${e.label} (-₹${Math.abs(Number(e.priceDelta)).toLocaleString('en-IN')})</span>`).join('')}</div>`
+                    : ''
+                }
               </div>`
             : ''
         }

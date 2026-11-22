@@ -135,6 +135,12 @@ export interface PaymentRecord {
   billNumber?: string;
 }
 
+export interface StudioBillServiceItem {
+  key: string; // "traditionalPhoto" | "traditionalVideo" | "candidPhoto" | "candidVideo" | "drone" | "ledWall" | "outdoorShoot" | "printedAlbum"
+  en: string; // "Traditional Photography"
+  ta: string; // "பாரம்பரியப் புகைப்படம்"
+}
+
 export interface StudioBill {
   _id?: string;
   id: string;
@@ -157,9 +163,16 @@ export interface StudioBill {
   };
   packageDetails: {
     basePackageName: string; // e.g., "Signature Wedding"
+    tierLabel?: 'Essential' | 'Signature' | 'Premium' | string;
+    includedServices?: StudioBillServiceItem[];
+    deliverables?: Record<string, string>;
     requiredCrew: string[]; // Derived from package deliverables & customizer
     inclusions?: string[];
     addons: Array<{
+      label: string;
+      priceDelta: number;
+    }>;
+    excludedItems?: Array<{
       label: string;
       priceDelta: number;
     }>;
@@ -188,6 +201,7 @@ export interface StageUpdateInfo {
 export interface EventProject {
   id: string;
   bookingId?: string;
+  calendarEntryId?: string;
   referenceCode: string;
   clientName: string;
   phone: string;
