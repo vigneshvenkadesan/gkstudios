@@ -46,6 +46,7 @@ import {
   Cake,
   Flame,
   Briefcase,
+  Monitor,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -59,6 +60,7 @@ import {
 } from '@/src/types/studio';
 import { PROPOSAL_ADDONS } from '@/src/config/packageAddons';
 import { CAMERA_TEAM_GUIDES, CameraTeamMemberGuide } from '@/src/config/cameraGuide';
+import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoShowcaseSection';
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
@@ -166,6 +168,39 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   },
 };
 
+const TIME_SLOT_PRESETS = [
+  {
+    id: 'muhurtham',
+    label: 'Early Morning Muhurtham (6:00 AM)',
+    time: '06:00',
+    value: 'Early Morning Muhurtham (6:00 AM)',
+  },
+  {
+    id: 'morning',
+    label: 'Morning Session (9:00 AM)',
+    time: '09:00',
+    value: 'Morning Session (9:00 AM)',
+  },
+  {
+    id: 'evening',
+    label: 'Evening Reception (6:00 PM)',
+    time: '18:00',
+    value: 'Evening Reception (6:00 PM)',
+  },
+  {
+    id: 'full-day',
+    label: 'Full-Day / Multi-Session',
+    time: '',
+    value: 'Full-Day / Multi-Session',
+  },
+  {
+    id: 'unsure',
+    label: 'Unsure yet — confirm later',
+    time: '',
+    value: 'To be confirmed',
+  },
+];
+
 function parseDeliverables(
   deliverables: PackageDeliverables | string[] | undefined | null
 ): { category: string; text: string }[] {
@@ -203,11 +238,15 @@ export function ProposalPageClient() {
   const rawTierParam = searchParams.get('tier');
   const hasQueryParams = Boolean(rawEventParam || rawPlanParam);
 
+  const parsePlanParam = (param: string | null): SessionPlan => {
+    if (param === 'single-3h' || param === 'single-4h' || param === 'single') return 'single-3h';
+    if (param === 'full') return 'full';
+    return 'half';
+  };
+
   // Active intake states
   const [activeEventId, setActiveEventId] = useState<string>(rawEventParam || 'wedding');
-  const [activePlan, setActivePlan] = useState<SessionPlan>(
-    (rawPlanParam as SessionPlan) || 'half'
-  );
+  const [activePlan, setActivePlan] = useState<SessionPlan>(parsePlanParam(rawPlanParam));
   const [activeGuests, setActiveGuests] = useState<GuestScale>(
     (rawGuestsParam as GuestScale) || 'classic'
   );
@@ -217,16 +256,29 @@ export function ProposalPageClient() {
   // Sync state if query params change
   useEffect(() => {
     if (rawEventParam) setActiveEventId(rawEventParam);
-    if (rawPlanParam) setActivePlan(rawPlanParam as SessionPlan);
+    if (rawPlanParam) setActivePlan(parsePlanParam(rawPlanParam));
     if (rawGuestsParam) setActiveGuests(rawGuestsParam as GuestScale);
   }, [rawEventParam, rawPlanParam, rawGuestsParam]);
 
   // Recommended tier based on intake plan and guests scale
-  const recommendedTier = useMemo(() => {
-    if (rawTierParam) return parseInt(rawTierParam, 10);
+  const intakeRecommendedTier = useMemo(() => {
     if (activePlan === 'full' || activeGuests === 'grand') return 3;
     return 2;
-  }, [rawTierParam, activePlan, activeGuests]);
+  }, [activePlan, activeGuests]);
+
+  // Selected tier order (1 = Essential, 2 = Signature, 3 = Premium)
+  const [selectedTierOrder, setSelectedTierOrder] = useState<number>(() => {
+    if (rawTierParam) return parseInt(rawTierParam, 10);
+    return activePlan === 'full' || activeGuests === 'grand' ? 3 : 2;
+  });
+
+  // Sync state if query params change
+  useEffect(() => {
+    if (rawEventParam) setActiveEventId(rawEventParam);
+    if (rawPlanParam) setActivePlan(rawPlanParam as SessionPlan);
+    if (rawGuestsParam) setActiveGuests(rawGuestsParam as GuestScale);
+    if (rawTierParam) setSelectedTierOrder(parseInt(rawTierParam, 10));
+  }, [rawEventParam, rawPlanParam, rawGuestsParam, rawTierParam]);
 
   // Helper to sync URL state smoothly
   const updateUrlParams = (
@@ -291,10 +343,46 @@ export function ProposalPageClient() {
     const today = toISODate(new Date());
     return today > '2026-11-28' ? today : '2026-11-28';
   });
+  const [endDate, setEndDate] = useState('');
+  const [nextDayTiming, setNextDayTiming] = useState('');
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(() =>
+    activePlan === 'full' ? 'Full-Day / Multi-Session' : 'Early Morning Muhurtham (6:00 AM)'
+  );
+  const [customTime, setCustomTime] = useState<string>(() =>
+    activePlan === 'full' ? '' : '06:00'
+  );
   const [venue, setVenue] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Auto-default based on intake plan (e.g. multi-session)
+  useEffect(() => {
+    if (activePlan === 'full') {
+      setSelectedTimeSlot('Full-Day / Multi-Session');
+      setCustomTime('');
+    }
+  }, [activePlan]);
+
+  // Compute effective event time representation
+  const effectiveEventTime = useMemo(() => {
+    if (selectedTimeSlot && selectedTimeSlot !== 'custom') {
+      return selectedTimeSlot;
+    }
+    if (customTime) {
+      const [hStr, mStr] = customTime.split(':');
+      const h = parseInt(hStr, 10);
+      const m = parseInt(mStr, 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 || 12;
+        const displayM = m < 10 ? `0${m}` : m;
+        return `${displayH}:${displayM} ${ampm}`;
+      }
+      return customTime;
+    }
+    return 'To be confirmed';
+  }, [selectedTimeSlot, customTime]);
 
   // Current active event object
   const currentEvent = useMemo(() => {
@@ -313,22 +401,23 @@ export function ProposalPageClient() {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages, currentEvent]);
 
-  // Recommended base package matching tier (2 = Signature, 3 = Premium)
+  // Base package matching selectedTierOrder (1 = Essential, 2 = Signature, 3 = Premium)
   const basePackage = useMemo(() => {
     if (eventPackages.length === 0) return null;
 
-    let targetOrder = recommendedTier === 3 ? 3 : 2;
-    let match = eventPackages.find((p) => p.sortOrder === targetOrder);
+    let match = eventPackages.find((p) => (p.sortOrder ?? 2) === selectedTierOrder);
 
     if (!match) {
-      if (targetOrder === 3) {
+      if (selectedTierOrder === 3) {
         match = eventPackages[eventPackages.length - 1];
+      } else if (selectedTierOrder === 1) {
+        match = eventPackages[0];
       } else {
         match = eventPackages.find((p) => p.highlighted) || eventPackages[0];
       }
     }
     return match || eventPackages[0];
-  }, [eventPackages, recommendedTier]);
+  }, [eventPackages, selectedTierOrder]);
 
   // ─── 1. Base Included Elements (Default Checked) ───
   const baseIncludedElements = useMemo(() => {
@@ -489,37 +578,258 @@ export function ProposalPageClient() {
     };
   }, [basePackage?.price, baseIncludedElements, unselectedIncludedIds, availableUpgrades, selectedUpgradeIds]);
 
-  // Handlers for toggles
-  const handleToggleBaseIncluded = (id: string) => {
-    setUnselectedIncludedIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
-      const removedKeys = next.map((i) => i.replace('inc-', ''));
-      updateUrlParams(
-        activeEventId,
-        activePlan,
-        activeGuests,
-        recommendedTier,
-        removedKeys,
-        selectedUpgradeIds
+  // ─── 4. Derive Active Features & At-a-Glance Chips Dynamically (Zero Hardcoded Chips) ───
+  const { baseFeatures, activeFeatures, activeChips } = useMemo(() => {
+    if (!basePackage) {
+      return {
+        baseFeatures: {} as Record<string, boolean>,
+        activeFeatures: {} as Record<string, boolean>,
+        activeChips: [] as { id: string; label: string; icon: React.ReactNode; isAdded?: boolean }[],
+      };
+    }
+
+    const incMap = basePackage.customizer?.included;
+
+    // Standard fallback by tier if customizer.included is not defined
+    const tierOrder = basePackage.sortOrder ?? 2;
+    const fallbackIncluded: Record<string, boolean> = {
+      traditionalPhoto: true,
+      traditionalVideo: true,
+      candidPhoto: tierOrder >= 2,
+      candidVideo: tierOrder >= 3,
+      printedAlbum: true,
+      drone: tierOrder >= 3,
+      ledWall: false,
+      outdoorShoot: tierOrder >= 2,
+    };
+
+    const isBaseKey = (k: string): boolean => {
+      if (incMap && typeof incMap[k] === 'boolean') {
+        return Boolean(incMap[k]);
+      }
+      return Boolean(fallbackIncluded[k]);
+    };
+
+    const baseFlags = {
+      traditionalPhoto: isBaseKey('traditionalPhoto'),
+      traditionalVideo: isBaseKey('traditionalVideo'),
+      candidPhoto: isBaseKey('candidPhoto'),
+      candidVideo: isBaseKey('candidVideo'),
+      printedAlbum: isBaseKey('printedAlbum'),
+      drone: isBaseKey('drone'),
+      ledWall: isBaseKey('ledWall'),
+      outdoorShoot: isBaseKey('outdoorShoot'),
+    };
+
+    const hasUpgrade = (patterns: string[]): boolean => {
+      return selectedUpgradeIds.some((id) =>
+        patterns.some((p) => id.toLowerCase().includes(p.toLowerCase()))
       );
-      return next;
-    });
+    };
+
+    // Live toggles
+    // 1. Photo coverage
+    let traditionalPhoto =
+      baseFlags.traditionalPhoto && !unselectedIncludedIds.includes('inc-traditionalPhoto');
+    if (hasUpgrade(['traditional-photo'])) traditionalPhoto = true;
+
+    let candidPhoto =
+      baseFlags.candidPhoto && !unselectedIncludedIds.includes('inc-candidPhoto');
+    if (hasUpgrade(['candid-photo', 'candidphoto'])) candidPhoto = true;
+
+    // 2. Video coverage
+    let traditionalVideo =
+      baseFlags.traditionalVideo && !unselectedIncludedIds.includes('inc-traditionalVideo');
+    if (hasUpgrade(['traditional-video'])) traditionalVideo = true;
+
+    let candidVideo =
+      baseFlags.candidVideo && !unselectedIncludedIds.includes('inc-candidVideo');
+    if (hasUpgrade(['candid-video', 'candid-cinema', 'candidvideo'])) candidVideo = true;
+
+    // 3. Album
+    let printedAlbum =
+      baseFlags.printedAlbum && !unselectedIncludedIds.includes('inc-printedAlbum');
+    if (hasUpgrade(['remove-album'])) printedAlbum = false;
+    if (hasUpgrade(['album', 'extra-album'])) printedAlbum = true;
+
+    // 4. Drone
+    let drone = baseFlags.drone && !unselectedIncludedIds.includes('inc-drone');
+    if (hasUpgrade(['drone'])) drone = true;
+
+    // 5. LED Wall
+    let ledWall = baseFlags.ledWall && !unselectedIncludedIds.includes('inc-ledWall');
+    if (hasUpgrade(['remove-led-wall'])) ledWall = false;
+    if (hasUpgrade(['led-wall', 'ledwall', 'led'])) ledWall = true;
+
+    // 6. Outdoor shoot
+    let outdoorShoot =
+      baseFlags.outdoorShoot && !unselectedIncludedIds.includes('inc-outdoorShoot');
+    if (hasUpgrade(['outdoor-shoot', 'outdoorshoot', 'outdoor'])) outdoorShoot = true;
+
+    const currentFeatures = {
+      traditionalPhoto,
+      traditionalVideo,
+      candidPhoto,
+      candidVideo,
+      printedAlbum,
+      drone,
+      ledWall,
+      outdoorShoot,
+    };
+
+    // Build Accurate, Dynamic At-a-Glance Chips
+    interface ChipItem {
+      id: string;
+      label: string;
+      icon: React.ReactNode;
+      isAdded?: boolean;
+    }
+
+    const chips: ChipItem[] = [];
+
+    // Photo Coverage Chip
+    if (traditionalPhoto && candidPhoto) {
+      chips.push({
+        id: 'photo',
+        label: 'Trad + Candid Photo',
+        icon: <Camera className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.candidPhoto && candidPhoto,
+      });
+    } else if (candidPhoto) {
+      chips.push({
+        id: 'photo',
+        label: 'Candid Photo Only',
+        icon: <Camera className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.candidPhoto,
+      });
+    } else if (traditionalPhoto) {
+      chips.push({
+        id: 'photo',
+        label: 'Traditional Photo',
+        icon: <Camera className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+      });
+    }
+
+    // Video Coverage Chip
+    if (traditionalVideo && candidVideo) {
+      chips.push({
+        id: 'video',
+        label: 'Full HD + Cinema Film',
+        icon: <Film className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.candidVideo && candidVideo,
+      });
+    } else if (candidVideo) {
+      chips.push({
+        id: 'video',
+        label: 'Cinematic Highlight Film',
+        icon: <Film className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.candidVideo,
+      });
+    } else if (traditionalVideo) {
+      chips.push({
+        id: 'video',
+        label: 'Full HD Traditional Video',
+        icon: <Film className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+      });
+    }
+
+    // Album Chip
+    if (printedAlbum) {
+      chips.push({
+        id: 'album',
+        label: 'Printed Album Included',
+        icon: <BookOpen className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+      });
+    } else {
+      chips.push({
+        id: 'album',
+        label: 'Digital-Only Delivery',
+        icon: <HardDriveDownload className="h-3.5 w-3.5 text-[#D8C78E]/70 shrink-0" />,
+      });
+    }
+
+    // Special Add-On Chips (Show ONLY when true)
+    if (drone) {
+      chips.push({
+        id: 'drone',
+        label: 'Drone Aerial Included',
+        icon: <Sparkles className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.drone,
+      });
+    }
+
+    if (ledWall) {
+      chips.push({
+        id: 'led',
+        label: 'Live LED Wall Included',
+        icon: <Monitor className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.ledWall,
+      });
+    }
+
+    if (outdoorShoot) {
+      chips.push({
+        id: 'outdoor',
+        label: 'Outdoor Shoot Included',
+        icon: <SunMedium className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
+        isAdded: !baseFlags.outdoorShoot,
+      });
+    }
+
+    return {
+      baseFeatures: baseFlags,
+      activeFeatures: currentFeatures,
+      activeChips: chips,
+    };
+  }, [basePackage, unselectedIncludedIds, selectedUpgradeIds]);
+
+  // Handlers for tier switching and toggles
+  const handleSwitchTier = (tierOrder: number) => {
+    setSelectedTierOrder(tierOrder);
+    setUnselectedIncludedIds([]);
+    setSelectedUpgradeIds([]);
+    updateUrlParams(
+      activeEventId,
+      activePlan,
+      activeGuests,
+      tierOrder,
+      [],
+      []
+    );
+    const tierName = tierOrder === 1 ? 'Essential' : tierOrder === 3 ? 'Premium' : 'Signature';
+    toast.success(`Switched to ${tierName} tier preset.`);
+  };
+
+  const handleToggleBaseIncluded = (id: string) => {
+    const next = unselectedIncludedIds.includes(id)
+      ? unselectedIncludedIds.filter((item) => item !== id)
+      : [...unselectedIncludedIds, id];
+    setUnselectedIncludedIds(next);
+    const removedKeys = next.map((i) => i.replace('inc-', ''));
+    updateUrlParams(
+      activeEventId,
+      activePlan,
+      activeGuests,
+      selectedTierOrder,
+      removedKeys,
+      selectedUpgradeIds
+    );
   };
 
   const handleToggleUpgrade = (id: string) => {
-    setSelectedUpgradeIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
-      const removedKeys = unselectedIncludedIds.map((i) => i.replace('inc-', ''));
-      updateUrlParams(
-        activeEventId,
-        activePlan,
-        activeGuests,
-        recommendedTier,
-        removedKeys,
-        next
-      );
-      return next;
-    });
+    const next = selectedUpgradeIds.includes(id)
+      ? selectedUpgradeIds.filter((item) => item !== id)
+      : [...selectedUpgradeIds, id];
+    setSelectedUpgradeIds(next);
+    const removedKeys = unselectedIncludedIds.map((i) => i.replace('inc-', ''));
+    updateUrlParams(
+      activeEventId,
+      activePlan,
+      activeGuests,
+      selectedTierOrder,
+      removedKeys,
+      next
+    );
   };
 
   const handleResetToDefault = () => {
@@ -529,7 +839,7 @@ export function ProposalPageClient() {
       activeEventId,
       activePlan,
       activeGuests,
-      recommendedTier,
+      selectedTierOrder,
       [],
       []
     );
@@ -554,8 +864,8 @@ export function ProposalPageClient() {
 
   // Human-readable labels
   const planShortLabel =
-    activePlan === 'single'
-      ? 'Single Session (4h)'
+    activePlan === 'single-3h' || (activePlan as string) === 'single' || (activePlan as string) === 'single-4h'
+      ? 'Single Session (3h)'
       : activePlan === 'full'
       ? 'Full-Day (1.5–2d)'
       : 'Half-Day (6h)';
@@ -593,7 +903,17 @@ export function ProposalPageClient() {
 
     if (clientName.trim()) lines.push(`👤 Client: ${clientName.trim()}`);
     if (phone.trim()) lines.push(`📞 Phone: ${phone.trim()}`);
-    if (eventDate) lines.push(`📅 Preferred Date: ${eventDate}`);
+
+    const timeDisplay = effectiveEventTime || 'To be finalized';
+    if (eventDate) {
+      lines.push(`📅 Date & Time: ${eventDate} at ${timeDisplay}`);
+      if (activePlan === 'full' && endDate) {
+        lines.push(`📅 Multi-day through: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`);
+      }
+    } else {
+      lines.push(`📅 Date & Time: To be finalized`);
+    }
+
     if (venue.trim()) lines.push(`📍 Venue: ${venue.trim()}`);
     if (notes.trim()) lines.push(`📝 Notes: ${notes.trim()}`);
 
@@ -618,8 +938,15 @@ export function ProposalPageClient() {
     setIsSubmitting(true);
     try {
       const customNotes = customizedModifications.map((m) => `${m.label} (${m.badge})`).join(', ');
+      const timingNote = effectiveEventTime ? `Timing: ${effectiveEventTime}` : '';
+      const multiDayNote =
+        activePlan === 'full' && endDate
+          ? `End Date: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`
+          : '';
       const combinedNotes = [
         `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}, ${guestsShortLabel})`,
+        timingNote,
+        multiDayNote,
         `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
         customNotes ? `Customizations: ${customNotes}` : '',
         `Estimated Total: ${formatINR(finalPrice)}`,
@@ -633,6 +960,8 @@ export function ProposalPageClient() {
         phone: phone.trim(),
         eventType: (currentEvent?.name || 'Weddings') as any,
         preferredDate: eventDate,
+        endDate: activePlan === 'full' && endDate ? endDate : undefined,
+        eventTime: effectiveEventTime || 'To be confirmed',
         venue: venue.trim(),
         packageId: basePackage?.id || 'pkg-custom',
         packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
@@ -831,13 +1160,17 @@ export function ProposalPageClient() {
                   type="button"
                   onClick={() => {
                     setIsEditingIntake(false);
+                    const targetTier = activePlan === 'full' || activeGuests === 'grand' ? 3 : 2;
+                    setSelectedTierOrder(targetTier);
+                    setUnselectedIncludedIds([]);
+                    setSelectedUpgradeIds([]);
                     updateUrlParams(
                       activeEventId,
                       activePlan,
                       activeGuests,
-                      recommendedTier,
-                      unselectedIncludedIds.map((i) => i.replace('inc-', '')),
-                      selectedUpgradeIds
+                      targetTier,
+                      [],
+                      []
                     );
                     toast.success('Updated proposal parameters!');
                   }}
@@ -885,71 +1218,81 @@ export function ProposalPageClient() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* ══════════ LEFT COLUMN (65% on Desktop) ══════════ */}
           <div className="lg:col-span-8 space-y-6">
-            {/* ─── 2. Bilingual Camera Types (Collapsed by Default) ─── */}
-            <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
-                  <Camera className="h-3.5 w-3.5" />
-                  Camera Styles & Crew Elements
-                </span>
-                <span className="text-[10px] text-[#E6ECEB]/60">Tap any style to learn how it lights up your event</span>
-              </div>
+            {/* ─── 2. Interactive Bilingual Camera Styles, Crew & Albums Showcase ─── */}
+            <CameraDemoShowcaseSection />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {CAMERA_TEAM_GUIDES.map((guide) => {
-                  const isExpanded = expandedCameraIds.includes(guide.id);
-                  return (
-                    <div
-                      key={guide.id}
-                      className="rounded-sm border border-[#C5B378]/20 bg-[#061E1C]/80 hover:border-[#C5B378]/40 transition-colors overflow-hidden"
-                    >
-                      {/* Header Format (Always Visible): English Title + Tamil Subtitle + Expand Chevron */}
+            {/* ─── Instant Tier Switcher Bar (Essential / Signature / Premium) ─── */}
+            {eventPackages.length > 0 && (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
+                    <Crown className="h-3.5 w-3.5 text-[#D8C78E]" />
+                    Choose Base Package Tier
+                  </span>
+                  <span className="text-[11px] text-[#E6ECEB]/60">
+                    Switch preset instantly • Customize deliverables below
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                  {eventPackages.map((pkg) => {
+                    const order = pkg.sortOrder ?? 2;
+                    const isSelected = order === selectedTierOrder;
+                    const isRecommended = order === intakeRecommendedTier;
+                    const tierName = order === 1 ? 'Essential' : order === 3 ? 'Premium' : 'Signature';
+                    const fallbackTagline =
+                      order === 1
+                        ? 'Traditional Only'
+                        : order === 3
+                        ? 'All-Inclusive Cinema & Drone'
+                        : 'Traditional + Candid';
+
+                    return (
                       <button
+                        key={pkg.id}
                         type="button"
-                        onClick={() => toggleCameraExpanded(guide.id)}
-                        className="w-full flex items-center justify-between p-3 text-left hover:bg-[#0E423E]/50 transition-colors gap-2"
+                        onClick={() => handleSwitchTier(order)}
+                        className={`relative flex flex-col justify-between p-3.5 sm:p-4 rounded-sm border text-left transition-all ${
+                          isSelected
+                            ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_20px_rgba(216,199,142,0.25)] ring-2 ring-[#D8C78E]'
+                            : 'border-[#C5B378]/25 bg-[#092E2B]/80 hover:border-[#D8C78E]/60 hover:bg-[#0E423E]'
+                        }`}
                       >
-                        <div className="min-w-0">
-                          <h5 className="font-serif text-sm font-bold text-white truncate">
-                            {guide.title}
-                          </h5>
-                          <p className="text-[11px] text-[#D8C78E] font-medium leading-tight truncate">
-                            {guide.tamilTitle}
+                        {isRecommended && (
+                          <div className="absolute -top-2.5 right-3">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#C5B378] to-[#D8C78E] px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#061E1C] shadow-sm">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              Recommended for You
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span
+                              className={`text-xs font-bold uppercase tracking-wider ${
+                                isSelected ? 'text-[#F4E8C1]' : 'text-[#D8C78E]'
+                              }`}
+                            >
+                              {tierName}
+                            </span>
+                            {isSelected && <Check className="h-3.5 w-3.5 text-[#D8C78E]" />}
+                          </div>
+
+                          <p className="font-serif text-lg sm:text-xl font-bold text-white tracking-tight">
+                            {formatINR(pkg.price)}
+                          </p>
+
+                          <p className="text-[11px] text-[#E6ECEB]/70 truncate">
+                            {pkg.audience ? pkg.audience.split('—')[0].trim() : fallbackTagline}
                           </p>
                         </div>
-                        <div className="shrink-0 text-[#D8C78E] p-1">
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </div>
                       </button>
-
-                      {/* Expanded Content (Collapsed by Default) */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="px-3 pb-3 pt-1 border-t border-[#C5B378]/15 space-y-2.5"
-                          >
-                            <p className="text-xs text-[#E6ECEB]/85 leading-relaxed">
-                              {guide.howItLightsUp}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => setActivePillModal(guide)}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D8C78E] hover:text-white transition-colors bg-[#0E423E] border border-[#C5B378]/30 px-2 py-1 rounded"
-                            >
-                              <Eye className="h-3 w-3" />
-                              <span>See Sample</span>
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ─── 1. Unified "Included + Add-ons" Checkable Configurator ─── */}
             {basePackage && (
@@ -959,10 +1302,14 @@ export function ProposalPageClient() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                        Recommended Plan
+                        {basePackage.sortOrder === intakeRecommendedTier ? 'Recommended Plan' : 'Active Plan'}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#D8C78E]/40 px-2 py-0.5 text-[10px] font-bold text-[#D8C78E]">
-                        {basePackage.sortOrder === 3 ? '👑 Royal Tier' : '⭐ Signature Tier'}
+                        {basePackage.sortOrder === 3
+                          ? '👑 Royal Tier'
+                          : basePackage.sortOrder === 1
+                          ? '✨ Essential Tier'
+                          : '⭐ Signature Tier'}
                       </span>
                       {isCustomModified ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[#C5B378]/20 border border-[#D8C78E]/50 px-2 py-0.5 text-[10px] font-bold text-[#D8C78E]">
@@ -981,61 +1328,50 @@ export function ProposalPageClient() {
 
                   <div className="text-right flex flex-col items-end">
                     <span className="text-[10px] uppercase font-bold text-[#D8C78E]">
-                      {isCustomModified ? 'Tailored Total' : 'Starting Rate'}
+                      Estimated Plan Total
                     </span>
                     <p className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
                       {formatINR(finalPrice)}
                     </p>
-                    {isCustomModified && (
-                      <button
-                        type="button"
-                        onClick={handleResetToDefault}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D8C78E] hover:text-white transition-colors mt-1"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span>Reset to Default</span>
-                      </button>
+                    {isCustomModified ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-[#E6ECEB]/70 font-mono">
+                          Base: {formatINR(basePackage.price)}
+                        </span>
+                        <span className="text-[#C5B378]/40">•</span>
+                        <button
+                          type="button"
+                          onClick={handleResetToDefault}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D8C78E] hover:text-white transition-colors"
+                        >
+                          <RotateCcw className="h-2.5 w-2.5" />
+                          <span>Reset</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-[#E6ECEB]/50 mt-0.5">
+                        Base standard package
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Scannable At-a-Glance Icon Chips (Reflects live active coverage) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
-                    <Camera className="h-4 w-4 text-[#D8C78E] shrink-0" />
-                    <span className="font-medium text-white truncate">
-                      {!unselectedIncludedIds.includes('inc-candidPhoto') || selectedUpgradeIds.some((id) => id.includes('candid-photo'))
-                        ? 'Trad + Lead Candid'
-                        : 'Traditional Photo'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
-                    <Film className="h-4 w-4 text-[#D8C78E] shrink-0" />
-                    <span className="font-medium text-white truncate">
-                      {!unselectedIncludedIds.includes('inc-candidVideo') || selectedUpgradeIds.some((id) => id.includes('candid-video'))
-                        ? 'Full HD + Cinema Film'
-                        : 'Full HD Video'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
-                    <BookOpen className="h-4 w-4 text-[#D8C78E] shrink-0" />
-                    <span className="font-medium text-white truncate">
-                      {!unselectedIncludedIds.includes('inc-printedAlbum')
-                        ? 'Printed Heirloom Album'
-                        : 'Digital-Only (No Album)'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-sm bg-[#061E1C]/60 border border-[#C5B378]/20 px-3 py-2 text-xs">
-                    <HardDriveDownload className="h-4 w-4 text-[#D8C78E] shrink-0" />
-                    <span className="font-medium text-white truncate">
-                      {!unselectedIncludedIds.includes('inc-drone') || selectedUpgradeIds.some((id) => id.includes('drone'))
-                        ? 'Drone Aerial Included'
-                        : 'Full Raw Data Drive'}
-                    </span>
-                  </div>
+                {/* Scannable At-a-Glance Icon Chips (Reflects live active coverage dynamically) */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {activeChips.map((chip) => (
+                    <div
+                      key={chip.id}
+                      className="flex items-center gap-1.5 rounded-sm bg-[#061E1C]/70 border border-[#C5B378]/25 px-2.5 py-1.5 text-xs transition-colors"
+                    >
+                      {chip.icon}
+                      <span className="font-medium text-white">{chip.label}</span>
+                      {chip.isAdded && (
+                        <span className="ml-1 text-[9px] font-extrabold uppercase tracking-wider bg-[#D8C78E] text-[#061E1C] px-1.5 py-0.5 rounded-full shadow-sm">
+                          Added
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Deliverables Breakdown Collapsible */}
@@ -1059,8 +1395,51 @@ export function ProposalPageClient() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden pt-3 space-y-2 text-xs"
+                        className="overflow-hidden pt-3 space-y-2.5 text-xs"
                       >
+                        {/* Live Custom Modifications Summary */}
+                        {customizedModifications.length > 0 && (
+                          <div className="rounded-sm border border-[#D8C78E]/40 bg-[#114A45]/80 p-3 space-y-2 shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
+                                <Sparkles className="h-3 w-3" />
+                                Your Custom Modifications
+                              </span>
+                              <span className="text-[10px] text-[#F4E8C1] font-mono font-bold">
+                                Net:{' '}
+                                {totalDelta > 0
+                                  ? `+${formatINR(totalDelta)}`
+                                  : formatINR(totalDelta)}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {customizedModifications.map((mod) => (
+                                <div
+                                  key={mod.id}
+                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded text-[11px] border ${
+                                    mod.isDeduction
+                                      ? 'border-amber-400/30 bg-[#061E1C]/60 text-amber-200'
+                                      : 'border-[#D8C78E]/30 bg-[#061E1C]/60 text-[#D8C78E]'
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-1.5 font-medium truncate">
+                                    {mod.isDeduction ? (
+                                      <Minus className="h-3 w-3 text-amber-400 shrink-0" />
+                                    ) : (
+                                      <Plus className="h-3 w-3 text-[#D8C78E] shrink-0" />
+                                    )}
+                                    <span className="truncate">{mod.label}</span>
+                                  </span>
+                                  <span className="font-mono font-bold shrink-0 ml-2">
+                                    {mod.badge}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Standard Base Deliverables */}
                         {parseDeliverables(basePackage.deliverables).map((item, idx) => (
                           <div
                             key={idx}
@@ -1324,20 +1703,34 @@ export function ProposalPageClient() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#C5B378]/10 text-[#E6ECEB]/85">
-                          {eventPackages.map((p) => (
-                            <tr key={p.id} className={p.id === basePackage?.id ? 'bg-[#0E423E]/60' : ''}>
-                              <td className="py-2.5 font-bold text-white">
-                                {p.name} {p.id === basePackage?.id && '(Selected)'}
-                              </td>
-                              <td className="py-2.5 font-mono font-semibold text-[#D8C78E]">
-                                {formatINR(p.price)}
-                              </td>
-                              <td className="py-2.5 text-[11px]">{p.duration}</td>
-                              <td className="py-2.5 text-[11px] text-[#E6ECEB]/70 max-w-[200px] truncate">
-                                {p.audience}
-                              </td>
-                            </tr>
-                          ))}
+                          {eventPackages.map((p) => {
+                            const isCurrent = p.id === basePackage?.id;
+                            return (
+                              <tr
+                                key={p.id}
+                                onClick={() => handleSwitchTier(p.sortOrder ?? 2)}
+                                className={`cursor-pointer transition-colors ${
+                                  isCurrent ? 'bg-[#0E423E] font-medium' : 'hover:bg-[#0E423E]/50'
+                                }`}
+                              >
+                                <td className="py-2.5 font-bold text-white flex items-center gap-1.5">
+                                  <span>{p.name}</span>
+                                  {isCurrent && (
+                                    <span className="text-[10px] text-[#D8C78E] font-bold bg-[#114A45] border border-[#D8C78E]/40 px-1.5 py-0.2 rounded">
+                                      Active
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 font-mono font-semibold text-[#D8C78E]">
+                                  {formatINR(p.price)}
+                                </td>
+                                <td className="py-2.5 text-[11px]">{p.duration}</td>
+                                <td className="py-2.5 text-[11px] text-[#E6ECEB]/70 max-w-[200px] truncate">
+                                  {p.audience}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </motion.div>
@@ -1499,62 +1892,6 @@ export function ProposalPageClient() {
         </div>
       </div>
 
-      {/* ─── Modal 1: Single Camera Pill Preview / Difference ─── */}
-      <AnimatePresence>
-        {activePillModal && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
-            role="dialog"
-            aria-modal="true"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-lg overflow-hidden rounded-sm border border-[#C5B378]/35 bg-[#072421] text-[#E6ECEB] shadow-2xl p-5 sm:p-6 space-y-4"
-            >
-              <button
-                type="button"
-                onClick={() => setActivePillModal(null)}
-                className="absolute top-3.5 right-3.5 text-white/70 hover:text-white"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-
-              <div className="space-y-0.5 pr-6">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]">
-                  Camera Element
-                </span>
-                <h4 className="font-serif text-xl font-bold text-white">{activePillModal.title}</h4>
-                <p className="text-xs text-[#D8C78E] font-medium">{activePillModal.tamilTitle}</p>
-              </div>
-
-              <div className="aspect-[16/10] w-full rounded overflow-hidden border border-[#C5B378]/25 bg-black">
-                <img
-                  src={activePillModal.previewImage}
-                  alt={activePillModal.title}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-
-              <p className="text-xs text-[#E6ECEB]/85 leading-relaxed">
-                {activePillModal.howItLightsUp}
-              </p>
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  size="sm"
-                  onClick={() => setActivePillModal(null)}
-                  className="bg-[#D8C78E] text-[#061E1C] font-semibold text-xs"
-                >
-                  Got It
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* ─── Modal 2: Check Date & Book Drawer / Dialog ─── */}
       <AnimatePresence>
@@ -1632,9 +1969,15 @@ export function ProposalPageClient() {
                       </div>
                     </div>
 
+                    {/* Date & Time Side-by-Side Row */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">Event Date *</label>
+                        <label className="text-xs font-semibold text-white/90 flex items-center justify-between">
+                          <span>Event Date *</span>
+                          {activePlan === 'full' && (
+                            <span className="text-[10px] text-[#D8C78E] font-medium">Day 1</span>
+                          )}
+                        </label>
                         <input
                           type="date"
                           required
@@ -1645,16 +1988,106 @@ export function ProposalPageClient() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">Venue / City *</label>
+                        <label className="text-xs font-semibold text-white/90 flex items-center justify-between">
+                          <span>Event Start Time / Slot</span>
+                          <span className="text-[10px] text-[#D8C78E] font-medium truncate max-w-[150px]">
+                            {effectiveEventTime || 'Select below'}
+                          </span>
+                        </label>
                         <input
-                          type="text"
-                          required
-                          value={venue}
-                          onChange={(e) => setVenue(e.target.value)}
-                          placeholder="e.g. Mayor Ramanathan Hall, Chennai"
-                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                          type="time"
+                          value={customTime}
+                          onChange={(e) => {
+                            setCustomTime(e.target.value);
+                            setSelectedTimeSlot('custom');
+                          }}
+                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
+                    </div>
+
+                    {/* Smart Quick-Select Timing Chips */}
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]/90 flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-[#D8C78E]" />
+                          Quick Timing Presets
+                        </span>
+                        <span className="text-[10px] text-[#E6ECEB]/50">Tap to autofill slot</span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {TIME_SLOT_PRESETS.map((slot) => {
+                          const isSelected =
+                            selectedTimeSlot === slot.value ||
+                            (slot.time && customTime === slot.time && selectedTimeSlot !== 'custom');
+
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTimeSlot(slot.value);
+                                setCustomTime(slot.time);
+                              }}
+                              className={`text-[11px] px-2.5 py-1 rounded-sm border transition-all ${
+                                isSelected
+                                  ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
+                                  : 'border-[#C5B378]/25 bg-[#061E1C]/80 text-[#E6ECEB]/75 hover:border-[#D8C78E]/50 hover:text-white'
+                              }`}
+                            >
+                              {slot.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Optional Multi-Day End Date (if activePlan is Full-Day / Multi-Session) */}
+                    {activePlan === 'full' && (
+                      <div className="rounded-sm border border-[#C5B378]/25 bg-[#0E423E]/60 p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-[#D8C78E] flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-[#D8C78E]" />
+                            Multi-Session / Next-Day Muhurtham
+                          </span>
+                          <span className="text-[10px] text-[#E6ECEB]/60">Optional 2nd Day</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-white/80">Day 2 / End Date</label>
+                            <input
+                              type="date"
+                              value={endDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-2.5 py-1.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                            />
+                          </div>
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-white/80">Next-Day Muhurtham Timing</label>
+                            <input
+                              type="text"
+                              value={nextDayTiming}
+                              onChange={(e) => setNextDayTiming(e.target.value)}
+                              placeholder="e.g. 5:30 AM Muhurtham"
+                              className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-2.5 py-1.5 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Venue / City */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-white/90">Venue / City *</label>
+                      <input
+                        type="text"
+                        required
+                        value={venue}
+                        onChange={(e) => setVenue(e.target.value)}
+                        placeholder="e.g. Mayor Ramanathan Hall, Chennai"
+                        className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      />
                     </div>
 
                     <div className="space-y-1">
@@ -1713,7 +2146,8 @@ export function ProposalPageClient() {
                   <div className="space-y-1">
                     <h3 className="font-serif text-2xl font-bold text-white">Inquiry Received!</h3>
                     <p className="text-xs text-[#E6ECEB]/80 max-w-sm mx-auto">
-                      Vanakkam {clientName}! We have received your inquiry for {currentEvent?.name}. We will review date availability and contact you on WhatsApp at {phone}.
+                      Vanakkam {clientName}! We have received your inquiry for {currentEvent?.name} on {eventDate}
+                      {effectiveEventTime ? ` (${effectiveEventTime})` : ''}. We will review date availability and contact you on WhatsApp at {phone}.
                     </p>
                   </div>
 

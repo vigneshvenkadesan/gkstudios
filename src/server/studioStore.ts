@@ -15,12 +15,15 @@ import {
   PackageSnapshot,
   PaymentRecord,
   PortfolioItem,
+  StudioBill,
   StudioEvent,
   StudioPackage,
   StudioState,
 } from '../types/studio';
 import { DEFAULT_IMAGE_BY_ID, INITIAL_STUDIO_STATE } from '../data/initialStudioData';
+import { STUDIO_TERMS_AND_CONDITIONS } from '../config/termsAndConditions';
 import {
+  getBillModel,
   getBookingModel,
   getCalendarScheduleModel,
   getEventModel,
@@ -67,6 +70,14 @@ async function requirePackageModel() {
     throw new Error('Package storage is unavailable.');
   }
   return packages;
+}
+
+async function requireBillModel() {
+  const bills = await getBillModel();
+  if (!bills) {
+    throw new Error('Bill storage is unavailable.');
+  }
+  return bills;
 }
 
 function normalizeState(raw: Partial<StudioState>): StudioState {
@@ -552,6 +563,41 @@ function toPlainEventProject(project: EventProject & { _id?: unknown; packageSna
   };
 }
 
+function toPlainBill(b: any): StudioBill {
+  return {
+    id: String(b.id),
+    billNumber: String(b.billNumber),
+    bookingId: String(b.bookingId),
+    paymentId: String(b.paymentId),
+    clientName: String(b.clientName),
+    clientPhone: String(b.clientPhone),
+    eventDetails: b.eventDetails || {
+      eventName: '',
+      tamilEventName: '',
+      eventDate: '',
+      eventTime: '',
+      venue: '',
+      schedulePlan: '',
+    },
+    packageDetails: b.packageDetails || {
+      basePackageName: '',
+      requiredCrew: [],
+      addons: [],
+    },
+    financials: b.financials || {
+      totalPackageAmount: 0,
+      amountPaidNow: 0,
+      totalPaidToDate: 0,
+      balanceDue: 0,
+      paymentMode: 'UPI',
+      paymentDate: '',
+      paymentStage: 'Payment',
+    },
+    termsAndConditions: Array.isArray(b.termsAndConditions) ? b.termsAndConditions : [],
+    createdAt: String(b.createdAt),
+  };
+}
+
 export async function getStudioState(): Promise<StudioState> {
   if (!memoryCache) {
     memoryCache = await readFromDisk();
@@ -581,11 +627,25 @@ export async function getStudioState(): Promise<StudioState> {
       ...(plain.phone ? { phone: String(plain.phone) } : {}),
       ...(plain.time ? { time: String(plain.time) } : {}),
       ...(Array.isArray(plain.requestedServices) ? { requestedServices: plain.requestedServices } : {}),
+      ...(plain.packageId ? { packageId: String(plain.packageId) } : {}),
+      ...(plain.packageName ? { packageName: String(plain.packageName) } : {}),
+      ...(plain.packageTier ? { packageTier: plain.packageTier } : {}),
+      ...(plain.totalPackageAmount !== undefined ? { totalPackageAmount: Number(plain.totalPackageAmount) } : {}),
+      ...(plain.paymentStatus ? { paymentStatus: String(plain.paymentStatus) } : {}),
     } satisfies CalendarDayEntry;
   });
 
   const eventProjects = await requireEventProjectModel();
   const mongoProjects = await eventProjects.find({}).sort({ eventDate: 1 }).lean().exec();
+
+  let plainBills: StudioBill[] = [];
+  try {
+    const billModel = await requireBillModel();
+    const mongoBills = await billModel.find({}).sort({ createdAt: -1 }).lean().exec();
+    plainBills = mongoBills.map(toPlainBill);
+  } catch (err) {
+    console.warn('Failed to load bills from Mongo:', err);
+  }
 
   const plainPackages = await getPackagesFromMongo();
   const plainEvents = await getEventsFromMongo();
@@ -596,6 +656,7 @@ export async function getStudioState(): Promise<StudioState> {
     events: plainEvents,
     bookings: plainBookings,
     calendarEntries: plainSchedule,
+    bills: plainBills,
     eventProjects: mongoProjects.map((project) =>
       toPlainEventProject(project as unknown as EventProject & { _id?: unknown })
     ),
@@ -1079,14 +1140,146 @@ export async function addEventPaymentOnServer(
   payment: Omit<PaymentRecord, 'id'>
 ): Promise<StudioState> {
   const state = await getStudioState();
-  const newPayment: PaymentRecord = {
-    ...payment,
-    id: `pay-${Date.now()}`,
-  };
   const project = state.eventProjects.find((item) => item.id === projectId);
   if (!project) {
     throw new Error('Event project not found.');
   }
+
+  const billModel = await requireBillModel();
+  const currentYear = new Date().getFullYear();
+  const yearPrefix = `GKS-${currentYear}-`;
+  const existingCount = await billModel.countDocuments({
+    billNumber: new RegExp(`^${yearPrefix}`),
+  });
+
+  let seq = existingCount + 1;
+  let candidateBillNumber = `${yearPrefix}${String(seq).padStart(4, '0')}`;
+  while (await billModel.findOne({ billNumber: candidateBillNumber })) {
+    seq += 1;
+    candidateBillNumber = `${yearPrefix}${String(seq).padStart(4, '0')}`;
+  }
+  const billNumber = candidateBillNumber;
+  const paymentId = `pay-${Date.now()}`;
+  const billId = `bill-${Date.now()}`;
+
+  // Find matching booking
+  const matchingBooking = state.bookings.find(
+    (b) => b.id === project.bookingId || b.referenceCode === project.referenceCode
+  );
+
+  // Find matching event
+  const matchingEvent = state.events?.find(
+    (e) =>
+      e.name.toLowerCase() === project.eventType.toLowerCase() ||
+      e.id.toLowerCase() === project.eventType.toLowerCase()
+  );
+
+  const eventName = project.eventType || matchingBooking?.eventType || 'Celebration';
+  let tamilEventName = matchingEvent?.tamilName || '';
+  if (!tamilEventName) {
+    const lower = eventName.toLowerCase();
+    if (lower.includes('wedding')) tamilEventName = 'திருமணம்';
+    else if (lower.includes('engagement')) tamilEventName = 'நிச்சயதார்த்தம்';
+    else if (lower.includes('birthday') || lower.includes('kid')) tamilEventName = 'பிறந்தநாள் விழா';
+    else if (lower.includes('baby') || lower.includes('maternity') || lower.includes('seemantham')) tamilEventName = 'வளைகாப்பு & சீமந்தம்';
+    else if (lower.includes('housewarming')) tamilEventName = 'புதுமனை புகுவிழா';
+    else if (lower.includes('puberty')) tamilEventName = 'மஞ்சள் நீராட்டு விழா';
+    else tamilEventName = 'நிகழ்வு';
+  }
+
+  const eventDate = project.eventDate || matchingBooking?.preferredDate || '';
+  const eventTime =
+    matchingBooking?.eventTime || '06:00 AM (Morning Muhurtham)';
+  const venue = project.venue || matchingBooking?.venue || '';
+  const schedulePlan =
+    matchingBooking?.notes?.includes('Plan:')
+      ? matchingBooking.notes.split('Plan:')[1].split('•')[0].trim()
+      : project.deliveryNotes || 'Standard Celebration Coverage';
+
+  const basePackageName =
+    project.packageName || matchingBooking?.packageName || 'Custom Studio Package';
+
+  // Derive required crew
+  let requiredCrew: string[] = [];
+  if (project.assignedCrew && project.assignedCrew.trim()) {
+    requiredCrew = project.assignedCrew
+      .split(/[,/•+]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  if (requiredCrew.length === 0) {
+    const pkgLower = basePackageName.toLowerCase();
+    if (
+      pkgLower.includes('signature') ||
+      pkgLower.includes('royal') ||
+      pkgLower.includes('premium')
+    ) {
+      requiredCrew = [
+        'Lead Traditional Photographer',
+        'Candid Photographer',
+        'Traditional Cinematographer',
+      ];
+    } else {
+      requiredCrew = ['Traditional Photographer', 'Traditional Videographer'];
+    }
+  }
+
+  // Derive addons if any
+  const addons: Array<{ label: string; priceDelta: number }> = [];
+
+  const totalPackageAmount = Math.max(
+    0,
+    (project.agreedAmount || 0) + (project.extraCharges || 0) - (project.discount || 0)
+  );
+  const amountPaidNow = Number(payment.amount) || 0;
+  const previousPaid = project.payments.reduce((sum, p) => sum + p.amount, 0);
+  const totalPaidToDate = previousPaid + amountPaidNow;
+  const balanceDue = Math.max(0, totalPackageAmount - totalPaidToDate);
+
+  const newBill: StudioBill = {
+    id: billId,
+    billNumber,
+    bookingId: project.bookingId || project.id,
+    paymentId,
+    clientName: project.clientName,
+    clientPhone: project.phone,
+    eventDetails: {
+      eventName,
+      tamilEventName,
+      eventDate,
+      eventTime,
+      venue,
+      schedulePlan,
+    },
+    packageDetails: {
+      basePackageName,
+      requiredCrew,
+      addons,
+    },
+    financials: {
+      totalPackageAmount,
+      amountPaidNow,
+      totalPaidToDate,
+      balanceDue,
+      paymentMode: payment.method || 'UPI',
+      paymentDate: payment.date || new Date().toISOString().split('T')[0],
+      paymentStage: payment.label || 'Payment',
+    },
+    termsAndConditions: STUDIO_TERMS_AND_CONDITIONS.map((t) => ({
+      en: t.en,
+      ta: t.ta,
+    })),
+    createdAt: new Date().toISOString(),
+  };
+
+  await billModel.create(newBill);
+
+  const newPayment: PaymentRecord = {
+    ...payment,
+    id: paymentId,
+    billId,
+    billNumber,
+  };
 
   const projects = await requireEventProjectModel();
   await projects.updateOne(
@@ -1106,12 +1299,50 @@ export async function deleteEventPaymentOnServer(
     throw new Error('Event project not found.');
   }
 
+  const targetPayment = project.payments.find((p) => p.id === paymentId);
+  if (targetPayment?.billId) {
+    try {
+      const billModel = await requireBillModel();
+      await billModel.deleteOne({ id: targetPayment.billId });
+    } catch (e) {
+      console.warn('Failed to delete associated bill:', e);
+    }
+  }
+
   const projects = await requireEventProjectModel();
   await projects.updateOne(
     { id: projectId },
     { $set: { payments: project.payments.filter((payment) => payment.id !== paymentId) } }
   );
   return getStudioState();
+}
+
+export async function getBillsOnServer(queryId?: string): Promise<StudioBill[]> {
+  const billModel = await requireBillModel();
+  const filter = queryId
+    ? {
+        $or: [
+          { bookingId: queryId },
+          { paymentId: queryId },
+          { billNumber: queryId },
+          { id: queryId },
+        ],
+      }
+    : {};
+  const bills = await billModel.find(filter).sort({ createdAt: -1 }).lean().exec();
+  return bills.map(toPlainBill);
+}
+
+export async function getBillByIdOnServer(idOrNumber: string): Promise<StudioBill | null> {
+  const billModel = await requireBillModel();
+  const bill = await billModel
+    .findOne({
+      $or: [{ id: idOrNumber }, { billNumber: idOrNumber }, { paymentId: idOrNumber }],
+    })
+    .lean()
+    .exec();
+  if (!bill) return null;
+  return toPlainBill(bill);
 }
 
 export async function deleteEventProjectOnServer(projectId: string): Promise<StudioState> {

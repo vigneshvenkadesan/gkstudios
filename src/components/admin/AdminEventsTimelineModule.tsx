@@ -8,6 +8,11 @@ import {
   Plus,
   Search,
   Trash2,
+  FileText,
+  MessageCircle,
+  Printer,
+  Download,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
@@ -19,9 +24,14 @@ import {
   EventProject,
   EventStage,
   PaymentMethod,
+  PaymentRecord,
+  StudioBill,
 } from '@/src/types/studio';
 import { EventSelector } from '@/src/components/common/EventSelector';
-import { formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { STUDIO_INFO } from '@/src/data/initialStudioData';
+import { BilingualBillModal } from './BilingualBillModal';
+import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
@@ -57,6 +67,7 @@ export function AdminEventsTimelineModule() {
   const {
     eventProjects,
     packages,
+    bills,
     createEventProject,
     deleteEventProject,
     updateEventStage,
@@ -69,6 +80,10 @@ export function AdminEventsTimelineModule() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  // Bilingual Bill Modal State
+  const [selectedBillForModal, setSelectedBillForModal] = useState<StudioBill | null>(null);
+  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
 
   const [stageNoteInput, setStageNoteInput] = useState('');
   const [editAgreed, setEditAgreed] = useState(0);
@@ -188,6 +203,27 @@ export function AdminEventsTimelineModule() {
     }
   };
 
+  const getBillForPayment = (pay: PaymentRecord): StudioBill | undefined => {
+    if (pay.billId) {
+      const found = bills.find((b) => b.id === pay.billId);
+      if (found) return found;
+    }
+    if (pay.billNumber) {
+      const found = bills.find((b) => b.billNumber === pay.billNumber);
+      if (found) return found;
+    }
+    return bills.find((b) => b.paymentId === pay.id);
+  };
+
+  const handleSharePaymentBillOnWhatsApp = async (bill: StudioBill) => {
+    try {
+      await shareBillPdfWhatsApp(bill);
+      toast.success(`Bill receipt opened for sharing.`);
+    } catch {
+      toast.error('Unable to share bill on WhatsApp.');
+    }
+  };
+
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeProject) return;
@@ -204,7 +240,9 @@ export function AdminEventsTimelineModule() {
         method: payMethod,
         referenceNote: payRef.trim() || undefined,
       });
-      toast.success(`Recorded ${formatINR(numericAmount)} payment for ${activeProject.clientName}.`);
+      toast.success(
+        `Recorded ${formatINR(numericAmount)} payment for ${activeProject.clientName}. Bilingual bill auto-generated!`
+      );
       setPayAmount('');
       setPayRef('');
     } catch (error) {
@@ -569,46 +607,102 @@ export function AdminEventsTimelineModule() {
                             <TableHead>Mode</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
+                            <TableHead className="text-center">Invoice / Bill</TableHead>
                             <TableHead className="text-right">Remove</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {activeProject.payments.map((pay) => (
-                            <TableRow key={pay.id}>
-                              <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
-                                {formatDateDisplay(pay.date)}
-                              </TableCell>
-                              <TableCell className="text-xs text-white">{pay.label}</TableCell>
-                              <TableCell className="text-xs text-[#D8C78E]">{pay.method}</TableCell>
-                              <TableCell className="text-xs text-[#E6ECEB]/70">
-                                {pay.referenceNote || '—'}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-xs font-semibold text-emerald-300 tabular-nums">
-                                {formatINR(pay.amount)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <button
-                                  type="button"
-                                  aria-label="Delete payment entry"
-                                  onClick={async () => {
-                                    try {
-                                      await deleteEventPayment(activeProject.id, pay.id);
-                                      toast.info('Payment entry removed.');
-                                    } catch (error) {
-                                      toast.error(
-                                        error instanceof Error
-                                          ? error.message
-                                          : 'Unable to remove payment.'
-                                      );
-                                    }
-                                  }}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {activeProject.payments.map((pay) => {
+                            const bill = getBillForPayment(pay);
+                            return (
+                              <TableRow key={pay.id}>
+                                <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
+                                  {formatDateDisplay(pay.date)}
+                                </TableCell>
+                                <TableCell className="text-xs text-white">{pay.label}</TableCell>
+                                <TableCell className="text-xs text-[#D8C78E]">{pay.method}</TableCell>
+                                <TableCell className="text-xs text-[#E6ECEB]/70">
+                                  {pay.referenceNote || '—'}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-xs font-semibold text-emerald-300 tabular-nums">
+                                  {formatINR(pay.amount)}
+                                </TableCell>
+                                <TableCell className="text-center whitespace-nowrap">
+                                  {bill ? (
+                                    <div className="inline-flex items-center gap-1.5 bg-[#061E1C] border border-[#C5B378]/30 px-2 py-1 rounded">
+                                      <span className="font-mono text-[11px] font-bold text-[#D8C78E]">
+                                        {bill.billNumber}
+                                      </span>
+                                      {/* Direct 1-Click PDF Download */}
+                                      <button
+                                        type="button"
+                                        title="Download PDF directly"
+                                        onClick={async () => {
+                                          try {
+                                            await downloadBillPdf(bill);
+                                            toast.success(`Downloaded ${bill.billNumber}-${bill.clientName}.pdf`);
+                                          } catch {
+                                            setSelectedBillForModal(bill);
+                                            setIsBillModalOpen(true);
+                                          }
+                                        }}
+                                        className="text-[#D8C78E] hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                                        aria-label="Direct Download PDF"
+                                      >
+                                        <Download className="h-3.5 w-3.5" />
+                                      </button>
+                                      {/* Preview & Print Modal */}
+                                      <button
+                                        type="button"
+                                        title="Preview & Print Bilingual Bill"
+                                        onClick={() => {
+                                          setSelectedBillForModal(bill);
+                                          setIsBillModalOpen(true);
+                                        }}
+                                        className="text-[#E6ECEB]/70 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                                        aria-label="Preview Bilingual Bill"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </button>
+                                      {/* Native WhatsApp Share */}
+                                      <button
+                                        type="button"
+                                        title="Share Bill PDF via WhatsApp"
+                                        onClick={() => handleSharePaymentBillOnWhatsApp(bill)}
+                                        className="text-emerald-400 hover:text-emerald-300 p-0.5 rounded transition-colors cursor-pointer"
+                                        aria-label="Share Bill PDF via WhatsApp"
+                                      >
+                                        <MessageCircle className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-[#E6ECEB]/50">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <button
+                                    type="button"
+                                    aria-label="Delete payment entry"
+                                    onClick={async () => {
+                                      try {
+                                        await deleteEventPayment(activeProject.id, pay.id);
+                                        toast.info('Payment entry removed.');
+                                      } catch (error) {
+                                        toast.error(
+                                          error instanceof Error
+                                            ? error.message
+                                            : 'Unable to remove payment.'
+                                        );
+                                      }
+                                    }}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -816,6 +910,16 @@ export function AdminEventsTimelineModule() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bilingual Tax Invoice / Bill Modal */}
+      <BilingualBillModal
+        bill={selectedBillForModal}
+        isOpen={isBillModalOpen}
+        onClose={() => {
+          setIsBillModalOpen(false);
+          setSelectedBillForModal(null);
+        }}
+      />
     </div>
   );
 }

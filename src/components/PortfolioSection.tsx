@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
+import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoShowcaseSection';
 
 interface PortfolioSectionProps {
   onBookCategory: (category: EventCategory) => void;
@@ -293,6 +294,14 @@ export function PortfolioSection({
             ))}
           </div>
         )}
+
+        {/* Interactive Camera Styles, Crew & Heirloom Albums Demo Showcase */}
+        <div className="mt-16 pt-10 border-t border-[#C5B378]/20">
+          <CameraDemoShowcaseSection
+            title="Studio Gear, Camera Styles & Heirloom Albums"
+            subtitle="Explore how our team captures sacred rituals, candid emotions, 4K cinema films & panoramic lay-flat albums"
+          />
+        </div>
 
         <MandalaDivider className="mt-12" />
       </div>

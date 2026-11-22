@@ -3,6 +3,7 @@ import type {
   BookingRequest,
   CalendarDayEntry,
   EventProject,
+  StudioBill,
   StudioEvent,
   StudioPackage,
 } from '../types/studio';
@@ -174,6 +175,8 @@ const PaymentSchema = new Schema(
     amount: { type: Number, required: true },
     method: { type: String, required: true },
     referenceNote: String,
+    billId: String,
+    billNumber: String,
   },
   { _id: false }
 );
@@ -203,6 +206,44 @@ const EventProjectSchema = new Schema<EventProjectDocument>(
   { collection: 'event_projects', strict: false, timestamps: false }
 );
 
+interface BillDocument extends Omit<StudioBill, '_id'>, mongoose.Document {}
+
+const BillSchema = new Schema<BillDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    billNumber: { type: String, required: true, unique: true },
+    bookingId: { type: String, required: true },
+    paymentId: { type: String, required: true },
+    clientName: { type: String, required: true },
+    clientPhone: { type: String, required: true },
+    eventDetails: {
+      eventName: { type: String, default: '' },
+      tamilEventName: { type: String, default: '' },
+      eventDate: { type: String, default: '' },
+      eventTime: { type: String, default: '' },
+      venue: { type: String, default: '' },
+      schedulePlan: { type: String, default: '' },
+    },
+    packageDetails: {
+      basePackageName: { type: String, default: '' },
+      requiredCrew: { type: [String], default: [] },
+      addons: [{ label: String, priceDelta: Number }],
+    },
+    financials: {
+      totalPackageAmount: { type: Number, required: true },
+      amountPaidNow: { type: Number, required: true },
+      totalPaidToDate: { type: Number, required: true },
+      balanceDue: { type: Number, required: true },
+      paymentMode: { type: String, default: 'UPI' },
+      paymentDate: { type: String, required: true },
+      paymentStage: { type: String, default: 'Payment' },
+    },
+    termsAndConditions: [{ en: String, ta: String }],
+    createdAt: { type: String, required: true },
+  },
+  { collection: 'bills', strict: false, timestamps: true }
+);
+
 export async function getCalendarScheduleModel(): Promise<Model<CalendarScheduleDocument> | null> {
   if (!(await ensureMongoConnection())) return null;
 
@@ -217,4 +258,13 @@ export async function getEventProjectModel(): Promise<Model<EventProjectDocument
   return (
     mongoose.models.EventProject as Model<EventProjectDocument> | undefined
   ) || mongoose.model<EventProjectDocument>('EventProject', EventProjectSchema);
+}
+
+export async function getBillModel(): Promise<Model<BillDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    (mongoose.models.Bill as Model<BillDocument> | undefined) ||
+    mongoose.model<BillDocument>('Bill', BillSchema)
+  );
 }

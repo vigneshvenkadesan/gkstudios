@@ -24,7 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { EVENT_CATEGORY_GROUPS, StudioEvent, StudioPackage } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
 
-export type SessionPlan = 'single' | 'half' | 'full';
+export type SessionPlan = 'single-3h' | 'half' | 'full';
 export type GuestScale = 'intimate' | 'classic' | 'grand';
 
 interface FastIntakeWizardProps {
@@ -60,10 +60,10 @@ function matchesCategory(eventCategory?: string, groupId?: string): boolean {
 
 export const SESSION_PLANS = [
   {
-    id: 'single' as SessionPlan,
-    title: 'Single Session',
-    label: 'Single Session • 4h',
-    badge: '4 Hours',
+    id: 'single-3h' as SessionPlan,
+    title: 'Single Session • 3h',
+    label: 'Single Session • 3h',
+    badge: '3 Hours',
     description: 'Focused ceremony or intimate gathering (e.g. Kaathu Kuthi, Seemantham, Housewarming).',
     icon: <Clock className="h-5 w-5" />,
   },
