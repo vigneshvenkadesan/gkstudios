@@ -12,6 +12,11 @@ import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import {
+  calculateCustomizedEventPrice,
+  calculatePackageBasePrice,
+  buildOptedServicesForPackage,
+} from '@/src/lib/pricing';
+import {
   BOOKING_SERVICE_OPTIONS,
   BookingRequest,
   BookingServiceOption,
@@ -57,7 +62,7 @@ export function BookingSection({
   preselectedEventId,
   preselectedCategory,
 }: BookingSectionProps) {
-  const { packages, calendarEntries, submitBooking } = useStudio();
+  const { packages, services, calendarEntries, submitBooking } = useStudio();
   const { events: dynamicEvents, activeEvents } = useEvents();
   const { locale } = usePublicPreferences();
   const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) =>
@@ -203,6 +208,30 @@ export function BookingSection({
   const handleAcceptAndConfirmBooking = async () => {
     setIsSubmitting(true);
     try {
+      // Dynamically resolve opted services & amount
+      let optedServices: any[] = [];
+      let totalAmount = 0;
+
+      if (selectedPackage) {
+        const resolved = buildOptedServicesForPackage(selectedPackage, services, 'halfDay');
+        optedServices = resolved.optedServices;
+        totalAmount = resolved.totalAmount;
+      } else if (requestedServices.length > 0) {
+        const items = requestedServices.map((svcName) => {
+          let slug = 'traditional-camera';
+          if (svcName === 'Traditional Video') slug = 'traditional-video';
+          else if (svcName === 'Candid Camera') slug = 'candid-photography';
+          else if (svcName === 'Candid Video') slug = 'candid-cinematography';
+          else if (svcName === 'Drone') slug = 'drone-aerial-coverage';
+          else if (svcName === 'LED Wall') slug = 'led-wall';
+          else if (svcName === 'TV') slug = 'led-tv';
+          return { serviceSlug: slug, quantity: 1 };
+        });
+        const resolved = calculateCustomizedEventPrice(items, services, 'halfDay');
+        optedServices = resolved.snapshots;
+        totalAmount = resolved.total;
+      }
+
       const created = await submitBooking({
         clientName: clientName.trim(),
         phone: phone.trim(),
@@ -212,6 +241,11 @@ export function BookingSection({
         eventTime: eventTime || undefined,
         venue: venue.trim(),
         packageId,
+        packageName: selectedPackage?.name,
+        quotedAmount: totalAmount > 0 ? totalAmount : selectedPackage?.price,
+        durationTier: 'halfDay',
+        optedServices: optedServices.length > 0 ? optedServices : undefined,
+        totalAmount: totalAmount > 0 ? totalAmount : selectedPackage?.price,
         requestedServices,
         notes: notes.trim(),
         termsAccepted: true,

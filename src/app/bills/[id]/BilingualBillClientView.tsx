@@ -91,6 +91,7 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
 
   const activeServices = rawServices.filter(isServiceActive);
   const activeAddons = (bill.packageDetails?.addons || []).filter(isServiceActive);
+  const billOptedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
 
   const handleShareWhatsApp = () => {
     const lines = [
@@ -293,8 +294,36 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
             </div>
           </div>
 
-          {/* Active Services Checklist */}
-          {activeServices.length > 0 ? (
+          {/* Itemized Opted Services Breakdown (Single Source of Truth) */}
+          {billOptedServices.length > 0 ? (
+            <div className="pt-2 border-t border-slate-200 space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Confirmed Services & Deliverables:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {billOptedServices.map((svc, i) => (
+                  <div key={i} className="flex items-start justify-between gap-2 bg-white p-2 rounded border border-slate-200">
+                    <div className="flex items-start gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-slate-900 block">{svc.name}</span>
+                        {svc.tamilName && (
+                          <span className="text-[10px] text-slate-500 font-tamil block">{svc.tamilName}</span>
+                        )}
+                        <span className="text-[10px] text-slate-500">
+                          {svc.quantity} {svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹{svc.unitPrice.toLocaleString('en-IN')}
+                          {svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-slate-900 text-xs shrink-0">
+                      ₹{svc.total.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : activeServices.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {activeServices.map((svc, i) => (
                 <div key={i} className="flex items-start gap-2 bg-white p-2 rounded border border-slate-200">

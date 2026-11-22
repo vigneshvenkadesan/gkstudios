@@ -32,6 +32,7 @@ import { EventSelector } from '@/src/components/common/EventSelector';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
+import { calculateCustomizedEventPrice, calculatePackageBasePrice } from '@/src/lib/pricing';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
@@ -150,7 +151,7 @@ function getStatusBadge(status: BookingStatus) {
 }
 
 export function AdminBookingModule() {
-  const { bookings, packages, events, submitBooking, processBookingAction, updateBookingStatus } =
+  const { bookings, packages, events, services, submitBooking, processBookingAction, updateBookingStatus } =
     useStudio();
 
   const activeEvents = useMemo(() => {
@@ -318,7 +319,8 @@ export function AdminBookingModule() {
 
     const found = packages.find((p) => p.id === pkgId);
     if (found) {
-      setLeadQuotedAmount(found.price);
+      const dynamicPrice = calculatePackageBasePrice(found, services, 'halfDay');
+      setLeadQuotedAmount(dynamicPrice);
 
       // Two-way sync: If selected package belongs to an event, update ceremony & event type
       if (found.eventId) {
@@ -354,9 +356,25 @@ export function AdminBookingModule() {
   };
 
   const toggleLeadService = (service: BookingServiceOption) => {
-    setLeadRequestedServices((prev) =>
-      prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]
-    );
+    setLeadRequestedServices((prev) => {
+      const updated = prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service];
+      // Dynamically recalculate quote for custom selection
+      if (leadPackageId === CUSTOM_PACKAGE_ID) {
+        const items = updated.map((svcName) => {
+          let slug = 'traditional-camera';
+          if (svcName === 'Traditional Video') slug = 'traditional-video';
+          else if (svcName === 'Candid Camera') slug = 'candid-photography';
+          else if (svcName === 'Candid Video') slug = 'candid-cinematography';
+          else if (svcName === 'Drone') slug = 'drone-aerial-coverage';
+          else if (svcName === 'LED Wall') slug = 'led-wall';
+          else if (svcName === 'TV') slug = 'led-tv';
+          return { serviceSlug: slug, quantity: 1 };
+        });
+        const { total } = calculateCustomizedEventPrice(items, services, 'halfDay');
+        setLeadQuotedAmount(total);
+      }
+      return updated;
+    });
   };
 
   const handleCreateDirectLead = async (e: React.FormEvent) => {
@@ -384,6 +402,28 @@ export function AdminBookingModule() {
         ? CUSTOM_PACKAGE_NAME
         : selectedPkg?.name || CUSTOM_PACKAGE_NAME;
 
+    // Dynamically build historical optedServices snapshot
+    const activeItems: Array<{ serviceSlug: string; quantity: number }> = [];
+    leadRequestedServices.forEach((s) => {
+      if (s === 'Traditional Camera') activeItems.push({ serviceSlug: 'traditional-camera', quantity: 1 });
+      else if (s === 'Traditional Video') activeItems.push({ serviceSlug: 'traditional-video', quantity: 1 });
+      else if (s === 'Candid Camera') activeItems.push({ serviceSlug: 'candid-photography', quantity: 1 });
+      else if (s === 'Candid Video') activeItems.push({ serviceSlug: 'candid-cinematography', quantity: 1 });
+      else if (s === 'Drone') activeItems.push({ serviceSlug: 'drone-aerial-coverage', quantity: 1 });
+      else if (s === 'LED Wall') activeItems.push({ serviceSlug: 'led-wall', quantity: 1 });
+      else if (s === 'TV') activeItems.push({ serviceSlug: 'led-tv', quantity: 1 });
+    });
+    if (selectedPkg?.includedServices?.some((i) => i.serviceSlug === 'photo-album')) {
+      const album = selectedPkg.includedServices.find((i) => i.serviceSlug === 'photo-album');
+      activeItems.push({ serviceSlug: 'photo-album', quantity: album?.quantity || 30 });
+    }
+    const { snapshots: leadOptedServices, total: computedTotal } = calculateCustomizedEventPrice(
+      activeItems,
+      services,
+      'halfDay'
+    );
+    const finalLeadAmount = Number(leadQuotedAmount) > 0 ? Number(leadQuotedAmount) : computedTotal;
+
     setIsCreatingLead(true);
     try {
       const created = await submitBooking({
@@ -396,8 +436,11 @@ export function AdminBookingModule() {
         venue: leadVenue.trim(),
         packageId: leadPackageId,
         packageName: resolvedPackageName,
-        quotedAmount: Number(leadQuotedAmount) || 0,
+        quotedAmount: finalLeadAmount,
         requestedServices: leadRequestedServices,
+        durationTier: 'halfDay',
+        optedServices: leadOptedServices,
+        totalAmount: finalLeadAmount,
         notes: leadNotes.trim(),
         status: leadStatus,
         source: leadSource,

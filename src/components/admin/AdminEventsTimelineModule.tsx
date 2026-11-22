@@ -485,6 +485,18 @@ export function AdminEventsTimelineModule() {
                 <DialogDescription className="text-[#E6ECEB]/80">
                   {activeProject.venue} · {activeProject.packageName}
                 </DialogDescription>
+                {activeProject.optedServices && activeProject.optedServices.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                    {activeProject.optedServices.map((svc, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E]"
+                      >
+                        ✓ {svc.name} ({svc.quantity} {svc.unitLabel}{svc.quantity > 1 ? 's' : ''})
+                      </span>
+                    ))}
+                  </div>
+                )}
               </DialogHeader>
               <Button
                 type="button"

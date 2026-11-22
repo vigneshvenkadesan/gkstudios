@@ -6,18 +6,22 @@ import {
   BookingServiceOption,
   BookingStatus,
   CalendarDayEntry,
+  DurationTier,
   EventCategory,
   EventProject,
   EventStage,
+  OptedServiceSnapshot,
   PackageSnapshot,
   PaymentRecord,
   PortfolioItem,
   StudioBill,
   StudioEvent,
   StudioPackage,
+  StudioService,
   StudioState,
 } from '@/src/types/studio';
 import { INITIAL_STUDIO_STATE } from '@/src/data/initialStudioData';
+import { DEFAULT_STUDIO_SERVICES } from '@/src/lib/pricing';
 
 interface SubmitBookingInput {
   clientName: string;
@@ -31,6 +35,9 @@ interface SubmitBookingInput {
   packageName?: string;
   quotedAmount?: number;
   requestedServices?: BookingServiceOption[];
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
+  totalAmount?: number;
   notes: string;
   status?: BookingStatus;
   source?: string;
@@ -70,6 +77,7 @@ interface StudioContextValue {
   state: StudioState;
   isLoading: boolean;
   packages: StudioPackage[];
+  services: StudioService[];
   events: StudioEvent[];
   portfolio: PortfolioItem[];
   bookings: BookingRequest[];
@@ -361,6 +369,7 @@ export function StudioProvider({
         state,
         isLoading,
         packages: state.packages,
+        services: state.services && state.services.length > 0 ? state.services : DEFAULT_STUDIO_SERVICES,
         events: state.events ?? [],
         portfolio: state.portfolio,
         bookings: state.bookings,

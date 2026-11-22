@@ -6,6 +6,7 @@ import type {
   StudioBill,
   StudioEvent,
   StudioPackage,
+  StudioService,
 } from '../types/studio';
 
 const uri = process.env.MONGODB_STANDARD_URI || process.env.MONGODB_URI;
@@ -28,6 +29,9 @@ const BookingSchema = new Schema<BookingRequestDocument>(
     packageName: { type: String, required: true },
     quotedAmount: { type: Number, required: true },
     requestedServices: { type: [String], default: [] },
+    durationTier: String,
+    optedServices: { type: Schema.Types.Mixed, default: [] },
+    totalAmount: Number,
     notes: { type: String, default: '' },
     status: { type: String, required: true },
     source: String,
@@ -120,6 +124,9 @@ const PackageSchema = new Schema<StudioPackageDocument>(
     currency: { type: String, default: 'INR' },
     priceLabel: String,
     duration: { type: String, required: true },
+    durationTier: { type: String, enum: ['threeHours', 'halfDay', 'fullDay'] },
+    includedServices: { type: Schema.Types.Mixed, default: [] },
+    availableAddons: { type: Schema.Types.Mixed, default: [] },
     highlighted: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
     deliverables: { type: Schema.Types.Mixed, default: {} },
@@ -144,6 +151,38 @@ export async function getPackageModel(): Promise<Model<StudioPackageDocument> | 
   ) || mongoose.model<StudioPackageDocument>('Package', PackageSchema);
 }
 
+interface StudioServiceDocument extends Omit<StudioService, '_id'>, mongoose.Document {}
+
+const ServiceSchema = new Schema<StudioServiceDocument>(
+  {
+    id: String,
+    name: { type: String, required: true },
+    slug: { type: String, required: true, unique: true },
+    tamilName: { type: String, default: '' },
+    category: { type: String, required: true },
+    description: { type: String, default: '' },
+    pricingType: { type: String, enum: ['tiered', 'per_unit'], required: true },
+    unitLabel: { type: String, default: 'unit' },
+    unitPrice: { type: Number, default: null },
+    minQuantity: { type: Number, default: 1 },
+    pricing: { type: Schema.Types.Mixed, default: null },
+    isActive: { type: Boolean, default: true },
+    displayOrder: { type: Number, default: 0 },
+    createdAt: String,
+    updatedAt: String,
+  },
+  { collection: 'services', strict: false, timestamps: true }
+);
+
+export async function getServiceModel(): Promise<Model<StudioServiceDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    (mongoose.models.Service as Model<StudioServiceDocument> | undefined) ||
+    mongoose.model<StudioServiceDocument>('Service', ServiceSchema)
+  );
+}
+
 interface CalendarScheduleDocument extends CalendarDayEntry, mongoose.Document {}
 
 const CalendarScheduleSchema = new Schema<CalendarScheduleDocument>(
@@ -161,6 +200,9 @@ const CalendarScheduleSchema = new Schema<CalendarScheduleDocument>(
     phone: String,
     time: String,
     requestedServices: { type: [String], default: [] },
+    durationTier: String,
+    optedServices: { type: Schema.Types.Mixed, default: [] },
+    totalAmount: Number,
   },
   { collection: 'calendar_schedule', strict: false, timestamps: false }
 );
@@ -203,6 +245,9 @@ const EventProjectSchema = new Schema<EventProjectDocument>(
     payments: { type: [PaymentSchema], default: [] },
     deliveryNotes: { type: String, required: true },
     requestedServices: { type: [String], default: [] },
+    durationTier: String,
+    optedServices: { type: Schema.Types.Mixed, default: [] },
+    totalAmount: Number,
     packageSnapshot: { type: Schema.Types.Mixed },
   },
   { collection: 'event_projects', strict: false, timestamps: false }
@@ -229,6 +274,8 @@ const BillSchema = new Schema<BillDocument>(
     packageDetails: {
       basePackageName: { type: String, default: '' },
       tierLabel: { type: String, default: 'Signature' },
+      durationTier: String,
+      optedServices: { type: Schema.Types.Mixed, default: [] },
       includedServices: [
         {
           key: String,
@@ -253,6 +300,7 @@ const BillSchema = new Schema<BillDocument>(
       paymentStage: { type: String, default: 'Payment' },
     },
     termsAndConditions: [{ en: String, ta: String }],
+    optedServices: { type: Schema.Types.Mixed, default: [] },
     createdAt: { type: String, required: true },
   },
   { collection: 'bills', strict: false, timestamps: true }

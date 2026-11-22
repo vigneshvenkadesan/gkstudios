@@ -27,7 +27,13 @@ import {
   BookingServiceOption,
   CalendarDayEntry,
   EventCategory,
+  OptedServiceSnapshot,
 } from '@/src/types/studio';
+import {
+  calculateCustomizedEventPrice,
+  calculatePackageBasePrice,
+  buildOptedServicesForPackage,
+} from '@/src/lib/pricing';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
 import { useEvents } from '@/src/hooks/useEvents';
@@ -51,6 +57,7 @@ export function AdminScheduleModule() {
     calendarEntries,
     bookings,
     packages,
+    services,
     events,
     eventProjects,
     upsertCalendarEntry,
@@ -160,7 +167,8 @@ export function AdminScheduleModule() {
     setPackageName(pkg.name);
     const tierInfo = getPackageTierInfo(pkg);
     setPackageTier(tierInfo.tier);
-    setTotalPackageAmount(pkg.price);
+    const dynamicPrice = calculatePackageBasePrice(pkg, services, 'halfDay');
+    setTotalPackageAmount(dynamicPrice);
 
     // Auto-fill services based on package inclusions
     const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
@@ -278,6 +286,24 @@ export function AdminScheduleModule() {
 
     setIsSaving(true);
     try {
+      let resolvedOptedServices: OptedServiceSnapshot[] | undefined;
+      const matchedPkg = packages.find((p) => p.id === packageId);
+      if (matchedPkg) {
+        resolvedOptedServices = buildOptedServicesForPackage(matchedPkg, services, 'halfDay').optedServices;
+      } else if (requestedServices.length > 0) {
+        const items = requestedServices.map((svcName) => {
+          let slug = 'traditional-camera';
+          if (svcName === 'Traditional Video') slug = 'traditional-video';
+          else if (svcName === 'Candid Camera') slug = 'candid-photography';
+          else if (svcName === 'Candid Video') slug = 'candid-cinematography';
+          else if (svcName === 'Drone') slug = 'drone-aerial-coverage';
+          else if (svcName === 'LED Wall') slug = 'led-wall';
+          else if (svcName === 'TV') slug = 'led-tv';
+          return { serviceSlug: slug, quantity: 1 };
+        });
+        resolvedOptedServices = calculateCustomizedEventPrice(items, services, 'halfDay').snapshots;
+      }
+
       await upsertCalendarEntry({
         id: editingEntryId,
         date: selectedDate,
@@ -292,10 +318,13 @@ export function AdminScheduleModule() {
         notes: notes.trim() || undefined,
         bookingId: linkedBookingId,
         requestedServices: requestedServices.length > 0 ? requestedServices : undefined,
+        durationTier: 'halfDay',
+        optedServices: resolvedOptedServices,
         packageId: packageId || undefined,
         packageName: packageName || undefined,
         packageTier: packageTier || undefined,
         totalPackageAmount: totalPackageAmount || undefined,
+        totalAmount: totalPackageAmount || undefined,
       });
 
       toast.success(`Schedule updated for ${formatDateDisplay(selectedDate)} (${status}).`);

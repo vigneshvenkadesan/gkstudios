@@ -21,6 +21,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
 import { PackageDeliverables, StudioPackage, StudioEvent } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
+import { calculatePackageBasePrice } from '@/src/lib/pricing';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
 import { getPackageCopy, translate } from '@/src/i18n/translations';
@@ -70,7 +71,7 @@ export function PackagesSection({
   onSelectPackage,
   preselectedEventId,
 }: PackagesSectionProps) {
-  const { packages, isLoading: isStudioLoading } = useStudio();
+  const { packages, services, isLoading: isStudioLoading } = useStudio();
   const { events, activeEvents, isLoading: isEventsLoading, error: eventsError, refresh: refreshEvents } = useEvents();
 
   // Mode: 'intake' (3-Question Intake) vs 'grid' (Classic All Packages Grid)
@@ -102,7 +103,7 @@ export function PackagesSection({
     );
   }, [events, selectedEventId]);
 
-  // Filter packages based on selected eventId for standard grid
+  // Filter packages based on selected eventId for standard grid with dynamically resolved prices
   const matchingPackages = useMemo(() => {
     return packages
       .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
@@ -110,8 +111,16 @@ export function PackagesSection({
         const pkgEventId = pkg.eventId || 'wedding';
         return pkgEventId === selectedEventId;
       })
+      .map((pkg) => {
+        const dynamicPrice = calculatePackageBasePrice(pkg, services);
+        return {
+          ...pkg,
+          price: dynamicPrice,
+          priceLabel: formatINR(dynamicPrice),
+        };
+      })
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [packages, selectedEventId]);
+  }, [packages, services, selectedEventId]);
 
   const whatsappUrl = buildWhatsAppUrl(
     STUDIO_INFO.phone,

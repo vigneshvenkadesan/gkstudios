@@ -105,6 +105,59 @@ export type BookingServiceOption = (typeof BOOKING_SERVICE_OPTIONS)[number];
 
 export type AvailabilityStatus = 'Available' | 'Limited' | 'Booked';
 
+export type DurationTier = 'threeHours' | 'halfDay' | 'fullDay';
+
+export type PricingType = 'tiered' | 'per_unit';
+
+export interface StudioServicePricing {
+  threeHours?: number;
+  halfDay?: number;
+  fullDay?: number;
+}
+
+export interface StudioService {
+  _id?: string;
+  id?: string;
+  name: string;
+  slug: string;
+  tamilName?: string;
+  category: string;
+  description: string;
+  pricingType: PricingType;
+  unitLabel: string;
+  unitPrice?: number | null;
+  minQuantity: number;
+  pricing?: StudioServicePricing | null;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PackageIncludedService {
+  serviceSlug: string;
+  quantity: number;
+}
+
+export interface PackageAvailableAddon {
+  serviceSlug: string;
+  defaultQuantity?: number;
+  label?: string;
+}
+
+export interface OptedServiceSnapshot {
+  serviceSlug: string;
+  name: string;
+  tamilName?: string;
+  category: string;
+  pricingType: PricingType;
+  durationTier?: DurationTier;
+  unitLabel: string;
+  unitPrice: number;
+  quantity: number;
+  total: number;
+}
+
 export type EventStage =
   | 'Booking Confirmed'
   | 'Pre-Shoot Briefing'
@@ -165,6 +218,8 @@ export interface StudioBill {
   packageDetails: {
     basePackageName: string; // e.g., "Signature Wedding"
     tierLabel?: 'Essential' | 'Signature' | 'Premium' | string;
+    durationTier?: DurationTier;
+    optedServices?: OptedServiceSnapshot[];
     includedServices?: StudioBillServiceItem[];
     deliverables?: Record<string, string>;
     requiredCrew: string[]; // Derived from package deliverables & customizer
@@ -191,6 +246,7 @@ export interface StudioBill {
     en: string;
     ta: string;
   }>;
+  optedServices?: OptedServiceSnapshot[];
   createdAt: string;
 }
 
@@ -221,6 +277,9 @@ export interface EventProject {
   deliveryNotes: string;
   requestedServices?: BookingServiceOption[];
   packageSnapshot?: PackageSnapshot;
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
+  totalAmount?: number;
 }
 
 export interface PortfolioItem {
@@ -264,7 +323,8 @@ export interface PackageAddon {
 
 export interface PackageCustomizer {
   included: PackageIncludedFeatures;
-  addons: PackageAddon[];
+  addons?: PackageAddon[];
+  features?: string[];
 }
 
 export interface PackageSnapshot {
@@ -296,6 +356,9 @@ export interface StudioPackage {
   currency?: string; // e.g., "INR"
   priceLabel?: string; // Formatted display string (e.g., "₹18,000")
   duration: string; // e.g., "Up to 4 Hours"
+  durationTier?: DurationTier;
+  includedServices?: PackageIncludedService[];
+  availableAddons?: PackageAvailableAddon[];
   highlighted?: boolean; // Marks the recommended/"Most Popular" tier
   deliverables: PackageDeliverables;
   customizer?: PackageCustomizer;
@@ -324,6 +387,9 @@ export interface BookingRequest {
   packageName: string;
   quotedAmount: number;
   requestedServices?: BookingServiceOption[];
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
+  totalAmount?: number;
   notes: string;
   status: BookingStatus;
   source?: string;
@@ -350,16 +416,20 @@ export interface CalendarDayEntry {
   phone?: string;
   time?: string;
   requestedServices?: BookingServiceOption[];
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
   packageId?: string;
   packageName?: string;
   packageTier?: 'Essential' | 'Signature' | 'Premium';
   totalPackageAmount?: number;
+  totalAmount?: number;
   paymentStatus?: string;
 }
 
 export interface StudioState {
   portfolio: PortfolioItem[];
   packages: StudioPackage[];
+  services?: StudioService[];
   events?: StudioEvent[];
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];

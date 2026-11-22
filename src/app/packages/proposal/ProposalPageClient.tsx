@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -54,12 +54,20 @@ import { useStudio } from '@/src/context/StudioContext';
 import { useEvents } from '@/src/hooks/useEvents';
 import {
   BookingServiceOption,
+  DurationTier,
   EVENT_CATEGORY_GROUPS,
+  OptedServiceSnapshot,
   PackageDeliverables,
   PackageIncludedFeatures,
   PackageSnapshot,
   StudioPackage,
 } from '@/src/types/studio';
+import {
+  calculateCustomizedEventPrice,
+  calculatePackageBasePrice,
+  formatServiceLineItem,
+  resolveServicePrice,
+} from '@/src/lib/pricing';
 import { PROPOSAL_ADDONS } from '@/src/config/packageAddons';
 import { CAMERA_TEAM_GUIDES, CameraTeamMemberGuide } from '@/src/config/cameraGuide';
 import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoShowcaseSection';
@@ -232,7 +240,7 @@ function parseDeliverables(
 export function ProposalPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { packages, submitBooking, isLoading } = useStudio();
+  const { packages, services, submitBooking, isLoading } = useStudio();
   const { activeEvents } = useEvents();
 
   // URL Query Params detection for Fallback / Standalone mode
@@ -324,6 +332,14 @@ export function ProposalPageClient() {
   );
   const [selectedUpgradeIds, setSelectedUpgradeIds] = useState<string[]>(initialAddons);
 
+  // Album sheet customization state (synced with selected tier)
+  const defaultSheetsForTier = selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35;
+  const [customAlbumSheets, setCustomAlbumSheets] = useState<number>(defaultSheetsForTier);
+
+  useEffect(() => {
+    setCustomAlbumSheets(selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35);
+  }, [selectedTierOrder]);
+
   // Accordion open states
   const [expandedCameraIds, setExpandedCameraIds] = useState<string[]>([]);
   const [isDeliverablesOpen, setIsDeliverablesOpen] = useState(false);
@@ -405,6 +421,39 @@ export function ProposalPageClient() {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages, currentEvent]);
 
+  // Active duration tier mapped from intake plan
+  const durationTier: DurationTier = useMemo(() => {
+    if (
+      activePlan === 'single-3h' ||
+      (activePlan as string) === 'single' ||
+      (activePlan as string) === 'single-4h'
+    ) {
+      return 'threeHours';
+    }
+    if (activePlan === 'full') return 'fullDay';
+    return 'halfDay';
+  }, [activePlan]);
+
+  const FEATURE_SLUG_MAP: Record<string, string> = {
+    traditionalPhoto: 'traditional-camera',
+    traditionalVideo: 'traditional-video',
+    candidPhoto: 'candid-photography',
+    candidVideo: 'candid-cinematography',
+    printedAlbum: 'photo-album',
+    drone: 'drone-aerial-coverage',
+    ledWall: 'led-wall',
+    outdoorShoot: 'outdoor-shoot',
+  };
+
+  const getServiceCost = useCallback(
+    (slug: string, qty: number = 1): number => {
+      const svc = services.find((s) => s.slug === slug);
+      if (!svc) return 0;
+      return resolveServicePrice(svc, durationTier, qty).total;
+    },
+    [services, durationTier]
+  );
+
   // Base package matching selectedTierOrder (1 = Essential, 2 = Signature, 3 = Premium)
   const basePackage = useMemo(() => {
     if (eventPackages.length === 0) return null;
@@ -420,8 +469,17 @@ export function ProposalPageClient() {
         match = eventPackages.find((p) => p.highlighted) || eventPackages[0];
       }
     }
-    return match || eventPackages[0];
-  }, [eventPackages, selectedTierOrder]);
+    const resolvedPkg = match || eventPackages[0];
+    if (!resolvedPkg) return null;
+
+    // Dynamically resolve base price from services
+    const dynamicPrice = calculatePackageBasePrice(resolvedPkg, services, durationTier);
+    return {
+      ...resolvedPkg,
+      price: dynamicPrice,
+      priceLabel: formatINR(dynamicPrice),
+    };
+  }, [eventPackages, selectedTierOrder, services, durationTier]);
 
   // ─── 1. Base Included Elements (Default Checked) ───
   const baseIncludedElements = useMemo(() => {
@@ -466,13 +524,17 @@ export function ProposalPageClient() {
 
       if (isIncluded) {
         const meta = BASE_FEATURE_DEFINITIONS[k];
-        let deduction = meta.defaultDeduction;
+        const albumSheets = basePackage.sortOrder === 3 ? 40 : basePackage.sortOrder === 1 ? 30 : 35;
+        const qty = k === 'printedAlbum' ? albumSheets : 1;
+        const slug = FEATURE_SLUG_MAP[k] || '';
+        const dynamicCost = slug ? getServiceCost(slug, qty) : 0;
+        let deduction = dynamicCost > 0 ? -dynamicCost : meta.defaultDeduction;
 
         if (k === 'printedAlbum' && basePackage.customizer?.addons) {
           const removeAddon = basePackage.customizer.addons.find(
             (a) => a.id === 'remove-album' || a.type === 'downgrade' || a.priceDelta < 0
           );
-          if (removeAddon) {
+          if (removeAddon && dynamicCost <= 0) {
             deduction = -Math.abs(removeAddon.priceDelta);
           }
         }
@@ -491,13 +553,34 @@ export function ProposalPageClient() {
     });
 
     return results;
-  }, [basePackage]);
+  }, [basePackage, getServiceCost]);
 
   // ─── 2. Available Upgrades (Default Unchecked) ───
   const availableUpgrades = useMemo(() => {
     if (!basePackage) return [];
 
     const incKeys = baseIncludedElements.map((b) => b.featureKey);
+
+    const resolveAddonDelta = (addonId: string, fallbackDelta: number): number => {
+      const lower = addonId.toLowerCase();
+      let slug = '';
+      let qty = 1;
+      if (lower.includes('drone')) slug = 'drone-aerial-coverage';
+      else if (lower.includes('candid-video') || lower.includes('candid-cinema')) slug = 'candid-cinematography';
+      else if (lower.includes('candid-photo')) slug = 'candid-photography';
+      else if (lower.includes('led-wall') || lower.includes('led')) slug = 'led-wall';
+      else if (lower.includes('tv')) slug = 'led-tv';
+      else if (lower.includes('outdoor')) slug = 'outdoor-shoot';
+      else if (lower.includes('album')) {
+        slug = 'photo-album';
+        qty = 30;
+      }
+      if (slug) {
+        const cost = getServiceCost(slug, qty);
+        if (cost > 0) return cost;
+      }
+      return Math.abs(fallbackDelta);
+    };
 
     if (basePackage.customizer?.addons && basePackage.customizer.addons.length > 0) {
       return basePackage.customizer.addons
@@ -509,14 +592,17 @@ export function ProposalPageClient() {
           if (a.id.includes('led') && incKeys.includes('ledWall')) return false;
           return true;
         })
-        .map((a) => ({
-          id: a.id,
-          label: a.label,
-          description: `Add ${a.label} to your package coverage.`,
-          isBaseIncluded: false,
-          priceDelta: Math.abs(a.priceDelta),
-          badge: `+${formatINR(Math.abs(a.priceDelta))}`,
-        }));
+        .map((a) => {
+          const delta = resolveAddonDelta(a.id, a.priceDelta);
+          return {
+            id: a.id,
+            label: a.label,
+            description: `Add ${a.label} to your package coverage.`,
+            isBaseIncluded: false,
+            priceDelta: delta,
+            badge: `+${formatINR(delta)}`,
+          };
+        });
     }
 
     return PROPOSAL_ADDONS
@@ -529,18 +615,24 @@ export function ProposalPageClient() {
         if (a.id.includes('led') && incKeys.includes('ledWall')) return false;
         return true;
       })
-      .map((a) => ({
-        id: a.id,
-        label: a.shortTitle || a.name,
-        description: a.description,
-        isBaseIncluded: false,
-        priceDelta: Math.abs(a.priceDelta),
-        badge: `+${formatINR(Math.abs(a.priceDelta))}`,
-      }));
-  }, [basePackage, baseIncludedElements]);
+      .map((a) => {
+        const delta = resolveAddonDelta(a.id, a.priceDelta);
+        return {
+          id: a.id,
+          label: a.shortTitle || a.name,
+          description: a.description,
+          isBaseIncluded: false,
+          priceDelta: delta,
+          badge: `+${formatINR(delta)}`,
+        };
+      });
+  }, [basePackage, baseIncludedElements, getServiceCost]);
 
   // ─── 3. Custom Plan Detection & Pricing Calculation ───
-  const isCustomModified = unselectedIncludedIds.length > 0 || selectedUpgradeIds.length > 0;
+  const isCustomModified =
+    unselectedIncludedIds.length > 0 ||
+    selectedUpgradeIds.length > 0 ||
+    customAlbumSheets !== defaultSheetsForTier;
 
   const { finalPrice, totalDelta, customizedModifications } = useMemo(() => {
     const base = basePackage?.price || 0;
@@ -574,13 +666,36 @@ export function ProposalPageClient() {
       }
     });
 
-    const delta = deductionSum + additionSum;
+    // Album sheet delta if printedAlbum is not unselected
+    let albumSheetDelta = 0;
+    const isAlbumIncluded = !unselectedIncludedIds.includes('inc-printedAlbum');
+    if (isAlbumIncluded && customAlbumSheets !== defaultSheetsForTier) {
+      const sheetDiff = customAlbumSheets - defaultSheetsForTier;
+      albumSheetDelta = sheetDiff * 350;
+      mods.push({
+        id: 'mod-album-sheets',
+        label: `${customAlbumSheets} Sheets Karizma Album (${sheetDiff > 0 ? `+${sheetDiff}` : sheetDiff} sheets)`,
+        badge: sheetDiff > 0 ? `+${formatINR(albumSheetDelta)}` : formatINR(albumSheetDelta),
+        isDeduction: sheetDiff < 0,
+        amount: albumSheetDelta,
+      });
+    }
+
+    const delta = deductionSum + additionSum + albumSheetDelta;
     return {
       finalPrice: Math.max(0, base + delta),
       totalDelta: delta,
       customizedModifications: mods,
     };
-  }, [basePackage?.price, baseIncludedElements, unselectedIncludedIds, availableUpgrades, selectedUpgradeIds]);
+  }, [
+    basePackage?.price,
+    baseIncludedElements,
+    unselectedIncludedIds,
+    availableUpgrades,
+    selectedUpgradeIds,
+    customAlbumSheets,
+    defaultSheetsForTier,
+  ]);
 
   // ─── 4. Derive Active Features & At-a-Glance Chips Dynamically (Zero Hardcoded Chips) ───
   const { baseFeatures, activeFeatures, activeChips } = useMemo(() => {
@@ -839,6 +954,7 @@ export function ProposalPageClient() {
   const handleResetToDefault = () => {
     setUnselectedIncludedIds([]);
     setSelectedUpgradeIds([]);
+    setCustomAlbumSheets(selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35);
     updateUrlParams(
       activeEventId,
       activePlan,
@@ -967,6 +1083,24 @@ export function ProposalPageClient() {
       if (activeFeatures.drone) requestedServices.push('Drone');
       if (activeFeatures.ledWall) requestedServices.push('LED Wall');
 
+      // Build historical opted services snapshot dynamically
+      const activeItemsForSnapshot: Array<{ serviceSlug: string; quantity: number }> = [];
+      if (activeFeatures.traditionalPhoto) activeItemsForSnapshot.push({ serviceSlug: 'traditional-camera', quantity: 1 });
+      if (activeFeatures.traditionalVideo) activeItemsForSnapshot.push({ serviceSlug: 'traditional-video', quantity: 1 });
+      if (activeFeatures.candidPhoto) activeItemsForSnapshot.push({ serviceSlug: 'candid-photography', quantity: 1 });
+      if (activeFeatures.candidVideo) activeItemsForSnapshot.push({ serviceSlug: 'candid-cinematography', quantity: 1 });
+      if (activeFeatures.drone) activeItemsForSnapshot.push({ serviceSlug: 'drone-aerial-coverage', quantity: 1 });
+      if (activeFeatures.ledWall) activeItemsForSnapshot.push({ serviceSlug: 'led-wall', quantity: 1 });
+      if (activeFeatures.outdoorShoot) activeItemsForSnapshot.push({ serviceSlug: 'outdoor-shoot', quantity: 1 });
+      if (activeFeatures.printedAlbum) {
+        activeItemsForSnapshot.push({ serviceSlug: 'photo-album', quantity: customAlbumSheets });
+      }
+      const { snapshots: optedServicesSnapshot } = calculateCustomizedEventPrice(
+        activeItemsForSnapshot,
+        services,
+        durationTier
+      );
+
       const snapshot: PackageSnapshot = {
         id: basePackage?.id || 'pkg-custom',
         name: basePackage?.name || 'Custom Proposal',
@@ -997,6 +1131,9 @@ export function ProposalPageClient() {
         packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
         quotedAmount: finalPrice,
         requestedServices,
+        durationTier,
+        optedServices: optedServicesSnapshot,
+        totalAmount: finalPrice,
         notes: combinedNotes,
         status: 'Pending',
         termsAccepted: true,
@@ -1533,63 +1670,115 @@ export function ProposalPageClient() {
                       return (
                         <div
                           key={el.id}
-                          className={`group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
+                          className={`group flex flex-col gap-2 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
                             isChecked
                               ? 'border-[#C5B378]/40 bg-[#061E1C]/90 hover:border-[#D8C78E]'
                               : 'border-rose-500/40 bg-rose-950/30'
                           }`}
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleToggleBaseIncluded(el.id)}
-                            className="flex-1 flex items-center gap-2.5 text-left"
-                          >
-                            <div
-                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                                isChecked
-                                  ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
-                                  : 'border-rose-400 bg-transparent text-rose-300'
-                              }`}
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBaseIncluded(el.id)}
+                              className="flex-1 flex items-center gap-2.5 text-left"
                             >
-                              {isChecked ? (
-                                <Check className="h-3 w-3 stroke-[3]" />
-                              ) : (
-                                <Minus className="h-3 w-3 stroke-[3]" />
-                              )}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                  className={`text-xs font-semibold ${
-                                    isChecked
-                                      ? 'text-white'
-                                      : 'text-rose-200 line-through decoration-rose-400/60'
-                                  }`}
-                                >
-                                  {el.label}
-                                </span>
-                                {el.tamilLabel && (
-                                  <span className="text-[10px] text-[#D8C78E]/80 hidden sm:inline">
-                                    ({el.tamilLabel})
-                                  </span>
+                              <div
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                  isChecked
+                                    ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
+                                    : 'border-rose-400 bg-transparent text-rose-300'
+                                }`}
+                              >
+                                {isChecked ? (
+                                  <Check className="h-3 w-3 stroke-[3]" />
+                                ) : (
+                                  <Minus className="h-3 w-3 stroke-[3]" />
                                 )}
                               </div>
-                              <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
-                                {el.description}
-                              </p>
-                            </div>
-                          </button>
 
-                          <span
-                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                              isChecked
-                                ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
-                                : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
-                            }`}
-                          >
-                            {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
-                          </span>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`text-xs font-semibold ${
+                                      isChecked
+                                        ? 'text-white'
+                                        : 'text-rose-200 line-through decoration-rose-400/60'
+                                    }`}
+                                  >
+                                    {el.label}
+                                  </span>
+                                  {el.tamilLabel && (
+                                    <span className="text-[10px] text-[#D8C78E]/80 hidden sm:inline">
+                                      ({el.tamilLabel})
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                  {el.description}
+                                </p>
+                              </div>
+                            </button>
+
+                            <span
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                isChecked
+                                  ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
+                                  : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                              }`}
+                            >
+                              {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
+                            </span>
+                          </div>
+
+                          {/* Interactive Album Sheet Stepper (when Album is included) */}
+                          {el.featureKey === 'printedAlbum' && isChecked && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#C5B378]/15 mt-0.5">
+                              <span className="text-[11px] text-[#D8C78E] font-medium flex items-center gap-1.5">
+                                <BookOpen className="h-3.5 w-3.5" />
+                                Custom Album Sheets:
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center rounded border border-[#C5B378]/40 bg-[#072421]">
+                                  <button
+                                    type="button"
+                                    disabled={customAlbumSheets <= 20}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCustomAlbumSheets((s) => Math.max(20, s - 5));
+                                    }}
+                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
+                                    title="Decrease 5 sheets"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="px-2.5 py-0.5 font-bold text-white text-xs font-mono border-x border-[#C5B378]/30">
+                                    {customAlbumSheets} sheets
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={customAlbumSheets >= 60}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCustomAlbumSheets((s) => Math.min(60, s + 5));
+                                    }}
+                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
+                                    title="Increase 5 sheets"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <span className="text-[10px] text-[#E6ECEB]/70 font-mono">
+                                  {customAlbumSheets !== defaultSheetsForTier ? (
+                                    <span className={customAlbumSheets > defaultSheetsForTier ? 'text-[#D8C78E] font-bold' : 'text-amber-300 font-bold'}>
+                                      {customAlbumSheets > defaultSheetsForTier ? `+${formatINR((customAlbumSheets - defaultSheetsForTier) * 350)}` : formatINR((customAlbumSheets - defaultSheetsForTier) * 350)}
+                                    </span>
+                                  ) : (
+                                    'Standard Tier Base'
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

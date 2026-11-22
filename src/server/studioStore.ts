@@ -17,6 +17,11 @@ import {
   PaymentRecord,
   PortfolioItem,
   StudioBill,
+  DurationTier,
+  OptedServiceSnapshot,
+  PackageAvailableAddon,
+  PackageIncludedService,
+  StudioService,
   StudioEvent,
   StudioPackage,
   StudioState,
@@ -30,8 +35,15 @@ import {
   getEventModel,
   getEventProjectModel,
   getPackageModel,
+  getServiceModel,
 } from './mongodb';
 import { formatINR } from '../lib/utils';
+import {
+  DEFAULT_STUDIO_PACKAGES,
+  DEFAULT_STUDIO_SERVICES,
+  calculatePackageBasePrice,
+  formatServiceLineItem,
+} from '../lib/pricing';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 
@@ -435,12 +447,62 @@ export function normalizePackageDeliverables(raw: unknown): PackageDeliverables 
   return {};
 }
 
-export function toPlainPackage(doc: unknown): StudioPackage {
+export function toPlainService(doc: unknown): StudioService {
+  const s = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
+    ? (doc as { toObject: () => Record<string, unknown> }).toObject()
+    : doc) as Record<string, unknown> || {};
+
+  return {
+    id: String(s.slug || s.id || s._id || ''),
+    name: String(s.name || ''),
+    slug: String(s.slug || ''),
+    tamilName: s.tamilName ? String(s.tamilName) : undefined,
+    category: String(s.category || 'Photography'),
+    description: String(s.description || ''),
+    pricingType: s.pricingType === 'per_unit' ? 'per_unit' : 'tiered',
+    unitLabel: String(s.unitLabel || 'unit'),
+    unitPrice: typeof s.unitPrice === 'number' ? s.unitPrice : null,
+    minQuantity: typeof s.minQuantity === 'number' ? s.minQuantity : 1,
+    pricing: s.pricing && typeof s.pricing === 'object' ? (s.pricing as StudioService['pricing']) : null,
+    isActive: s.isActive !== false,
+    displayOrder: typeof s.displayOrder === 'number' ? s.displayOrder : 0,
+    createdAt: s.createdAt ? String(s.createdAt) : undefined,
+    updatedAt: s.updatedAt ? String(s.updatedAt) : undefined,
+  };
+}
+
+export async function getServicesFromMongo(): Promise<StudioService[]> {
+  try {
+    const serviceModel = await getServiceModel();
+    if (!serviceModel) {
+      return DEFAULT_STUDIO_SERVICES;
+    }
+    const docs = await serviceModel.find({}).sort({ displayOrder: 1, createdAt: 1 }).lean().exec();
+    if (!docs || docs.length === 0) {
+      // Seed default master services
+      try {
+        await serviceModel.insertMany(DEFAULT_STUDIO_SERVICES);
+        const seeded = await serviceModel.find({}).sort({ displayOrder: 1 }).lean().exec();
+        return seeded.map(toPlainService);
+      } catch (seedErr) {
+        console.warn('Could not seed services into Mongo:', seedErr);
+        return DEFAULT_STUDIO_SERVICES;
+      }
+    }
+    return docs.map(toPlainService);
+  } catch (err) {
+    console.warn('Error fetching services from Mongo, using defaults:', err);
+    return DEFAULT_STUDIO_SERVICES;
+  }
+}
+
+export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT_STUDIO_SERVICES): StudioPackage {
   const p = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
     ? (doc as { toObject: () => Record<string, unknown> }).toObject()
     : doc) as Record<string, unknown> || {};
 
-  const priceNum = typeof p.price === 'number' ? p.price : Number(p.price) || 0;
+  // Dynamically resolve package price from services collection
+  const dynamicPrice = calculatePackageBasePrice(p as Partial<StudioPackage>, services);
 
   // Legacy migration / backward compatibility:
   // If eventId is missing, resolve gracefully from category or default to 'wedding'
@@ -467,10 +529,13 @@ export function toPlainPackage(doc: unknown): StudioPackage {
         : undefined,
     name: String(p.name || ''),
     audience: String(p.audience || ''),
-    price: priceNum,
+    price: dynamicPrice,
     currency: String(p.currency || 'INR'),
-    priceLabel: p.priceLabel ? String(p.priceLabel) : formatINR(priceNum),
+    priceLabel: formatINR(dynamicPrice),
     duration: String(p.duration || ''),
+    durationTier: (p.durationTier as DurationTier) || undefined,
+    includedServices: Array.isArray(p.includedServices) ? p.includedServices : undefined,
+    availableAddons: Array.isArray(p.availableAddons) ? p.availableAddons : undefined,
     highlighted: Boolean(p.highlighted),
     featured: Boolean(p.featured),
     deliverables: normalizePackageDeliverables(p.deliverables),
@@ -489,18 +554,34 @@ export function toPlainPackage(doc: unknown): StudioPackage {
   };
 }
 
-export async function getPackagesFromMongo(): Promise<StudioPackage[]> {
+export async function getPackagesFromMongo(services?: StudioService[]): Promise<StudioPackage[]> {
   const packageModel = await getPackageModel();
   if (!packageModel) {
     throw new Error('Package data is unavailable.');
   }
 
-  const mongoPackages = await packageModel
+  const effectiveServices = services || (await getServicesFromMongo());
+  let mongoPackages = await packageModel
     .find({})
     .sort({ sortOrder: 1, createdAt: 1 })
     .lean()
     .exec();
-  return mongoPackages.map(toPlainPackage);
+
+  if (!mongoPackages || mongoPackages.length === 0) {
+    try {
+      await packageModel.insertMany(DEFAULT_STUDIO_PACKAGES);
+      mongoPackages = await packageModel
+        .find({})
+        .sort({ sortOrder: 1, createdAt: 1 })
+        .lean()
+        .exec();
+    } catch (seedErr) {
+      console.warn('Could not seed packages into Mongo:', seedErr);
+      return DEFAULT_STUDIO_PACKAGES.map((pkg) => toPlainPackage(pkg, effectiveServices));
+    }
+  }
+
+  return mongoPackages.map((pkg) => toPlainPackage(pkg, effectiveServices));
 }
 
 function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; packageSnapshot?: unknown }): BookingRequest {
@@ -520,6 +601,11 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; package
     ...(Array.isArray(booking.requestedServices) && booking.requestedServices.length
       ? { requestedServices: booking.requestedServices }
       : {}),
+    ...(booking.durationTier ? { durationTier: booking.durationTier } : {}),
+    ...(Array.isArray(booking.optedServices) && booking.optedServices.length
+      ? { optedServices: booking.optedServices }
+      : {}),
+    ...(booking.totalAmount !== undefined ? { totalAmount: Number(booking.totalAmount) } : {}),
     notes: String(booking.notes || ''),
     status: booking.status,
     ...(booking.source ? { source: String(booking.source) } : {}),
@@ -562,6 +648,11 @@ function toPlainEventProject(project: EventProject & { _id?: unknown; packageSna
     payments: Array.isArray(project.payments) ? project.payments : [],
     deliveryNotes: String(project.deliveryNotes || ''),
     ...(Array.isArray(project.requestedServices) ? { requestedServices: project.requestedServices } : {}),
+    ...(project.durationTier ? { durationTier: project.durationTier } : {}),
+    ...(Array.isArray(project.optedServices) && project.optedServices.length
+      ? { optedServices: project.optedServices }
+      : {}),
+    ...(project.totalAmount !== undefined ? { totalAmount: Number(project.totalAmount) } : {}),
     ...(project.packageSnapshot ? { packageSnapshot: project.packageSnapshot as PackageSnapshot } : {}),
   };
 }
@@ -586,6 +677,12 @@ function toPlainBill(b: any): StudioBill {
       ? {
           basePackageName: String(b.packageDetails.basePackageName || ''),
           tierLabel: b.packageDetails.tierLabel || 'Signature',
+          durationTier: b.packageDetails.durationTier || b.durationTier || undefined,
+          optedServices: Array.isArray(b.packageDetails.optedServices)
+            ? b.packageDetails.optedServices
+            : Array.isArray(b.optedServices)
+            ? b.optedServices
+            : undefined,
           includedServices: Array.isArray(b.packageDetails.includedServices)
             ? b.packageDetails.includedServices
                 .filter(
@@ -658,6 +755,11 @@ function toPlainBill(b: any): StudioBill {
           ta: String(term.ta || ''),
         }))
       : [],
+    optedServices: Array.isArray(b.optedServices)
+      ? b.optedServices
+      : Array.isArray(b.packageDetails?.optedServices)
+      ? b.packageDetails.optedServices
+      : undefined,
     createdAt: String(b.createdAt),
   };
 }
@@ -666,6 +768,8 @@ export async function getStudioState(): Promise<StudioState> {
   if (!memoryCache) {
     memoryCache = await readFromDisk();
   }
+
+  const plainServices = await getServicesFromMongo();
 
   const bookings = await requireBookingModel();
   const mongoBookings = await bookings.find({}).sort({ createdAt: -1 }).lean().exec();
@@ -691,10 +795,13 @@ export async function getStudioState(): Promise<StudioState> {
       ...(plain.phone ? { phone: String(plain.phone) } : {}),
       ...(plain.time ? { time: String(plain.time) } : {}),
       ...(Array.isArray(plain.requestedServices) ? { requestedServices: plain.requestedServices } : {}),
+      ...(plain.durationTier ? { durationTier: plain.durationTier } : {}),
+      ...(Array.isArray(plain.optedServices) ? { optedServices: plain.optedServices } : {}),
       ...(plain.packageId ? { packageId: String(plain.packageId) } : {}),
       ...(plain.packageName ? { packageName: String(plain.packageName) } : {}),
       ...(plain.packageTier ? { packageTier: plain.packageTier } : {}),
       ...(plain.totalPackageAmount !== undefined ? { totalPackageAmount: Number(plain.totalPackageAmount) } : {}),
+      ...(plain.totalAmount !== undefined ? { totalAmount: Number(plain.totalAmount) } : {}),
       ...(plain.paymentStatus ? { paymentStatus: String(plain.paymentStatus) } : {}),
     } satisfies CalendarDayEntry;
   });
@@ -711,11 +818,12 @@ export async function getStudioState(): Promise<StudioState> {
     console.warn('Failed to load bills from Mongo:', err);
   }
 
-  const plainPackages = await getPackagesFromMongo();
+  const plainPackages = await getPackagesFromMongo(plainServices);
   const plainEvents = await getEventsFromMongo();
 
   memoryCache = {
     ...memoryCache,
+    services: plainServices,
     packages: plainPackages,
     events: plainEvents,
     bookings: plainBookings,
@@ -749,6 +857,9 @@ export async function createBookingOnServer(input: {
   packageName?: string;
   quotedAmount?: number;
   requestedServices?: BookingServiceOption[];
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
+  totalAmount?: number;
   notes: string;
   status?: BookingStatus;
   source?: string;
@@ -797,6 +908,9 @@ export async function createBookingOnServer(input: {
     requestedServices: input.requestedServices?.length
       ? input.requestedServices
       : undefined,
+    durationTier: input.durationTier,
+    optedServices: input.optedServices?.length ? input.optedServices : undefined,
+    totalAmount: input.totalAmount ?? resolvedQuotedAmount,
     notes: input.notes.trim(),
     status: input.status || 'Pending',
     source: input.source?.trim() || undefined,
@@ -925,12 +1039,15 @@ export async function processBookingOnServer(input: {
         phone: targetBooking.phone,
         time: resolvedEventTime || targetBooking.eventTime,
         requestedServices: targetBooking.requestedServices,
+        durationTier: targetBooking.durationTier,
+        optedServices: targetBooking.optedServices,
         packageId: pkg ? pkg.id : targetBooking.packageId,
         packageName: resolvedPkgName,
         packageTier: pkg
           ? (pkg.sortOrder === 3 ? 'Premium' : pkg.sortOrder === 1 ? 'Essential' : 'Signature')
           : undefined,
         totalPackageAmount: input.quotedAmount,
+        totalAmount: targetBooking.totalAmount ?? input.quotedAmount,
       };
       const existingIdx = targetBooking.id
         ? updatedCalendar.findIndex(
@@ -1660,6 +1777,8 @@ export async function addEventPaymentOnServer(
     packageDetails: {
       basePackageName,
       tierLabel,
+      durationTier: project.durationTier || matchingBooking?.durationTier || matchingCalendarEntry?.durationTier,
+      optedServices: project.optedServices || matchingBooking?.optedServices || matchingCalendarEntry?.optedServices,
       includedServices,
       deliverables,
       requiredCrew,
@@ -1680,6 +1799,7 @@ export async function addEventPaymentOnServer(
       en: t.en,
       ta: t.ta,
     })),
+    optedServices: project.optedServices || matchingBooking?.optedServices || matchingCalendarEntry?.optedServices,
     createdAt: new Date().toISOString(),
   };
 
@@ -1943,4 +2063,20 @@ export async function reorderPackagesOnServer(orderedIds: string[]): Promise<Stu
   };
 
   return memoryCache;
+}
+
+export async function saveServiceOnServer(service: Partial<StudioService>): Promise<StudioService> {
+  const serviceModel = await getServiceModel();
+  if (!serviceModel) throw new Error('Service storage unavailable.');
+  const slug = service.slug || service.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  if (!slug) throw new Error('Service slug is required.');
+  const updated = await serviceModel
+    .findOneAndUpdate(
+      { slug },
+      { $set: { ...service, slug, updatedAt: new Date().toISOString() } },
+      { new: true, upsert: true }
+    )
+    .lean()
+    .exec();
+  return toPlainService(updated);
 }
