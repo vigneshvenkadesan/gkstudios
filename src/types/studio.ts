@@ -131,6 +131,66 @@ export interface PaymentRecord {
   amount: number;
   method: PaymentMethod;
   referenceNote?: string;
+  billId?: string;
+  billNumber?: string;
+}
+
+export interface StudioBillServiceItem {
+  key: string; // "traditionalPhoto" | "traditionalVideo" | "candidPhoto" | "candidVideo" | "drone" | "ledWall" | "outdoorShoot" | "printedAlbum"
+  en: string; // "Traditional Photography"
+  ta: string; // "பாரம்பரியப் புகைப்படம்"
+}
+
+export interface StudioBill {
+  _id?: string;
+  id: string;
+  billNumber: string; // Auto-incremented sequential ID, e.g., "GKS-2026-0001"
+  billDate?: string;
+  bookingId: string; // Reference to the booking / project
+  paymentId: string; // Reference to the specific payment transaction just added
+  clientName: string;
+  clientPhone: string;
+  eventDetails: {
+    eventName: string; // e.g., "Wedding"
+    tamilEventName: string; // e.g., "திருமணம்"
+    eventDate: string; // e.g., "2026-12-14"
+    eventTime: string; // e.g., "06:00 AM (Morning Muhurtham)"
+    venue: string;
+    schedulePlan: string; // e.g., "Full-Day / 2-Day • Morning & Evening"
+  };
+  crewDetails?: {
+    assignedCrew?: string;
+  };
+  packageDetails: {
+    basePackageName: string; // e.g., "Signature Wedding"
+    tierLabel?: 'Essential' | 'Signature' | 'Premium' | string;
+    includedServices?: StudioBillServiceItem[];
+    deliverables?: Record<string, string>;
+    requiredCrew: string[]; // Derived from package deliverables & customizer
+    inclusions?: string[];
+    addons: Array<{
+      label: string;
+      priceDelta: number;
+    }>;
+    excludedItems?: Array<{
+      label: string;
+      priceDelta: number;
+    }>;
+  };
+  financials: {
+    totalPackageAmount: number;
+    amountPaidNow: number; // Amount recorded in this payment entry
+    totalPaidToDate: number; // Cumulative paid including this transaction
+    balanceDue: number; // Remaining balance (totalPackageAmount - totalPaidToDate)
+    paymentMode: string; // e.g., "UPI", "Cash", "Bank Transfer"
+    paymentDate: string;
+    paymentStage: string; // e.g., "Advance (20%)", "Event Day", "Final Settlement"
+  };
+  termsAndConditions: Array<{
+    en: string;
+    ta: string;
+  }>;
+  createdAt: string;
 }
 
 export interface StageUpdateInfo {
@@ -141,6 +201,7 @@ export interface StageUpdateInfo {
 export interface EventProject {
   id: string;
   bookingId?: string;
+  calendarEntryId?: string;
   referenceCode: string;
   clientName: string;
   phone: string;
@@ -181,6 +242,29 @@ export interface PackageDeliverables {
   [key: string]: string | undefined; // Allow dynamic category keys
 }
 
+export interface PackageIncludedFeatures {
+  traditionalPhoto: boolean;
+  traditionalVideo: boolean;
+  candidPhoto: boolean;
+  candidVideo: boolean;
+  drone: boolean;
+  ledWall: boolean;
+  outdoorShoot: boolean;
+  printedAlbum: boolean;
+}
+
+export interface PackageAddon {
+  id: string; // e.g., "drone", "candid-video", "remove-album"
+  label: string; // e.g., "Drone Aerial Coverage"
+  priceDelta: number; // Positive for upgrades (+8000), negative for downgrades (-5000)
+  type: "upgrade" | "downgrade";
+}
+
+export interface PackageCustomizer {
+  included: PackageIncludedFeatures;
+  addons: PackageAddon[];
+}
+
 export interface PackageSnapshot {
   id: string;
   name: string;
@@ -188,6 +272,15 @@ export interface PackageSnapshot {
   duration?: string;
   deliverables?: PackageDeliverables | string[];
   snapshotAt: string;
+  basePackageName?: string;
+  basePrice?: number;
+  selectedTier?: number;
+  customizerState?: {
+    additions?: string[];
+    exclusions?: string[];
+    netAdjustment?: number;
+    liveTotal?: number;
+  };
 }
 
 export interface StudioPackage {
@@ -203,6 +296,7 @@ export interface StudioPackage {
   duration: string; // e.g., "Up to 4 Hours"
   highlighted?: boolean; // Marks the recommended/"Most Popular" tier
   deliverables: PackageDeliverables;
+  customizer?: PackageCustomizer;
   category?: string; // Matches eventId
   image?: string;
   imageUrl?: string;
@@ -254,6 +348,11 @@ export interface CalendarDayEntry {
   phone?: string;
   time?: string;
   requestedServices?: BookingServiceOption[];
+  packageId?: string;
+  packageName?: string;
+  packageTier?: 'Essential' | 'Signature' | 'Premium';
+  totalPackageAmount?: number;
+  paymentStatus?: string;
 }
 
 export interface StudioState {
@@ -263,4 +362,5 @@ export interface StudioState {
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
   eventProjects: EventProject[];
+  bills?: StudioBill[];
 }

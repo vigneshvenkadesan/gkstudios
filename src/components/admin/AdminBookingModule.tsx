@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -30,8 +30,10 @@ import {
 import { EventSelector } from '@/src/components/common/EventSelector';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
+import { getPackageTierInfo } from '@/src/lib/packageTiers';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import {
   Dialog,
   DialogContent,
@@ -110,8 +112,41 @@ function getStatusBadge(status: BookingStatus) {
 }
 
 export function AdminBookingModule() {
-  const { bookings, packages, submitBooking, processBookingAction, updateBookingStatus } =
+  const { bookings, packages, events, submitBooking, processBookingAction, updateBookingStatus } =
     useStudio();
+
+  const activeEvents = useMemo(() => {
+    return (events || [])
+      .filter((e) => (e.status ?? 'active') === 'active')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [events]);
+
+  const activePackages = useMemo(() => {
+    return (packages || [])
+      .filter((p) => (p.status ?? 'active') === 'active')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [packages]);
+
+  const getPackagesForEvent = useCallback(
+    (eventCatOrId?: string) => {
+      if (!eventCatOrId) return activePackages;
+      const normalized = eventCatOrId.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const matchedEvent = activeEvents.find(
+        (e) =>
+          e.id.toLowerCase() === normalized ||
+          e.name.toLowerCase() === eventCatOrId.toLowerCase() ||
+          e.id.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+      );
+      const targetId = matchedEvent ? matchedEvent.id.toLowerCase() : normalized;
+      const filtered = activePackages.filter(
+        (p) =>
+          (p.eventId || 'wedding').toLowerCase() === targetId ||
+          (p.eventId || '').toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+      );
+      return filtered.length > 0 ? filtered : activePackages;
+    },
+    [activeEvents, activePackages]
+  );
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -524,7 +559,21 @@ export function AdminBookingModule() {
                     </div>
                   </TableCell>
                   <TableCell className="px-5 py-5">
-                    <p className="text-base font-medium text-white">{booking.eventType}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-base font-medium text-white">{booking.eventType}</span>
+                      {(() => {
+                        const ev = activeEvents.find(
+                          (e) =>
+                            e.name.toLowerCase() === booking.eventType.toLowerCase() ||
+                            e.id.toLowerCase() === booking.eventType.toLowerCase()
+                        );
+                        return ev?.tamilName ? (
+                          <span className="text-[11px] text-[#D8C78E] font-medium bg-[#C5B378]/15 px-1.5 py-0.5 rounded border border-[#C5B378]/25">
+                            {ev.tamilName}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
                     <p className="mt-1 text-sm text-[#E6ECEB]/75 min-w-[180px] max-w-[320px]">
                       {booking.venue}
                     </p>
@@ -534,9 +583,9 @@ export function AdminBookingModule() {
                       {formatDateDisplay(booking.preferredDate)}
                     </p>
                     {booking.eventTime && (
-                      <p className="mt-1 font-mono text-xs text-[#E6ECEB]/70 tabular-nums">
+                      <span className="mt-1 inline-block font-mono text-xs text-[#D8C78E] bg-[#072421] px-1.5 py-0.5 rounded border border-[#C5B378]/25 tabular-nums">
                         {booking.eventTime}
-                      </p>
+                      </span>
                     )}
                     {booking.endDate && (
                       <p className="mt-1 font-mono text-xs text-[#D8C78E] tabular-nums whitespace-nowrap">
@@ -555,17 +604,41 @@ export function AdminBookingModule() {
                     )}
                   </TableCell>
                   <TableCell className="px-5 py-5">
-                    <p className="text-base text-white">{booking.packageName}</p>
-                    <p className="mt-1 font-mono text-sm text-[#D8C78E] tabular-nums">
-                      {booking.packageId === CUSTOM_PACKAGE_ID
-                        ? 'Custom quote'
-                        : formatINR(booking.quotedAmount)}
-                    </p>
-                    {booking.requestedServices?.length ? (
-                      <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-[#E6ECEB]/70">
-                        {booking.requestedServices.join(', ')}
-                      </p>
-                    ) : null}
+                    {(() => {
+                      const matchedPkg = activePackages.find((p) => p.id === booking.packageId);
+                      const tier = getPackageTierInfo(
+                        matchedPkg ||
+                          (booking.packageSnapshot?.selectedTier === 1
+                            ? 1
+                            : booking.packageSnapshot?.selectedTier === 3
+                            ? 3
+                            : 2)
+                      );
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${tier.badgeClass}`}
+                            >
+                              {tier.tier}
+                            </span>
+                            <span className="text-sm font-semibold text-white">
+                              {booking.packageName}
+                            </span>
+                          </div>
+                          <p className="font-mono text-sm text-[#D8C78E] tabular-nums font-bold">
+                            {booking.packageId === CUSTOM_PACKAGE_ID
+                              ? 'Custom quote'
+                              : formatINR(booking.quotedAmount)}
+                          </p>
+                          {booking.requestedServices?.length ? (
+                            <p className="max-w-[240px] text-[11px] leading-relaxed text-[#E6ECEB]/70">
+                              {booking.requestedServices.join(', ')}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="px-5 py-5">{getStatusBadge(booking.status)}</TableCell>
                   <TableCell className="px-5 py-5 text-right">
@@ -605,8 +678,12 @@ export function AdminBookingModule() {
       </div>
 
       {/* Add Direct Lead / Offline Referral Dialog */}
-      <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
+      <Dialog open={isAddLeadOpen} onOpenChange={(open) => { if (!open && !isCreatingLead) setIsAddLeadOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isCreatingLead) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isCreatingLead) e.preventDefault(); }}
+          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+        >
           <DialogHeader>
             <div className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-[#D8C78E]" />
@@ -655,7 +732,13 @@ export function AdminBookingModule() {
                   label="Ceremony / Event Type"
                   value={leadEventType}
                   onChange={(selectedId, selectedEv) => {
-                    setLeadEventType((selectedEv?.name || selectedId) as EventCategory);
+                    const evName = (selectedEv?.name || selectedId) as EventCategory;
+                    setLeadEventType(evName);
+                    const evPackages = getPackagesForEvent(selectedEv?.id || evName);
+                    if (evPackages.length > 0) {
+                      setLeadPackageId(evPackages[0].id);
+                      setLeadQuotedAmount(evPackages[0].price);
+                    }
                   }}
                   showTamilName={true}
                   required
@@ -742,18 +825,21 @@ export function AdminBookingModule() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-[#D8C78E]">
-                  Package Interest
+                  Package Interest (Tier &amp; Live MongoDB Rate)
                 </label>
                 <select
                   value={leadPackageId}
                   onChange={(e) => handleLeadPackageChange(e.target.value)}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 >
-                  {packages.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({formatINR(p.price)})
-                    </option>
-                  ))}
+                  {getPackagesForEvent(leadEventType).map((p) => {
+                    const tier = getPackageTierInfo(p);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        [{tier.tier}] {p.name} — {formatINR(p.price)}
+                      </option>
+                    );
+                  })}
                   <option value={CUSTOM_PACKAGE_ID}>{CUSTOM_PACKAGE_NAME} (To Discuss)</option>
                 </select>
               </div>
@@ -850,23 +936,15 @@ export function AdminBookingModule() {
               >
                 Cancel
               </Button>
-              <Button
+              <SubmitButton
                 type="submit"
-                disabled={isCreatingLead}
+                isLoading={isCreatingLead}
+                loadingText="Creating Lead..."
+                icon={<Plus className="h-4 w-4 mr-1.5" />}
                 className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
               >
-                {isCreatingLead ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                    Creating Lead...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    Create Lead &amp; Start Tracking
-                  </>
-                )}
-              </Button>
+                Create Lead &amp; Start Tracking
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -877,7 +955,11 @@ export function AdminBookingModule() {
         open={Boolean(activeBooking)}
         onOpenChange={(open) => !open && !isProcessingAction && setActiveBooking(null)}
       >
-        <DialogContent className="max-w-2xl bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isProcessingAction) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isProcessingAction) e.preventDefault(); }}
+          className="max-w-2xl bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+        >
           {activeBooking && (
             <>
               <DialogHeader>
@@ -942,10 +1024,142 @@ export function AdminBookingModule() {
                 </div>
               ) : null}
 
+              {/* Inquired Plan Breakdown (from Live Proposal Intake) */}
+              <div className="rounded-xl border border-[#C5B378]/35 bg-[#072421] p-3.5 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                      Inquiry Plan &amp; Live Customizer Breakdown
+                    </span>
+                    {activeBooking.packageSnapshot?.selectedTier && (
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                          getPackageTierInfo(activeBooking.packageSnapshot.selectedTier).badgeClass
+                        }`}
+                      >
+                        {getPackageTierInfo(activeBooking.packageSnapshot.selectedTier).tier}
+                      </span>
+                    )}
+                  </div>
+                  {activeBooking.eventTime && (
+                    <span className="font-mono text-xs text-[#D8C78E] bg-[#092E2B] px-2 py-0.5 rounded border border-[#C5B378]/25">
+                      Time: {activeBooking.eventTime}
+                    </span>
+                  )}
+                </div>
+
+                {activeBooking.packageSnapshot ? (
+                  <div className="space-y-1.5 text-xs text-[#E6ECEB]/85">
+                    <div className="flex items-center justify-between">
+                      <span>
+                        Base Plan:{' '}
+                        <strong>
+                          {activeBooking.packageSnapshot.basePackageName || activeBooking.packageName}
+                        </strong>
+                      </span>
+                      <span className="font-mono text-[#D8C78E] font-bold">
+                        {formatINR(activeBooking.packageSnapshot.basePrice || activeBooking.quotedAmount)}
+                      </span>
+                    </div>
+
+                    {activeBooking.packageSnapshot.customizerState?.additions?.length ? (
+                      <div className="text-[11px] text-emerald-300 flex flex-wrap gap-1 items-center">
+                        <span className="font-semibold text-emerald-400">Added Upgrades:</span>
+                        {activeBooking.packageSnapshot.customizerState.additions.map((add, i) => (
+                          <span
+                            key={i}
+                            className="bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded"
+                          >
+                            +{add}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {activeBooking.packageSnapshot.customizerState?.exclusions?.length ? (
+                      <div className="text-[11px] text-amber-300 flex flex-wrap gap-1 items-center">
+                        <span className="font-semibold text-amber-400">Excluded Deductions:</span>
+                        {activeBooking.packageSnapshot.customizerState.exclusions.map((ex, i) => (
+                          <span
+                            key={i}
+                            className="bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded"
+                          >
+                            -{ex}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-white/10 font-bold">
+                      <span className="text-[#D8C78E]">Inquired Live Total Rate:</span>
+                      <span className="font-mono text-sm text-emerald-400 font-extrabold">
+                        {formatINR(activeBooking.quotedAmount)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-xs">
+                    <span>
+                      Inquired Package: <strong>{activeBooking.packageName}</strong>
+                    </span>
+                    <span className="font-mono text-sm text-[#D8C78E] font-bold">
+                      {formatINR(activeBooking.quotedAmount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Instant 3-Tier Switcher Bar (Live MongoDB Rates) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-[#D8C78E]">
+                    Switch Base Tier for {activeBooking.eventType} (Live MongoDB Rates)
+                  </label>
+                  <span className="text-[10px] text-[#E6ECEB]/60">Click tier to update quote instantly</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {getPackagesForEvent(activeBooking.eventType)
+                    .filter((p) => (p.sortOrder ?? 2) >= 1 && (p.sortOrder ?? 2) <= 3)
+                    .map((p) => {
+                      const tierInfo = getPackageTierInfo(p);
+                      const isSelected = editPackageId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          disabled={isProcessingAction}
+                          onClick={() => {
+                            setEditPackageId(p.id);
+                            setEditQuote(p.price);
+                          }}
+                          className={`p-2.5 rounded-sm border text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-[#D8C78E] bg-[#114A45] ring-2 ring-[#D8C78E] shadow-md'
+                              : 'border-[#C5B378]/25 bg-[#072421] hover:border-[#D8C78E]/60 hover:bg-[#0E423E]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${tierInfo.badgeClass}`}
+                            >
+                              {tierInfo.tier}
+                            </span>
+                            {isSelected && <span className="text-[10px] text-[#D8C78E] font-bold">✓ Active</span>}
+                          </div>
+                          <p className="font-serif text-xs font-bold text-white mt-1 truncate">{p.name}</p>
+                          <p className="font-mono text-xs font-extrabold text-[#D8C78E] mt-0.5">
+                            {formatINR(p.price)}
+                          </p>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-[#D8C78E]">
-                    Assigned Package
+                    Assigned Package Dropdown
                   </label>
                   <select
                     disabled={isProcessingAction}
@@ -958,11 +1172,14 @@ export function AdminBookingModule() {
                     }}
                     className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                   >
-                    {packages.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
+                    {getPackagesForEvent(activeBooking.eventType).map((p) => {
+                      const tier = getPackageTierInfo(p);
+                      return (
+                        <option key={p.id} value={p.id}>
+                          [{tier.tier}] {p.name} ({formatINR(p.price)})
+                        </option>
+                      );
+                    })}
                     <option value={CUSTOM_PACKAGE_ID}>{CUSTOM_PACKAGE_NAME}</option>
                   </select>
                 </div>

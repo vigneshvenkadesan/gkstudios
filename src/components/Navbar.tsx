@@ -34,10 +34,24 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
   const t = (key: TranslationKey) => translate(locale, key);
 
   useEffect(() => {
+    let ticking = false;
+    let lastScrolled = typeof window !== 'undefined' ? window.scrollY > 36 : false;
+    setIsScrolled(lastScrolled);
+
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 36);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const nowScrolled = window.scrollY > 36;
+          if (nowScrolled !== lastScrolled) {
+            lastScrolled = nowScrolled;
+            setIsScrolled(nowScrolled);
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
-    handleScroll();
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);

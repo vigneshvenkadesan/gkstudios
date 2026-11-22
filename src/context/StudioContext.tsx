@@ -11,6 +11,7 @@ import {
   EventStage,
   PaymentRecord,
   PortfolioItem,
+  StudioBill,
   StudioEvent,
   StudioPackage,
   StudioState,
@@ -71,6 +72,7 @@ interface StudioContextValue {
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
   eventProjects: EventProject[];
+  bills: StudioBill[];
   refreshStudio: () => Promise<void>;
   submitBooking: (input: SubmitBookingInput) => Promise<BookingRequest>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
@@ -360,6 +362,7 @@ export function StudioProvider({
         bookings: state.bookings,
         calendarEntries: state.calendarEntries,
         eventProjects: state.eventProjects,
+        bills: state.bills ?? [],
         refreshStudio,
         submitBooking,
         updateBookingStatus,

@@ -26,16 +26,16 @@ import {
   BOOKING_SERVICE_OPTIONS,
   BookingServiceOption,
   CalendarDayEntry,
-  EVENT_CATEGORIES,
   EventCategory,
-  normalizeEventCategory,
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
 import { useEvents } from '@/src/hooks/useEvents';
+import { getPackageTierInfo } from '@/src/lib/packageTiers';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import {
   Dialog,
@@ -47,7 +47,15 @@ import {
 } from '@/src/components/ui/dialog';
 
 export function AdminScheduleModule() {
-  const { calendarEntries, bookings, upsertCalendarEntry, removeCalendarEntry } = useStudio();
+  const {
+    calendarEntries,
+    bookings,
+    packages,
+    events,
+    eventProjects,
+    upsertCalendarEntry,
+    removeCalendarEntry,
+  } = useStudio();
   const { activeEvents } = useEvents();
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string>(toISODate(new Date()));
@@ -70,9 +78,116 @@ export function AdminScheduleModule() {
   const [notes, setNotes] = useState('');
   const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>([]);
   const [linkedBookingId, setLinkedBookingId] = useState<string | undefined>();
+  const [packageId, setPackageId] = useState<string>('');
+  const [packageName, setPackageName] = useState<string>('');
+  const [packageTier, setPackageTier] = useState<'Essential' | 'Signature' | 'Premium'>('Signature');
+  const [totalPackageAmount, setTotalPackageAmount] = useState<number>(0);
   const [whatsAppModalBooking, setWhatsAppModalBooking] = useState<WhatsAppRecipientDetails | null>(
     null
   );
+
+  const activePackages = useMemo(() => {
+    return (packages || [])
+      .filter((p) => (p.status ?? 'active') === 'active')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [packages]);
+
+  const getPackagesForEvent = useMemo(() => {
+    return (eventCatOrId?: string) => {
+      if (!eventCatOrId) return activePackages;
+      const normalized = eventCatOrId.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const matchedEvent = activeEvents.find(
+        (e) =>
+          e.id.toLowerCase() === normalized ||
+          e.name.toLowerCase() === eventCatOrId.toLowerCase() ||
+          e.id.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+      );
+      const targetId = matchedEvent ? matchedEvent.id.toLowerCase() : normalized;
+      const filtered = activePackages.filter(
+        (p) =>
+          (p.eventId || 'wedding').toLowerCase() === targetId ||
+          (p.eventId || '').toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+      );
+      return filtered.length > 0 ? filtered : activePackages;
+    };
+  }, [activeEvents, activePackages]);
+
+  const getDefaultEventType = () =>
+    activeEvents.find((event) => event.id.toLowerCase() === 'wedding')?.name ||
+    activeEvents[0]?.name ||
+    'Weddings';
+
+  const getEntryPaymentStatus = (entry: CalendarDayEntry) => {
+    if (entry.paymentStatus) return entry.paymentStatus;
+    const project = eventProjects.find(
+      (p) =>
+        (entry.bookingId && p.id === entry.bookingId) ||
+        (entry.clientName && p.clientName.toLowerCase() === entry.clientName.toLowerCase()) ||
+        (entry.date && p.eventDate === entry.date)
+    );
+    if (!project) return null;
+    const totalPaid = project.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const agreed = Number(project.agreedAmount) || 0;
+    if (agreed > 0 && totalPaid >= agreed) {
+      return 'Fully Paid';
+    }
+    if (totalPaid > 0) {
+      return `Advance Paid (${formatINR(totalPaid)})`;
+    }
+    return 'Payment Pending';
+  };
+
+  const getEntryTierInfo = (entry: CalendarDayEntry) => {
+    if (entry.packageTier) {
+      return getPackageTierInfo(
+        entry.packageTier === 'Essential' ? 1 : entry.packageTier === 'Premium' ? 3 : 2
+      );
+    }
+    const matchedBooking = entry.bookingId
+      ? bookings.find((b) => b.id === entry.bookingId)
+      : undefined;
+    const pkgId = entry.packageId || matchedBooking?.packageId;
+    const pkg = packages.find((p) => p.id === pkgId);
+    if (pkg) return getPackageTierInfo(pkg);
+    if (matchedBooking?.packageSnapshot?.selectedTier) {
+      return getPackageTierInfo(matchedBooking.packageSnapshot.selectedTier);
+    }
+    return null;
+  };
+
+  const applyPackageToSchedule = (pkg: (typeof activePackages)[0]) => {
+    setPackageId(pkg.id);
+    setPackageName(pkg.name);
+    const tierInfo = getPackageTierInfo(pkg);
+    setPackageTier(tierInfo.tier);
+    setTotalPackageAmount(pkg.price);
+
+    // Auto-fill services based on package inclusions
+    const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
+    const inc = pkg.customizer?.included;
+    if (inc?.candidPhoto || pkg.sortOrder === 2 || pkg.sortOrder === 3) {
+      newServices.push('Candid Camera');
+    }
+    if (inc?.candidVideo || pkg.sortOrder === 3) {
+      newServices.push('Candid Video');
+    }
+    if (inc?.drone || pkg.sortOrder === 3) {
+      newServices.push('Drone');
+    }
+    if (inc?.ledWall) {
+      newServices.push('LED Wall');
+    }
+    setRequestedServices(newServices);
+
+    // Auto-fill crew
+    if (pkg.sortOrder === 3) {
+      setAssignedCrew('G Krishna (Lead) + 2 Photographers + 2 Cinematographers + Drone Pilot');
+    } else if (pkg.sortOrder === 2) {
+      setAssignedCrew('G Krishna (Lead) + 2 Photographers + 1 Videographer');
+    } else {
+      setAssignedCrew('G Krishna + Traditional Photo & Video Crew');
+    }
+  };
 
   const handleSelectDate = (isoDate: string, entry?: CalendarDayEntry) => {
     setSelectedDate(isoDate);
@@ -81,10 +196,14 @@ export function AdminScheduleModule() {
     if (entry) {
       setStatus(entry.status);
       setTitle(entry.title);
+      const matchingEvent = activeEvents.find(
+        (event) => event.name === entry.eventType || event.id === entry.eventType
+      );
       setEventType(
-        entry.eventType === 'Studio Maintenance' || entry.eventType === 'Muhurtham Rush'
-          ? entry.eventType
-          : normalizeEventCategory(entry.eventType)
+        (matchingEvent?.name || entry.eventType || getDefaultEventType()) as
+          | EventCategory
+          | 'Studio Maintenance'
+          | 'Muhurtham Rush'
       );
       setClientName(entry.clientName || '');
       setVenue(entry.venue || '');
@@ -105,18 +224,41 @@ export function AdminScheduleModule() {
           ? matchedBooking.requestedServices
           : []
       );
+
+      const foundPkgId = entry.packageId || matchedBooking?.packageId || '';
+      const foundPkg = packages.find((p) => p.id === foundPkgId);
+      setPackageId(foundPkgId);
+      setPackageName(entry.packageName || matchedBooking?.packageName || foundPkg?.name || '');
+      setPackageTier(
+        entry.packageTier || (foundPkg ? getPackageTierInfo(foundPkg).tier : 'Signature')
+      );
+      setTotalPackageAmount(
+        entry.totalPackageAmount || matchedBooking?.quotedAmount || foundPkg?.price || 0
+      );
     } else {
       setStatus('Booked');
       setTitle('');
-      setEventType('Weddings');
+      const defaultEventType = getDefaultEventType();
+      setEventType(defaultEventType as EventCategory);
       setClientName('');
       setVenue('');
       setPhone('');
       setEventTime('');
-      setAssignedCrew('G Krishna + Studio Unit');
       setNotes('');
-      setRequestedServices(['Traditional Camera', 'Candid Camera', 'Traditional Video']);
       setLinkedBookingId(undefined);
+
+      const evPkgs = getPackagesForEvent(defaultEventType);
+      const signaturePkg = evPkgs.find((p) => (p.sortOrder ?? 2) === 2) || evPkgs[0];
+      if (signaturePkg) {
+        applyPackageToSchedule(signaturePkg);
+      } else {
+        setPackageId('');
+        setPackageName('');
+        setPackageTier('Signature');
+        setTotalPackageAmount(0);
+        setAssignedCrew('G Krishna + Studio Unit');
+        setRequestedServices(['Traditional Camera', 'Candid Camera', 'Traditional Video']);
+      }
     }
     setDialogOpen(true);
   };
@@ -129,8 +271,8 @@ export function AdminScheduleModule() {
 
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !title.trim()) {
-      toast.error('Please select a date and provide an event or block title.');
+    if (!selectedDate || !title.trim() || !eventType || !venue.trim() || !phone.trim()) {
+      toast.error('Please provide the event title, category, venue, and phone number.');
       return;
     }
 
@@ -150,6 +292,10 @@ export function AdminScheduleModule() {
         notes: notes.trim() || undefined,
         bookingId: linkedBookingId,
         requestedServices: requestedServices.length > 0 ? requestedServices : undefined,
+        packageId: packageId || undefined,
+        packageName: packageName || undefined,
+        packageTier: packageTier || undefined,
+        totalPackageAmount: totalPackageAmount || undefined,
       });
 
       toast.success(`Schedule updated for ${formatDateDisplay(selectedDate)} (${status}).`);
@@ -310,11 +456,37 @@ export function AdminScheduleModule() {
                       className="w-full text-left rounded-xl border border-[#C5B378]/25 bg-[#092E2B] p-4 transition-all hover:border-[#D8C78E] hover:bg-[#134E49]/60 cursor-pointer"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
                             {entry.status}
                           </Badge>
                           <span className="text-base font-bold text-white">{entry.title}</span>
+                          {(() => {
+                            const tier = getEntryTierInfo(entry);
+                            return tier ? (
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${tier.badgeClass}`}
+                              >
+                                {tier.tier}
+                              </span>
+                            ) : null;
+                          })()}
+                          {(() => {
+                            const payStatus = getEntryPaymentStatus(entry);
+                            return payStatus ? (
+                              <span
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                                  payStatus.includes('Fully Paid')
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : payStatus.includes('Advance')
+                                    ? 'bg-[#C5B378]/20 text-[#D8C78E] border-[#C5B378]/40'
+                                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {payStatus}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                         {entry.time && (
                           <span className="font-mono text-xs text-[#D8C78E] bg-[#072421] px-2 py-0.5 rounded border border-[#C5B378]/20">
@@ -511,8 +683,12 @@ export function AdminScheduleModule() {
       </Card>
 
       {/* Edit / Manage Selected Event Details Modal */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && !isSaving) setDialogOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSaving) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSaving) e.preventDefault(); }}
+          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+        >
           <DialogHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -630,16 +806,29 @@ export function AdminScheduleModule() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Event Category</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Category *</label>
                 <select
+                  required
                   value={eventType}
-                  onChange={(e) =>
-                    setEventType(
-                      e.target.value as EventCategory | 'Studio Maintenance' | 'Muhurtham Rush'
-                    )
-                  }
+                  onChange={(e) => {
+                    const newType = e.target.value as
+                      | EventCategory
+                      | 'Studio Maintenance'
+                      | 'Muhurtham Rush';
+                    setEventType(newType);
+                    const evPkgs = getPackagesForEvent(newType);
+                    const sig = evPkgs.find((p) => (p.sortOrder ?? 2) === 2) || evPkgs[0];
+                    if (sig) applyPackageToSchedule(sig);
+                  }}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 >
+                  {!activeEvents.some((event) => event.name === eventType) &&
+                    eventType !== 'Muhurtham Rush' &&
+                    eventType !== 'Studio Maintenance' && (
+                      <option value={eventType} className="bg-[#072421] text-white">
+                        {eventType}
+                      </option>
+                    )}
                   <optgroup label="Ceremonies & Events" className="bg-[#051B19] text-[#D8C78E]">
                     {activeEvents.map((ev) => (
                       <option key={ev.id} value={ev.name} className="bg-[#072421] text-white">
@@ -655,9 +844,10 @@ export function AdminScheduleModule() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Venue / Location</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Venue / Location *</label>
                 <input
                   type="text"
+                  required
                   value={venue}
                   onChange={(e) => setVenue(e.target.value)}
                   placeholder="Mandapam / Hall / City"
@@ -665,6 +855,84 @@ export function AdminScheduleModule() {
                 />
               </div>
             </div>
+
+            {/* Live MongoDB Package Tier Switcher for Selected Event */}
+            {eventType !== 'Studio Maintenance' && eventType !== 'Muhurtham Rush' && (
+              <div className="space-y-2 rounded-xl border border-[#C5B378]/30 bg-[#072421] p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                    Package Tier (Live MongoDB Rates &amp; Crew Allocation)
+                  </span>
+                  <span className="text-[10px] text-[#E6ECEB]/60">Select tier to auto-configure equipment</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {getPackagesForEvent(eventType)
+                    .filter((p) => (p.sortOrder ?? 2) >= 1 && (p.sortOrder ?? 2) <= 3)
+                    .map((pkg) => {
+                      const tier = getPackageTierInfo(pkg);
+                      const isSelected = packageId === pkg.id;
+                      return (
+                        <button
+                          key={pkg.id}
+                          type="button"
+                          onClick={() => applyPackageToSchedule(pkg)}
+                          className={`p-2.5 rounded-sm border text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-[#D8C78E] bg-[#114A45] ring-2 ring-[#D8C78E] shadow-md'
+                              : 'border-[#C5B378]/25 bg-[#092E2B] hover:border-[#D8C78E]/60 hover:bg-[#0E423E]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${tier.badgeClass}`}
+                            >
+                              {tier.tier}
+                            </span>
+                            {isSelected && <span className="text-[10px] text-[#D8C78E] font-bold">✓ Active</span>}
+                          </div>
+                          <p className="font-serif text-xs font-bold text-white mt-1 truncate">{pkg.name}</p>
+                          <p className="font-mono text-xs font-extrabold text-[#D8C78E] mt-0.5">
+                            {formatINR(pkg.price)}
+                          </p>
+                        </button>
+                      );
+                    })}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-medium text-[#D8C78E]">Package Dropdown</label>
+                    <select
+                      value={packageId}
+                      onChange={(e) => {
+                        const found = packages.find((p) => p.id === e.target.value);
+                        if (found) applyPackageToSchedule(found);
+                      }}
+                      className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                    >
+                      {getPackagesForEvent(eventType).map((p) => {
+                        const tier = getPackageTierInfo(p);
+                        return (
+                          <option key={p.id} value={p.id}>
+                            [{tier.tier}] {p.name} ({formatINR(p.price)})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-medium text-[#D8C78E]">Contract / Agreed Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={totalPackageAmount}
+                      onChange={(e) => setTotalPackageAmount(Number(e.target.value))}
+                      className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 font-mono text-xs text-white tabular-nums focus:border-[#D8C78E] focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -679,9 +947,10 @@ export function AdminScheduleModule() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Phone Number</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Phone Number *</label>
                 <input
                   type="tel"
+                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g., 9842211900"
@@ -783,23 +1052,15 @@ export function AdminScheduleModule() {
                 >
                   Cancel
                 </Button>
-                <Button
+                <SubmitButton
                   type="submit"
-                  disabled={isSaving}
+                  isLoading={isSaving}
+                  loadingText="Saving..."
+                  icon={<CalendarPlus className="h-4 w-4 mr-1.5" />}
                   className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
                 >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <CalendarPlus className="h-4 w-4 mr-1.5" />
-                      {editingEntryId ? 'Update Schedule Entry' : 'Save Schedule Entry'}
-                    </>
-                  )}
-                </Button>
+                  {editingEntryId ? 'Update Schedule Entry' : 'Save Schedule Entry'}
+                </SubmitButton>
               </div>
             </DialogFooter>
           </form>

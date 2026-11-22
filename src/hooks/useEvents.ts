@@ -24,7 +24,7 @@ export function useEvents(options: UseEventsOptions = {}) {
       if (options.category) params.set('category', options.category);
 
       const url = `/api/events${params.toString() ? `?${params.toString()}` : ''}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) {
         throw new Error(`Failed to fetch events: ${res.statusText}`);
       }

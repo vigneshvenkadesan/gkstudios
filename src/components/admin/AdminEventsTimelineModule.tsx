@@ -8,9 +8,16 @@ import {
   Plus,
   Search,
   Trash2,
+  FileText,
+  MessageCircle,
+  Printer,
+  Download,
+  Eye,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import {
   EVENT_CATEGORIES,
   EVENT_STAGES,
@@ -19,9 +26,14 @@ import {
   EventProject,
   EventStage,
   PaymentMethod,
+  PaymentRecord,
+  StudioBill,
 } from '@/src/types/studio';
 import { EventSelector } from '@/src/components/common/EventSelector';
-import { formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { STUDIO_INFO } from '@/src/data/initialStudioData';
+import { BilingualBillModal } from './BilingualBillModal';
+import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
@@ -57,6 +69,7 @@ export function AdminEventsTimelineModule() {
   const {
     eventProjects,
     packages,
+    bills,
     createEventProject,
     deleteEventProject,
     updateEventStage,
@@ -70,6 +83,10 @@ export function AdminEventsTimelineModule() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
+  // Bilingual Bill Modal State
+  const [selectedBillForModal, setSelectedBillForModal] = useState<StudioBill | null>(null);
+  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+
   const [stageNoteInput, setStageNoteInput] = useState('');
   const [editAgreed, setEditAgreed] = useState(0);
   const [editExtras, setEditExtras] = useState(0);
@@ -82,6 +99,14 @@ export function AdminEventsTimelineModule() {
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<PaymentMethod>('UPI / GPay');
   const [payRef, setPayRef] = useState('');
+
+  // Async action loading states for double-click prevention
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [isSavingFinancials, setIsSavingFinancials] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [downloadingBillId, setDownloadingBillId] = useState<string | null>(null);
+  const [sharingBillId, setSharingBillId] = useState<string | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -157,7 +182,8 @@ export function AdminEventsTimelineModule() {
 
   const handleSaveFinancials = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProject) return;
+    if (!activeProject || isSavingFinancials) return;
+    setIsSavingFinancials(true);
     try {
       await updateEventFinancials(activeProject.id, {
         agreedAmount: Number(editAgreed) || 0,
@@ -169,6 +195,8 @@ export function AdminEventsTimelineModule() {
       toast.success('Billing and delivery notes saved.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save billing.');
+    } finally {
+      setIsSavingFinancials(false);
     }
   };
 
@@ -188,14 +216,40 @@ export function AdminEventsTimelineModule() {
     }
   };
 
+  const getBillForPayment = (pay: PaymentRecord): StudioBill | undefined => {
+    if (pay.billId) {
+      const found = bills.find((b) => b.id === pay.billId);
+      if (found) return found;
+    }
+    if (pay.billNumber) {
+      const found = bills.find((b) => b.billNumber === pay.billNumber);
+      if (found) return found;
+    }
+    return bills.find((b) => b.paymentId === pay.id);
+  };
+
+  const handleSharePaymentBillOnWhatsApp = async (bill: StudioBill) => {
+    if (sharingBillId === bill.id) return;
+    setSharingBillId(bill.id);
+    try {
+      await shareBillPdfWhatsApp(bill);
+      toast.success(`Bill receipt opened for sharing.`);
+    } catch {
+      toast.error('Unable to share bill on WhatsApp.');
+    } finally {
+      setSharingBillId(null);
+    }
+  };
+
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProject) return;
+    if (!activeProject || isRecordingPayment) return;
     const numericAmount = Number(payAmount);
     if (!numericAmount || numericAmount <= 0) {
       toast.error('Enter a valid payment amount in INR.');
       return;
     }
+    setIsRecordingPayment(true);
     try {
       await addEventPayment(activeProject.id, {
         date: payDate,
@@ -204,20 +258,26 @@ export function AdminEventsTimelineModule() {
         method: payMethod,
         referenceNote: payRef.trim() || undefined,
       });
-      toast.success(`Recorded ${formatINR(numericAmount)} payment for ${activeProject.clientName}.`);
+      toast.success(
+        `Recorded ${formatINR(numericAmount)} payment for ${activeProject.clientName}. Bilingual bill auto-generated!`
+      );
       setPayAmount('');
       setPayRef('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to record payment.');
+    } finally {
+      setIsRecordingPayment(false);
     }
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCreatingProject) return;
     if (!newClientName.trim() || !newPhone.trim() || !newVenue.trim()) {
       toast.error('Please enter client name, phone, and venue.');
       return;
     }
+    setIsCreatingProject(true);
     try {
       const created = await createEventProject({
         clientName: newClientName,
@@ -239,6 +299,8 @@ export function AdminEventsTimelineModule() {
       openProjectDetail(created);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create project.');
+    } finally {
+      setIsCreatingProject(false);
     }
   };
 
@@ -393,8 +455,12 @@ export function AdminEventsTimelineModule() {
       )}
 
       {/* Event Lifecycle & Payment Ledger Detail Dialog */}
-      <Dialog open={Boolean(activeProject)} onOpenChange={(open) => !open && setActiveProjectId(null)}>
-        <DialogContent className="max-w-4xl bg-[#092E2B] border-[#C5B378]/35">
+      <Dialog open={Boolean(activeProject)} onOpenChange={(open) => { if (!open && !isRecordingPayment && !isSavingFinancials) setActiveProjectId(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isRecordingPayment || isSavingFinancials) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isRecordingPayment || isSavingFinancials) e.preventDefault(); }}
+          className="max-w-4xl bg-[#092E2B] border-[#C5B378]/35"
+        >
           {activeProject && (
             <>
               <DialogHeader>
@@ -538,7 +604,15 @@ export function AdminEventsTimelineModule() {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button type="submit" size="sm" variant="outline">Save changes</Button>
+                    <SubmitButton
+                      type="submit"
+                      size="sm"
+                      variant="outline"
+                      isLoading={isSavingFinancials}
+                      loadingText="Saving..."
+                    >
+                      Save changes
+                    </SubmitButton>
                   </div>
                 </form>
 
@@ -569,46 +643,123 @@ export function AdminEventsTimelineModule() {
                             <TableHead>Mode</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
+                            <TableHead className="text-center">Invoice / Bill</TableHead>
                             <TableHead className="text-right">Remove</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {activeProject.payments.map((pay) => (
-                            <TableRow key={pay.id}>
-                              <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
-                                {formatDateDisplay(pay.date)}
-                              </TableCell>
-                              <TableCell className="text-xs text-white">{pay.label}</TableCell>
-                              <TableCell className="text-xs text-[#D8C78E]">{pay.method}</TableCell>
-                              <TableCell className="text-xs text-[#E6ECEB]/70">
-                                {pay.referenceNote || '—'}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-xs font-semibold text-emerald-300 tabular-nums">
-                                {formatINR(pay.amount)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <button
-                                  type="button"
-                                  aria-label="Delete payment entry"
-                                  onClick={async () => {
-                                    try {
-                                      await deleteEventPayment(activeProject.id, pay.id);
-                                      toast.info('Payment entry removed.');
-                                    } catch (error) {
-                                      toast.error(
-                                        error instanceof Error
-                                          ? error.message
-                                          : 'Unable to remove payment.'
-                                      );
-                                    }
-                                  }}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {activeProject.payments.map((pay) => {
+                            const bill = getBillForPayment(pay);
+                            return (
+                              <TableRow key={pay.id}>
+                                <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
+                                  {formatDateDisplay(pay.date)}
+                                </TableCell>
+                                <TableCell className="text-xs text-white">{pay.label}</TableCell>
+                                <TableCell className="text-xs text-[#D8C78E]">{pay.method}</TableCell>
+                                <TableCell className="text-xs text-[#E6ECEB]/70">
+                                  {pay.referenceNote || '—'}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-xs font-semibold text-emerald-300 tabular-nums">
+                                  {formatINR(pay.amount)}
+                                </TableCell>
+                                <TableCell className="text-center whitespace-nowrap">
+                                  {bill ? (
+                                    <div className="inline-flex items-center gap-1.5 bg-[#061E1C] border border-[#C5B378]/30 px-2 py-1 rounded">
+                                      <span className="font-mono text-[11px] font-bold text-[#D8C78E]">
+                                        {bill.billNumber}
+                                      </span>
+                                      {/* Direct 1-Click PDF Download */}
+                                      <button
+                                        type="button"
+                                        title="Download PDF directly"
+                                        disabled={downloadingBillId === bill.id}
+                                        onClick={async () => {
+                                          try {
+                                            setDownloadingBillId(bill.id);
+                                            await downloadBillPdf(bill);
+                                            toast.success(`Downloaded ${bill.billNumber}-${bill.clientName}.pdf`);
+                                          } catch {
+                                            setSelectedBillForModal(bill);
+                                            setIsBillModalOpen(true);
+                                          } finally {
+                                            setDownloadingBillId(null);
+                                          }
+                                        }}
+                                        className="text-[#D8C78E] hover:text-white p-0.5 rounded transition-colors cursor-pointer disabled:opacity-50"
+                                        aria-label="Direct Download PDF"
+                                      >
+                                        {downloadingBillId === bill.id ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Download className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+                                      {/* Preview & Print Modal */}
+                                      <button
+                                        type="button"
+                                        title="Preview & Print Bilingual Bill"
+                                        onClick={() => {
+                                          setSelectedBillForModal(bill);
+                                          setIsBillModalOpen(true);
+                                        }}
+                                        className="text-[#E6ECEB]/70 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                                        aria-label="Preview Bilingual Bill"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </button>
+                                      {/* Native WhatsApp Share */}
+                                      <button
+                                        type="button"
+                                        title="Share Bill PDF via WhatsApp"
+                                        disabled={sharingBillId === bill.id}
+                                        onClick={() => handleSharePaymentBillOnWhatsApp(bill)}
+                                        className="text-emerald-400 hover:text-emerald-300 p-0.5 rounded transition-colors cursor-pointer disabled:opacity-50"
+                                        aria-label="Share Bill PDF via WhatsApp"
+                                      >
+                                        {sharingBillId === bill.id ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <MessageCircle className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-[#E6ECEB]/50">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <button
+                                    type="button"
+                                    aria-label="Delete payment entry"
+                                    disabled={deletingPaymentId === pay.id}
+                                    onClick={async () => {
+                                      try {
+                                        setDeletingPaymentId(pay.id);
+                                        await deleteEventPayment(activeProject.id, pay.id);
+                                        toast.info('Payment entry removed.');
+                                      } catch (error) {
+                                        toast.error(
+                                          error instanceof Error
+                                            ? error.message
+                                            : 'Unable to remove payment.'
+                                        );
+                                      } finally {
+                                        setDeletingPaymentId(null);
+                                      }
+                                    }}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded text-red-300 hover:bg-red-900/40 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {deletingPaymentId === pay.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -624,39 +775,43 @@ export function AdminEventsTimelineModule() {
                       <label className="block text-[11px] text-[#D8C78E]">Date</label>
                       <input
                         type="date"
+                        disabled={isRecordingPayment}
                         value={payDate}
                         onChange={(e) => setPayDate(e.target.value)}
-                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2 font-mono text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2 font-mono text-xs text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                       />
                     </div>
                     <div className="sm:col-span-3 space-y-1">
                       <label className="block text-[11px] text-[#D8C78E]">Label</label>
                       <input
                         type="text"
+                        disabled={isRecordingPayment}
                         value={payLabel}
                         onChange={(e) => setPayLabel(e.target.value)}
                         placeholder="Advance / Final Balance"
-                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                       />
                     </div>
                     <div className="sm:col-span-2 space-y-1">
                       <label className="block text-[11px] text-[#D8C78E]">Amount (₹)</label>
                       <input
                         type="number"
+                        disabled={isRecordingPayment}
                         required
                         min={1}
                         value={payAmount}
                         onChange={(e) => setPayAmount(e.target.value)}
                         placeholder="15000"
-                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2.5 font-mono text-xs text-white tabular-nums focus:border-[#D8C78E] focus:outline-none"
+                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2.5 font-mono text-xs text-white tabular-nums focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                       />
                     </div>
                     <div className="sm:col-span-2 space-y-1">
                       <label className="block text-[11px] text-[#D8C78E]">Mode</label>
                       <select
+                        disabled={isRecordingPayment}
                         value={payMethod}
                         onChange={(e) => setPayMethod(e.target.value as PaymentMethod)}
-                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                       >
                         {PAYMENT_METHODS.map((m) => (
                           <option key={m} value={m}>
@@ -668,15 +823,21 @@ export function AdminEventsTimelineModule() {
                     <div className="sm:col-span-3 flex gap-2">
                       <input
                         type="text"
+                        disabled={isRecordingPayment}
                         value={payRef}
                         onChange={(e) => setPayRef(e.target.value)}
                         placeholder="Ref # / Note"
-                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-2.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                       />
-                      <Button type="submit" size="sm">
-                        <IndianRupee className="h-3.5 w-3.5" />
+                      <SubmitButton
+                        type="submit"
+                        size="sm"
+                        isLoading={isRecordingPayment}
+                        loadingText="Recording Payment & Generating Bill..."
+                        icon={<IndianRupee className="h-3.5 w-3.5" />}
+                      >
                         Add
-                      </Button>
+                      </SubmitButton>
                     </div>
                   </form>
                 </div>
@@ -687,8 +848,12 @@ export function AdminEventsTimelineModule() {
       </Dialog>
 
       {/* Create New Offline Event Project Modal */}
-      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="max-w-lg bg-[#092E2B] border-[#C5B378]/35">
+      <Dialog open={createModalOpen} onOpenChange={(open) => { if (!open && !isCreatingProject) setCreateModalOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isCreatingProject) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isCreatingProject) e.preventDefault(); }}
+          className="max-w-lg bg-[#092E2B] border-[#C5B378]/35"
+        >
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>Track delivery progress and payments.</DialogDescription>
@@ -808,14 +973,35 @@ export function AdminEventsTimelineModule() {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isCreatingProject}
+                onClick={() => setCreateModalOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit">Create Project</Button>
+              <SubmitButton
+                type="submit"
+                isLoading={isCreatingProject}
+                loadingText="Creating Project..."
+              >
+                Create Project
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bilingual Tax Invoice / Bill Modal */}
+      <BilingualBillModal
+        bill={selectedBillForModal}
+        isOpen={isBillModalOpen}
+        onClose={() => {
+          setIsBillModalOpen(false);
+          setSelectedBillForModal(null);
+        }}
+      />
     </div>
   );
 }

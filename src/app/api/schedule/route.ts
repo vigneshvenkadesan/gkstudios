@@ -8,9 +8,15 @@ import { CalendarDayEntry } from '@/src/types/studio';
 export async function PUT(request: Request) {
   try {
     const entry = (await request.json()) as CalendarDayEntry;
-    if (!entry.date || !entry.title) {
+    if (
+      !entry.date ||
+      !entry.title?.trim() ||
+      !entry.eventType?.trim() ||
+      !entry.venue?.trim() ||
+      !entry.phone?.trim()
+    ) {
       return NextResponse.json(
-        { error: 'Date and schedule title are required.' },
+        { error: 'Date, schedule title, event category, venue, and phone number are required.' },
         { status: 400 }
       );
     }

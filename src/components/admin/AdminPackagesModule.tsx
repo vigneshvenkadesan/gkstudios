@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import NextImage from 'next/image';
 import {
   AlertCircle,
   ArrowDown,
@@ -24,6 +25,7 @@ import {
   Image as ImageIcon,
   Layers,
   LayoutGrid,
+  Loader2,
   Package as PackageIcon,
   Pencil,
   Plus,
@@ -42,7 +44,10 @@ import {
   EVENT_CATEGORIES,
   EVENT_CATEGORY_GROUPS,
   EventCategory,
+  PackageAddon,
+  PackageCustomizer,
   PackageDeliverables,
+  PackageIncludedFeatures,
   StudioEvent,
   StudioPackage,
 } from '@/src/types/studio';
@@ -50,6 +55,8 @@ import { formatINR } from '@/src/lib/utils';
 import { useEvents } from '@/src/hooks/useEvents';
 import { EventSelector } from '@/src/components/common/EventSelector';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
+import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
 import {
@@ -216,6 +223,251 @@ export function getPackageTier(pkg: StudioPackage): PackageTier {
   return 'essential';
 }
 
+const DEFAULT_INCLUDED_FEATURES: PackageIncludedFeatures = {
+  traditionalPhoto: true,
+  traditionalVideo: true,
+  candidPhoto: false,
+  candidVideo: false,
+  drone: false,
+  ledWall: false,
+  outdoorShoot: false,
+  printedAlbum: true,
+};
+
+const DEFAULT_CUSTOMIZER_ADDONS: PackageAddon[] = [
+  { id: 'candid-photo', label: 'Candid Photography', priceDelta: 8000, type: 'upgrade' },
+  { id: 'candid-video', label: 'Candid Cinema & 3-Min Film', priceDelta: 12000, type: 'upgrade' },
+  { id: 'drone', label: 'Drone Aerial Coverage', priceDelta: 8000, type: 'upgrade' },
+  { id: 'extra-frame-16x24', label: 'Extra 16×24 Wall Frame', priceDelta: 2500, type: 'upgrade' },
+  { id: 'remove-album', label: 'Digital-Only (Remove Printed Album)', priceDelta: -4000, type: 'downgrade' },
+];
+
+const INCLUDED_FEATURE_CONFIG: { key: keyof PackageIncludedFeatures; label: string }[] = [
+  { key: 'traditionalPhoto', label: 'Traditional Photo' },
+  { key: 'traditionalVideo', label: 'Traditional Video' },
+  { key: 'candidPhoto', label: 'Candid Photo' },
+  { key: 'candidVideo', label: 'Candid Cinema' },
+  { key: 'drone', label: 'Drone Aerial' },
+  { key: 'ledWall', label: 'Live LED Wall' },
+  { key: 'outdoorShoot', label: 'Outdoor Shoot' },
+  { key: 'printedAlbum', label: 'Printed Album' },
+];
+
+function PackageCustomizerSection({
+  included,
+  onChangeIncluded,
+  addons,
+  onChangeAddons,
+  addonLabelInput,
+  setAddonLabelInput,
+  addonPriceDeltaInput,
+  setAddonPriceDeltaInput,
+  addonTypeInput,
+  setAddonTypeInput,
+}: {
+  included: PackageIncludedFeatures;
+  onChangeIncluded: (newInc: PackageIncludedFeatures) => void;
+  addons: PackageAddon[];
+  onChangeAddons: (newAddons: PackageAddon[]) => void;
+  addonLabelInput: string;
+  setAddonLabelInput: (val: string) => void;
+  addonPriceDeltaInput: number | '';
+  setAddonPriceDeltaInput: (val: number | '') => void;
+  addonTypeInput: 'upgrade' | 'downgrade';
+  setAddonTypeInput: (val: 'upgrade' | 'downgrade') => void;
+}) {
+  const handleToggleIncluded = (key: keyof PackageIncludedFeatures) => {
+    onChangeIncluded({
+      ...included,
+      [key]: !included[key],
+    });
+  };
+
+  const handleRemoveAddon = (index: number) => {
+    const next = [...addons];
+    next.splice(index, 1);
+    onChangeAddons(next);
+  };
+
+  const handleAddAddon = () => {
+    if (!addonLabelInput.trim() || addonPriceDeltaInput === '') {
+      toast.error('Please enter add-on title and price delta.');
+      return;
+    }
+    const rawDelta = Number(addonPriceDeltaInput);
+    const priceDelta = addonTypeInput === 'downgrade' ? -Math.abs(rawDelta) : Math.abs(rawDelta);
+    const slug =
+      addonLabelInput
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '') || `addon-${Date.now()}`;
+
+    onChangeAddons([
+      ...addons,
+      {
+        id: slug,
+        label: addonLabelInput.trim(),
+        priceDelta,
+        type: addonTypeInput,
+      },
+    ]);
+    setAddonLabelInput('');
+    setAddonPriceDeltaInput('');
+    setAddonTypeInput('upgrade');
+    toast.success(`Add-on "${addonLabelInput.trim()}" added.`);
+  };
+
+  return (
+    <div className="space-y-4 border-t border-[#C5B378]/20 pt-4">
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#D8C78E]" />
+          Proposal Customizer & Add-ons Configuration (customizer)
+        </h4>
+        <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
+          Configures the interactive checklist and dynamic add-on price recalculator on the Proposal page (<code className="text-[#D8C78E]">/packages/proposal</code>).
+        </p>
+      </div>
+
+      {/* 1. Base Included Features */}
+      <div className="space-y-2 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] block">
+          Base Included Features (Checkboxes)
+        </span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {INCLUDED_FEATURE_CONFIG.map(({ key, label }) => {
+            const isChecked = Boolean(included[key]);
+            return (
+              <label
+                key={key}
+                className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+                  isChecked
+                    ? 'border-[#D8C78E]/60 bg-[#0E423E] text-white font-medium'
+                    : 'border-[#C5B378]/15 bg-[#092E2B]/50 text-[#E6ECEB]/60 hover:border-[#C5B378]/30'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => handleToggleIncluded(key)}
+                  className="h-3.5 w-3.5 rounded border-[#C5B378]/40 bg-[#072421] text-[#C5B378] accent-[#C5B378]"
+                />
+                <span className="truncate">{label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2. Proposal Add-ons & Downgrades */}
+      <div className="space-y-2.5 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E]">
+            Proposal Add-ons & Downgrade Swaps ({addons.length})
+          </span>
+          <span className="text-[10px] text-[#E6ECEB]/50">Upgrades (+) & Downgrades (−)</span>
+        </div>
+
+        {/* Existing Add-ons List */}
+        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+          {addons.length === 0 ? (
+            <p className="text-xs text-[#E6ECEB]/50 italic p-2 text-center">
+              No custom add-ons configured. Add one below.
+            </p>
+          ) : (
+            addons.map((addon, idx) => {
+              const isDowngrade = addon.type === 'downgrade' || addon.priceDelta < 0;
+              return (
+                <div
+                  key={`${addon.id}-${idx}`}
+                  className="flex items-center justify-between gap-2 p-2 rounded-md bg-[#092E2B] border border-[#C5B378]/15 text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
+                        isDowngrade
+                          ? 'bg-rose-950/60 border border-rose-500/30 text-rose-300'
+                          : 'bg-[#C5B378]/20 border border-[#C5B378]/30 text-[#D8C78E]'
+                      }`}
+                    >
+                      {isDowngrade ? 'Downgrade' : 'Upgrade'}
+                    </span>
+                    <span className="text-white font-medium truncate">{addon.label}</span>
+                    <span className="text-[10px] text-[#E6ECEB]/40 font-mono hidden sm:inline">
+                      ({addon.id})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`font-semibold font-mono text-xs ${
+                        isDowngrade ? 'text-rose-300' : 'text-[#D8C78E]'
+                      }`}
+                    >
+                      {addon.priceDelta > 0 ? `+${formatINR(addon.priceDelta)}` : formatINR(addon.priceDelta)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAddon(idx)}
+                      className="p-1 text-[#E6ECEB]/40 hover:text-rose-400 transition-colors"
+                      title="Remove add-on"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Add New Add-on Input Row */}
+        <div className="pt-2 border-t border-[#C5B378]/15 space-y-1.5">
+          <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
+            + Add Proposal Add-on or Downgrade Option
+          </span>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={addonLabelInput}
+              onChange={(e) => setAddonLabelInput(e.target.value)}
+              placeholder="Add-on title (e.g. Drone Aerial Coverage)"
+              className="h-8 flex-[2] rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+            />
+            <select
+              value={addonTypeInput}
+              onChange={(e) => setAddonTypeInput(e.target.value as 'upgrade' | 'downgrade')}
+              className="h-8 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none shrink-0"
+            >
+              <option value="upgrade">Upgrade (+)</option>
+              <option value="downgrade">Downgrade (−)</option>
+            </select>
+            <input
+              type="number"
+              value={addonPriceDeltaInput}
+              onChange={(e) =>
+                setAddonPriceDeltaInput(e.target.value === '' ? '' : Math.abs(Number(e.target.value)))
+              }
+              placeholder="Amount (e.g. 8000)"
+              className="h-8 w-28 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none shrink-0 font-mono"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddAddon}
+              className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-3 shrink-0"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminPackagesModule() {
   const { packages, portfolio, addPackage, updatePackage, deletePackage, reorderPackages } =
     useStudio();
@@ -284,6 +536,13 @@ export function AdminPackagesModule() {
   const [newCustomCategoryInput, setNewCustomCategoryInput] = useState('');
   const [newCustomDetailInput, setNewCustomDetailInput] = useState('');
 
+  // Customizer State for New Package
+  const [newCustomizerIncluded, setNewCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
+  const [newCustomizerAddons, setNewCustomizerAddons] = useState<PackageAddon[]>(DEFAULT_CUSTOMIZER_ADDONS);
+  const [newAddonLabel, setNewAddonLabel] = useState('');
+  const [newAddonPriceDelta, setNewAddonPriceDelta] = useState<number | ''>('');
+  const [newAddonType, setNewAddonType] = useState<'upgrade' | 'downgrade'>('upgrade');
+
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
   const [editEventId, setEditEventId] = useState('wedding');
@@ -303,6 +562,13 @@ export function AdminPackagesModule() {
   const [editCustomCategoryInput, setEditCustomCategoryInput] = useState('');
   const [editCustomDetailInput, setEditCustomDetailInput] = useState('');
 
+  // Customizer State for Editing Package
+  const [editCustomizerIncluded, setEditCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
+  const [editCustomizerAddons, setEditCustomizerAddons] = useState<PackageAddon[]>(DEFAULT_CUSTOMIZER_ADDONS);
+  const [editAddonLabel, setEditAddonLabel] = useState('');
+  const [editAddonPriceDelta, setEditAddonPriceDelta] = useState<number | ''>('');
+  const [editAddonType, setEditAddonType] = useState<'upgrade' | 'downgrade'>('upgrade');
+
   // Delete confirmation dialog
   const [deletingPackage, setDeletingPackage] = useState<StudioPackage | null>(null);
 
@@ -312,6 +578,7 @@ export function AdminPackagesModule() {
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
 
   // Global package stats
   const totalCount = packages.length;
@@ -647,6 +914,10 @@ export function AdminPackagesModule() {
         duration: newDuration.trim(),
         category: newEventId, // Matches eventId per schema requirement
         deliverables: newDeliverables,
+        customizer: {
+          included: newCustomizerIncluded,
+          addons: newCustomizerAddons,
+        },
         imageUrl: newImageUrl.trim() || undefined,
         highlighted: isSig,
         featured: isSig,
@@ -673,6 +944,11 @@ export function AdminPackagesModule() {
         'Albums & Photo Frames': '30-Sheet Layflat Karizma Photo Album',
         'Digital Deliverables': 'Full Event Edited Video + Complete Raw Footage Drive',
       });
+      setNewCustomizerIncluded(DEFAULT_INCLUDED_FEATURES);
+      setNewCustomizerAddons(DEFAULT_CUSTOMIZER_ADDONS);
+      setNewAddonLabel('');
+      setNewAddonPriceDelta('');
+      setNewAddonType('upgrade');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create package.');
     } finally {
@@ -696,6 +972,20 @@ export function AdminPackagesModule() {
     setEditDeliverables(normalizePackageDeliverables(pkg.deliverables));
     setEditStatus(pkg.status === 'inactive' ? 'inactive' : 'active');
     setEditDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
+
+    // Initialize customizer
+    setEditCustomizerIncluded({
+      ...DEFAULT_INCLUDED_FEATURES,
+      ...(pkg.customizer?.included || {}),
+    });
+    setEditCustomizerAddons(
+      pkg.customizer?.addons && pkg.customizer.addons.length > 0
+        ? JSON.parse(JSON.stringify(pkg.customizer.addons))
+        : JSON.parse(JSON.stringify(DEFAULT_CUSTOMIZER_ADDONS))
+    );
+    setEditAddonLabel('');
+    setEditAddonPriceDelta('');
+    setEditAddonType('upgrade');
   };
 
   // Submit edit package
@@ -728,6 +1018,10 @@ export function AdminPackagesModule() {
         duration: editDuration.trim(),
         category: editEventId, // Matches eventId per schema requirement
         deliverables: editDeliverables,
+        customizer: {
+          included: editCustomizerIncluded,
+          addons: editCustomizerAddons,
+        },
         imageUrl: editImageUrl.trim(),
         highlighted: isSig,
         featured: isSig,
@@ -762,6 +1056,8 @@ export function AdminPackagesModule() {
 
   // Quick toggle status
   const handleToggleStatus = async (pkg: StudioPackage) => {
+    if (loadingActionId) return;
+    setLoadingActionId(`status-${pkg.id}`);
     const nextStatus = (pkg.status ?? 'active') === 'active' ? 'inactive' : 'active';
     try {
       await updatePackage(pkg.id, { status: nextStatus });
@@ -770,11 +1066,15 @@ export function AdminPackagesModule() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle package status.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   // Quick toggle display on portfolio
   const handleTogglePortfolio = async (pkg: StudioPackage) => {
+    if (loadingActionId) return;
+    setLoadingActionId(`portfolio-${pkg.id}`);
     const nextDisplay = pkg.displayOnPortfolio === false ? true : false;
     try {
       await updatePackage(pkg.id, { displayOnPortfolio: nextDisplay });
@@ -783,11 +1083,15 @@ export function AdminPackagesModule() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle portfolio visibility.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   // Quick toggle highlighted
   const handleToggleHighlighted = async (pkg: StudioPackage) => {
+    if (loadingActionId) return;
+    setLoadingActionId(`highlight-${pkg.id}`);
     const nextHighlight = !Boolean(pkg.highlighted || pkg.featured);
     try {
       await updatePackage(pkg.id, {
@@ -802,11 +1106,14 @@ export function AdminPackagesModule() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle badge.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   // Move sort order up or down
   const handleMoveOrder = async (index: number, direction: 'up' | 'down') => {
+    if (loadingActionId) return;
     const newIdx = direction === 'up' ? index - 1 : index + 1;
     if (newIdx < 0 || newIdx >= sortedPackages.length) return;
 
@@ -815,11 +1122,14 @@ export function AdminPackagesModule() {
     newOrderList.splice(newIdx, 0, moved);
 
     const orderedIds = newOrderList.map((p) => p.id);
+    setLoadingActionId(`order-${moved.id}`);
     try {
       await reorderPackages(orderedIds);
       toast.success('Package display order updated.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to reorder packages.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
@@ -849,9 +1159,13 @@ export function AdminPackagesModule() {
           {/* Image Banner */}
           {pkgImg ? (
             <div className="relative aspect-[21/9] w-full overflow-hidden bg-[#041513] border-b border-[#C5B378]/15">
-              <img
+              <NextImage
                 src={pkgImg}
                 alt={pkg.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                placeholder="blur"
+                blurDataURL={SHIMMER_BLUR_DATA_URL}
                 className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/30" />
@@ -976,51 +1290,68 @@ export function AdminPackagesModule() {
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
+                disabled={Boolean(loadingActionId)}
                 onClick={() => handleToggleStatus(pkg)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-60 ${
                   isActive
                     ? 'bg-[#25D366]/15 border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/25'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                 }`}
                 title="Click to toggle active status"
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    isActive ? 'bg-[#25D366]' : 'bg-zinc-500'
-                  }`}
-                />
+                {loadingActionId === `status-${pkg.id}` ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isActive ? 'bg-[#25D366]' : 'bg-zinc-500'
+                    }`}
+                  />
+                )}
                 {isActive ? 'Active' : 'Disabled'}
               </button>
 
               <button
                 type="button"
+                disabled={Boolean(loadingActionId)}
                 onClick={() => handleTogglePortfolio(pkg)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-60 ${
                   isDisplayed
                     ? 'bg-[#C5B378]/15 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#C5B378]/25'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                 }`}
                 title="Click to show/hide on website"
               >
-                {isDisplayed ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3 text-zinc-500" />}
+                {loadingActionId === `portfolio-${pkg.id}` ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-[#D8C78E]" />
+                ) : isDisplayed ? (
+                  <Eye className="h-3 w-3" />
+                ) : (
+                  <EyeOff className="h-3 w-3 text-zinc-500" />
+                )}
                 {isDisplayed ? 'On Portfolio' : 'Hidden'}
               </button>
 
               <button
                 type="button"
+                disabled={Boolean(loadingActionId)}
                 onClick={() => handleToggleHighlighted(pkg)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-60 ${
                   pkg.highlighted
                     ? 'bg-[#C5B378]/25 border-[#C5B378]/50 text-[#D8C78E] hover:bg-[#C5B378]/35'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                 }`}
                 title="Click to toggle Signature / Flagship badge"
               >
-                <Star
-                  className={`h-3 w-3 ${
-                    pkg.highlighted ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
-                  }`}
-                />
+                {loadingActionId === `highlight-${pkg.id}` ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <Star
+                    className={`h-3 w-3 ${
+                      pkg.highlighted ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                    }`}
+                  />
+                )}
                 {pkg.highlighted ? 'Signature' : 'Standard'}
               </button>
             </div>
@@ -1032,22 +1363,30 @@ export function AdminPackagesModule() {
                 variant="ghost"
                 size="sm"
                 onClick={() => handleMoveOrder(idx, 'up')}
-                disabled={idx === 0}
+                disabled={idx === 0 || Boolean(loadingActionId)}
                 className="h-7 w-7 p-0 text-[#E6ECEB]/70 hover:text-white hover:bg-[#072421] disabled:opacity-20"
                 title="Move up"
               >
-                <ArrowUp className="h-3.5 w-3.5" />
+                {loadingActionId === `order-${pkg.id}` ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <ArrowUp className="h-3.5 w-3.5" />
+                )}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => handleMoveOrder(idx, 'down')}
-                disabled={idx === sortedPackages.length - 1}
+                disabled={idx === sortedPackages.length - 1 || Boolean(loadingActionId)}
                 className="h-7 w-7 p-0 text-[#E6ECEB]/70 hover:text-white hover:bg-[#072421] disabled:opacity-20"
                 title="Move down"
               >
-                <ArrowDown className="h-3.5 w-3.5" />
+                {loadingActionId === `order-${pkg.id}` ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <ArrowDown className="h-3.5 w-3.5" />
+                )}
               </Button>
             </div>
           </div>
@@ -1539,8 +1878,12 @@ export function AdminPackagesModule() {
       )}
 
       {/* Add New Event Dialog */}
-      <Dialog open={isAddEventModalOpen} onOpenChange={setIsAddEventModalOpen}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={isAddEventModalOpen} onOpenChange={(open) => { if (!open && !isCreatingEvent) setIsAddEventModalOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isCreatingEvent) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isCreatingEvent) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <FolderPlus className="h-5 w-5 text-[#D8C78E]" />
@@ -1642,26 +1985,31 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isCreatingEvent}
                 onClick={() => setIsAddEventModalOpen(false)}
                 className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isCreatingEvent}
+              <SubmitButton
+                isLoading={isCreatingEvent}
+                loadingText="Creating Ceremony..."
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isCreatingEvent ? 'Creating...' : 'Create Event'}
-              </Button>
+                Create Event
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Edit Event Dialog */}
-      <Dialog open={!!editingEvent} onOpenChange={(open) => !open && setEditingEvent(null)}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={!!editingEvent} onOpenChange={(open) => { if (!open && !isUpdatingEvent) setEditingEvent(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <Pencil className="h-5 w-5 text-[#D8C78E]" />
@@ -1751,6 +2099,7 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="ghost"
+                disabled={isUpdatingEvent}
                 onClick={() => {
                   setDeletingEvent(editingEvent);
                   setEditingEvent(null);
@@ -1765,18 +2114,19 @@ export function AdminPackagesModule() {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={isUpdatingEvent}
                   onClick={() => setEditingEvent(null)}
                   className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={isUpdatingEvent}
+                <SubmitButton
+                  isLoading={isUpdatingEvent}
+                  loadingText="Saving Ceremony..."
                   className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
                 >
-                  {isUpdatingEvent ? 'Saving...' : 'Save Changes'}
-                </Button>
+                  Save Changes
+                </SubmitButton>
               </div>
             </DialogFooter>
           </form>
@@ -1784,8 +2134,12 @@ export function AdminPackagesModule() {
       </Dialog>
 
       {/* Delete Event Confirmation Dialog */}
-      <Dialog open={!!deletingEvent} onOpenChange={(open) => !open && setDeletingEvent(null)}>
-        <DialogContent className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6">
+      <Dialog open={!!deletingEvent} onOpenChange={(open) => { if (!open && !isDeletingEvent) setDeletingEvent(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isDeletingEvent) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isDeletingEvent) e.preventDefault(); }}
+          className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6"
+        >
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-rose-400" />
@@ -1803,27 +2157,32 @@ export function AdminPackagesModule() {
             <Button
               type="button"
               variant="outline"
+              disabled={isDeletingEvent}
               onClick={() => setDeletingEvent(null)}
               className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
             >
               Cancel
             </Button>
-            <Button
-              type="button"
+            <SubmitButton
               variant="destructive"
-              disabled={isDeletingEvent}
+              isLoading={isDeletingEvent}
+              loadingText="Deleting Ceremony..."
               onClick={handleConfirmDeleteEvent}
               className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
             >
-              {isDeletingEvent ? 'Deleting...' : 'Delete Ceremony'}
-            </Button>
+              Delete Ceremony
+            </SubmitButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Package Modal */}
-      <Dialog open={!!editingPackage} onOpenChange={(open) => !open && setEditingPackage(null)}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={!!editingPackage} onOpenChange={(open) => { if (!open && !isSubmitting) setEditingPackage(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <Pencil className="h-4 w-4 text-[#D8C78E]" />
@@ -2144,6 +2503,20 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
+            {/* Customizer: Included Features & Proposal Add-ons */}
+            <PackageCustomizerSection
+              included={editCustomizerIncluded}
+              onChangeIncluded={setEditCustomizerIncluded}
+              addons={editCustomizerAddons}
+              onChangeAddons={setEditCustomizerAddons}
+              addonLabelInput={editAddonLabel}
+              setAddonLabelInput={setEditAddonLabel}
+              addonPriceDeltaInput={editAddonPriceDelta}
+              setAddonPriceDeltaInput={setEditAddonPriceDelta}
+              addonTypeInput={editAddonType}
+              setAddonTypeInput={setEditAddonType}
+            />
+
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
               <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
@@ -2171,26 +2544,31 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isSubmitting}
                 onClick={() => setEditingPackage(null)}
                 className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
+              <SubmitButton
+                isLoading={isSubmitting}
+                loadingText="Saving Package..."
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
-              </Button>
+                Save Changes
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Add New Package Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={isAddModalOpen} onOpenChange={(open) => { if (!open && !isSubmitting) setIsAddModalOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <Plus className="h-4 w-4 text-[#D8C78E]" />
@@ -2513,6 +2891,20 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
+            {/* Customizer: Included Features & Proposal Add-ons */}
+            <PackageCustomizerSection
+              included={newCustomizerIncluded}
+              onChangeIncluded={setNewCustomizerIncluded}
+              addons={newCustomizerAddons}
+              onChangeAddons={setNewCustomizerAddons}
+              addonLabelInput={newAddonLabel}
+              setAddonLabelInput={setNewAddonLabel}
+              addonPriceDeltaInput={newAddonPriceDelta}
+              setAddonPriceDeltaInput={setNewAddonPriceDelta}
+              addonTypeInput={newAddonType}
+              setAddonTypeInput={setNewAddonType}
+            />
+
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
               <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
@@ -2540,26 +2932,31 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isSubmitting}
                 onClick={() => setIsAddModalOpen(false)}
                 className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
+              <SubmitButton
+                isLoading={isSubmitting}
+                loadingText="Creating Package..."
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isSubmitting ? 'Creating...' : 'Create Package'}
-              </Button>
+                Create Package
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Delete Package Confirmation Dialog */}
-      <Dialog open={!!deletingPackage} onOpenChange={(open) => !open && setDeletingPackage(null)}>
-        <DialogContent className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6">
+      <Dialog open={!!deletingPackage} onOpenChange={(open) => { if (!open && !isSubmitting) setDeletingPackage(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
+          className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6"
+        >
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-rose-400" />
@@ -2577,20 +2974,21 @@ export function AdminPackagesModule() {
             <Button
               type="button"
               variant="outline"
+              disabled={isSubmitting}
               onClick={() => setDeletingPackage(null)}
               className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
             >
               Cancel
             </Button>
-            <Button
-              type="button"
+            <SubmitButton
               variant="destructive"
-              disabled={isSubmitting}
+              isLoading={isSubmitting}
+              loadingText="Deleting Package..."
               onClick={handleConfirmDelete}
               className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
             >
-              {isSubmitting ? 'Deleting...' : 'Delete Package'}
-            </Button>
+              Delete Package
+            </SubmitButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2617,10 +3015,14 @@ export function AdminPackagesModule() {
                 onClick={() => handleSelectGalleryPhoto(item.imageUrl)}
                 className="group relative rounded-xl overflow-hidden border border-white/10 hover:border-[#D8C78E] text-left transition-all cursor-pointer"
               >
-                <div className="aspect-[4/3] w-full bg-[#041513] overflow-hidden">
-                  <img
+                <div className="relative aspect-[4/3] w-full bg-[#041513] overflow-hidden">
+                  <NextImage
                     src={item.imageUrl}
                     alt={item.title}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 250px"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
