@@ -320,14 +320,40 @@ export function AdminScheduleModule() {
     }
   };
 
+  const enrichedCalendarEntries = useMemo(() => {
+    return calendarEntries.map((entry) => {
+      const matched = entry.bookingId
+        ? bookings.find((b) => b.id === entry.bookingId)
+        : bookings.find(
+            (b) =>
+              b.preferredDate === entry.date &&
+              Boolean(entry.phone && b.phone && b.phone === entry.phone)
+          );
+      if (!matched) return entry;
+      return {
+        ...entry,
+        packageName: entry.packageName || matched.packageName,
+        totalPackageAmount: entry.totalPackageAmount || matched.quotedAmount,
+        requestedServices:
+          entry.requestedServices && entry.requestedServices.length > 0
+            ? entry.requestedServices
+            : matched.requestedServices,
+        phone: entry.phone || matched.phone,
+        venue: entry.venue || matched.venue,
+        clientName: entry.clientName || matched.clientName,
+        time: entry.time || matched.eventTime,
+      };
+    });
+  }, [calendarEntries, bookings]);
+
   const sortedEntries = useMemo(
-    () => [...calendarEntries].sort((a, b) => a.date.localeCompare(b.date)),
-    [calendarEntries]
+    () => [...enrichedCalendarEntries].sort((a, b) => a.date.localeCompare(b.date)),
+    [enrichedCalendarEntries]
   );
 
   const selectedEntries = useMemo(
-    () => calendarEntries.filter((entry) => entry.date === selectedDate),
-    [calendarEntries, selectedDate]
+    () => enrichedCalendarEntries.filter((entry) => entry.date === selectedDate),
+    [enrichedCalendarEntries, selectedDate]
   );
 
   const matchedBooking = useMemo(
@@ -495,6 +521,25 @@ export function AdminScheduleModule() {
                         )}
                       </div>
 
+                      {/* Package Name & Amount */}
+                      {(entry.packageName || (entry.totalPackageAmount && entry.totalPackageAmount > 0)) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                          {entry.packageName && (
+                            <span className="font-semibold text-white">
+                              Package: <span className="text-[#D8C78E]">{entry.packageName}</span>
+                            </span>
+                          )}
+                          {entry.totalPackageAmount && entry.totalPackageAmount > 0 ? (
+                            <>
+                              <span className="text-[#C5B378]/40">•</span>
+                              <span className="font-mono font-bold text-[#D8C78E]">
+                                {formatINR(entry.totalPackageAmount)}
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
+                      )}
+
                       <p className="mt-2 text-xs sm:text-sm text-[#E6ECEB]/80 flex flex-wrap items-center gap-x-3 gap-y-1">
                         {entry.eventType && <span>Category: {entry.eventType}</span>}
                         {entry.venue && <span>· Venue: {entry.venue}</span>}
@@ -503,18 +548,18 @@ export function AdminScheduleModule() {
                         {entry.assignedCrew && <span>· Crew: {entry.assignedCrew}</span>}
                       </p>
 
-                      {/* Equipment & Cameras Badge Section */}
+                      {/* Opted Services Badge Section */}
                       {entry.requestedServices && entry.requestedServices.length > 0 && (
                         <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center gap-1.5">
                           <span className="text-[11px] font-semibold text-[#D8C78E] mr-1 flex items-center gap-1">
-                            <Camera className="h-3 w-3" /> Equipment Required:
+                            <Camera className="h-3 w-3" /> Opted Services:
                           </span>
                           {entry.requestedServices.map((svc) => (
                             <span
                               key={svc}
-                              className="inline-flex items-center text-[10px] px-2 py-0.5 rounded border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E] font-medium"
+                              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E] font-medium"
                             >
-                              {svc}
+                              ✓ {svc}
                             </span>
                           ))}
                         </div>
@@ -530,7 +575,7 @@ export function AdminScheduleModule() {
           {calendarView === 'week' && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-7">
               {weekDates.map((date) => {
-                const entries = calendarEntries.filter((entry) => entry.date === date);
+                const entries = enrichedCalendarEntries.filter((entry) => entry.date === date);
                 return (
                   <div
                     key={date}
@@ -557,12 +602,18 @@ export function AdminScheduleModule() {
                             key={entry.id || `${entry.date}-${entry.title}`}
                             type="button"
                             onClick={() => handleSelectDate(entry.date, entry)}
-                            className="w-full text-left rounded border border-white/10 bg-[#072421] p-1.5 text-xs text-white hover:border-[#D8C78E] hover:bg-[#134E49] transition-colors cursor-pointer"
+                            className="w-full text-left rounded border border-white/10 bg-[#072421] p-1.5 text-xs text-white hover:border-[#D8C78E] hover:bg-[#134E49] transition-colors cursor-pointer space-y-0.5"
                           >
                             <p className="font-semibold text-[11px] truncate">{entry.title}</p>
+                            {(entry.packageName || (entry.totalPackageAmount && entry.totalPackageAmount > 0)) && (
+                              <p className="text-[9.5px] text-[#D8C78E] font-medium truncate">
+                                {entry.packageName}
+                                {entry.totalPackageAmount && entry.totalPackageAmount > 0 ? ` • ${formatINR(entry.totalPackageAmount)}` : ''}
+                              </p>
+                            )}
                             {entry.requestedServices && entry.requestedServices.length > 0 && (
-                              <p className="text-[9px] text-[#D8C78E] truncate font-mono">
-                                {entry.requestedServices.slice(0, 2).join(', ')}
+                              <p className="text-[8.5px] text-emerald-300/90 truncate font-mono">
+                                {entry.requestedServices.join(' • ')}
                               </p>
                             )}
                           </button>
@@ -588,7 +639,7 @@ export function AdminScheduleModule() {
             <StudioCalendar
               monthDate={monthDate}
               onMonthChange={setMonthDate}
-              entries={calendarEntries}
+              entries={enrichedCalendarEntries}
               selectedDate={selectedDate}
               onSelectDate={handleSelectDate}
               allowSelectBooked
@@ -635,24 +686,43 @@ export function AdminScheduleModule() {
                       <span className="text-sm font-bold text-white">{entry.title}</span>
                     </div>
 
+                    {/* Package & Quoted Rate */}
+                    {(entry.packageName || (entry.totalPackageAmount && entry.totalPackageAmount > 0)) && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        {entry.packageName && (
+                          <span className="font-semibold text-white">
+                            Package: <span className="text-[#D8C78E]">{entry.packageName}</span>
+                          </span>
+                        )}
+                        {entry.totalPackageAmount && entry.totalPackageAmount > 0 ? (
+                          <>
+                            <span className="text-[#C5B378]/40">•</span>
+                            <span className="font-mono font-bold text-[#D8C78E]">
+                              {formatINR(entry.totalPackageAmount)}
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+
                     <p className="text-xs text-[#E6ECEB]/80">
                       {[entry.eventType, entry.venue, entry.assignedCrew, entry.notes]
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
 
-                    {/* Camera Requirements in chronological list */}
+                    {/* Opted Services in chronological list */}
                     {entry.requestedServices && entry.requestedServices.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
                         <span className="text-[10px] text-[#D8C78E] font-medium flex items-center gap-1 mr-1">
-                          <Camera className="h-2.5 w-2.5" /> Cameras:
+                          <Camera className="h-2.5 w-2.5" /> Opted Services:
                         </span>
                         {entry.requestedServices.map((svc) => (
                           <span
                             key={svc}
-                            className="text-[10px] px-2 py-0.5 rounded border border-[#C5B378]/30 bg-[#C5B378]/10 text-[#D8C78E] font-medium"
+                            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-[#C5B378]/30 bg-[#C5B378]/10 text-[#D8C78E] font-medium"
                           >
-                            {svc}
+                            ✓ {svc}
                           </span>
                         ))}
                       </div>
@@ -708,14 +778,17 @@ export function AdminScheduleModule() {
           </DialogHeader>
 
           {/* Linked Booking Summary Banner (if created via Inquiry) */}
-          {matchedBooking && (
+          {matchedBooking ? (
             <div className="rounded-xl border border-[#C5B378]/35 bg-[#072421] p-3.5 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-mono text-xs font-semibold text-[#D8C78E]">
                   Linked Inquiry Ref: {matchedBooking.referenceCode}
                 </span>
-                <span className="text-xs text-[#E6ECEB]/80 font-medium">
-                  Package: {matchedBooking.packageName} ({formatINR(matchedBooking.quotedAmount)})
+                <span className="text-xs text-[#E6ECEB]/90 font-medium">
+                  Package: <strong className="text-white">{matchedBooking.packageName}</strong> •{' '}
+                  <span className="font-mono font-bold text-[#D8C78E]">
+                    {formatINR(matchedBooking.quotedAmount)}
+                  </span>
                 </span>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -749,8 +822,65 @@ export function AdminScheduleModule() {
                   </div>
                 )}
               </div>
+
+              {/* Opted Services in Linked Booking Banner */}
+              {matchedBooking.requestedServices && matchedBooking.requestedServices.length > 0 && (
+                <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-[#D8C78E] font-semibold text-[11px] flex items-center gap-1">
+                    <Camera className="h-3 w-3" /> Opted Services:
+                  </span>
+                  {matchedBooking.requestedServices.map((svc) => (
+                    <span
+                      key={svc}
+                      className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E] font-medium"
+                    >
+                      ✓ {svc}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          ) : editingEntryId && (packageName || totalPackageAmount > 0 || requestedServices.length > 0) ? (
+            <div className="rounded-xl border border-[#C5B378]/35 bg-[#072421] p-3.5 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-[#E6ECEB]/90 font-medium">
+                  {packageName ? (
+                    <>
+                      Package: <strong className="text-white">{packageName}</strong>
+                    </>
+                  ) : (
+                    'Custom Plan'
+                  )}
+                  {totalPackageAmount > 0 && (
+                    <>
+                      {' '}•{' '}
+                      <span className="font-mono font-bold text-[#D8C78E]">
+                        {formatINR(totalPackageAmount)}
+                      </span>
+                    </>
+                  )}
+                </span>
+                {clientName && <span className="text-xs text-[#E6ECEB]/80">Client: {clientName}</span>}
+              </div>
+
+              {/* Opted Services in Direct Booking Banner */}
+              {requestedServices.length > 0 && (
+                <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-[#D8C78E] font-semibold text-[11px] flex items-center gap-1">
+                    <Camera className="h-3 w-3" /> Opted Services:
+                  </span>
+                  {requestedServices.map((svc) => (
+                    <span
+                      key={svc}
+                      className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E] font-medium"
+                    >
+                      ✓ {svc}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <form onSubmit={handleSaveEntry} className="space-y-4 pt-1">
             {/* SECTION 1: Event & Client Information */}

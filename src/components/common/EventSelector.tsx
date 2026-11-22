@@ -46,6 +46,20 @@ export function EventSelector({
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [eventList, includeInactive]);
 
+  const resolvedValue = useMemo(() => {
+    if (!value) return '';
+    const norm = value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matched = filteredEvents.find(
+      (e) =>
+        e.id.toLowerCase() === value.toLowerCase() ||
+        e.id.toLowerCase().replace(/[^a-z0-9]/g, '') === norm ||
+        e.name.toLowerCase() === value.toLowerCase() ||
+        e.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm ||
+        (norm.includes('wedding') && e.id.toLowerCase().includes('wedding'))
+    );
+    return matched ? matched.id : value;
+  }, [filteredEvents, value]);
+
   const categories = useMemo(() => {
     if (!groupByCategory) return [];
 
@@ -92,7 +106,7 @@ export function EventSelector({
       <select
         id={id}
         name={name}
-        value={value}
+        value={resolvedValue}
         onChange={handleChange}
         disabled={disabled || (isLoading && filteredEvents.length === 0)}
         className={baseSelectClass}

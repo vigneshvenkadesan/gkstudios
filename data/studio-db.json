@@ -9,11 +9,11 @@
       "shootNotes": "An intimate wedding portrait celebrating the bride with timeless detail and natural emotion.",
       "exif": "GK Studios · Bride Portrait",
       "dateLabel": "November 2026",
-      "isHeroFeatured": true,
+      "isHeroFeatured": false,
       "isVisible": true,
       "aspect": "standard"
     },
-     {
+    {
       "id": "pf-cloudinary-kid-portrait",
       "title": "Kid Portrait",
       "category": "Outdoor Shoots",
@@ -22,11 +22,10 @@
       "shootNotes": "An intimate wedding portrait celebrating the bride with timeless detail and natural emotion.",
       "exif": "GK Studios · Bride Portrait",
       "dateLabel": "November 2026",
-      "isHeroFeatured": true,
+      "isHeroFeatured": false,
       "isVisible": true,
       "aspect": "standard"
     },
-    
     {
       "id": "pf-cloudinary-wedding-1",
       "title": "Wedding Celebration",
@@ -36,7 +35,7 @@
       "shootNotes": "A timeless wedding portrait preserving the celebration, emotion, and detail of the occasion.",
       "exif": "GK Studios · Wedding Photography",
       "dateLabel": "November 2026",
-      "isHeroFeatured": true,
+      "isHeroFeatured": false,
       "isVisible": true,
       "aspect": "wide"
     },
@@ -117,92 +116,6 @@
       "isHeroFeatured": true,
       "isVisible": true,
       "aspect": "wide"
-    }
-  ],
-  "packages": [
-    {
-      "id": "pkg-essential",
-      "name": "Essential Ceremony",
-      "audience": "For Temple Weddings & Kaathu Kuthi",
-      "price": 24000,
-      "priceLabel": "₹24,000",
-      "duration": "Single Day · Up to 6 Hours",
-      "deliverables": [
-        "1 Lead Candid Photographer + 1 Traditional Photographer",
-        "1 Full-HD Traditional Videographer",
-        "250+ Color-Graded High-Res Digital Stills",
-        "30-Sheet Layflat Karizma Photo Album",
-        "Full Event Edited Video + Complete Raw Footage"
-      ],
-      "imageUrl": "/images/portfolio/kaathu_kuthi_ceremony_1794972491963.jpg",
-      "category": "Traditional Ceremonies",
-      "status": "active",
-      "displayOnPortfolio": true,
-      "sortOrder": 1,
-      "highlighted": false
-    },
-    {
-      "id": "pkg-grand",
-      "name": "Traditional Grand Wedding",
-      "audience": "For Muhurtham & Reception Coverage",
-      "price": 52000,
-      "priceLabel": "₹52,000",
-      "duration": "1.5 Days · Eve & Muhurtham",
-      "highlighted": true,
-      "deliverables": [
-        "2 Candid Photographers + 1 Traditional Photographer",
-        "1 Traditional Videographer + 1 Cinema Gimbal Operator",
-        "4K Cinematic Wedding Teaser (3–4 Minutes)",
-        "50-Sheet Premium Metallic Karizma Photo Album + 2 Mini Books",
-        "500+ Curated Digital Gallery & Complete Raw Footage Drive"
-      ],
-      "imageUrl": "/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg",
-      "category": "Weddings",
-      "status": "active",
-      "displayOnPortfolio": true,
-      "sortOrder": 2
-    },
-    {
-      "id": "pkg-royal",
-      "name": "Royal Cinematic Complete",
-      "audience": "For Full 2-Day Iyer & Grand Weddings",
-      "price": 88000,
-      "priceLabel": "₹88,000",
-      "duration": "2 Full Days + Pre-Wedding Shoot",
-      "deliverables": [
-        "Full Ritual Coverage: Janavasam, Vratham, Kashi Yatra, Oonjal & Muhurtham",
-        "2 Candid Photographers + 2 Traditional Photographers",
-        "4K Dual-Camera Cinema Team + Licensed Aerial Drone Coverage",
-        "Complimentary Half-Day Outdoor Pre-Wedding Couple Shoot",
-        "70-Sheet Signature Velvet Box Karizma Album + 4K Highlight Film"
-      ],
-      "imageUrl": "/images/portfolio/temple_wedding_gopuram_1794972485937.jpg",
-      "category": "Weddings",
-      "status": "active",
-      "displayOnPortfolio": true,
-      "sortOrder": 3,
-      "highlighted": false
-    },
-    {
-      "id": "pkg-custom",
-      "name": "Outdoor & Milestone",
-      "audience": "For Pre-Weddings, Birthdays & Portraits",
-      "price": 16500,
-      "priceLabel": "₹16,500",
-      "duration": "Half Day · 4 Hours Session",
-      "deliverables": [
-        "1 Lead Portrait & Candid Photographer",
-        "120+ Signature Retouched High-Resolution Photographs",
-        "90-Second Vertical & 4K Reel Cut for Social Sharing",
-        "20-Sheet Compact Keepsake Album (Optional Upgrade)",
-        "Same-Week Express Cloud Preview Link"
-      ],
-      "imageUrl": "/images/portfolio/outdoor_couple_shoot_1794972488329.jpg",
-      "category": "Portraits & Outdoor Shoots",
-      "status": "active",
-      "displayOnPortfolio": true,
-      "sortOrder": 4,
-      "highlighted": false
     }
   ],
   "bookings": [],

@@ -41,16 +41,35 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
   container.style.fontFamily =
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif';
 
-  const includedServices =
+  const excludedLabels = (bill.packageDetails?.excludedItems || []).map((e) =>
+    e.label.toLowerCase()
+  );
+
+  const isServiceActive = (svc: any): boolean => {
+    if (!svc) return false;
+    if (svc.selected === false || svc.selected === 'false') return false;
+    if (svc.active === false || svc.active === 'false') return false;
+    if (svc.included === false || svc.included === 'false') return false;
+    if (typeof svc.quantity === 'number' && svc.quantity <= 0) return false;
+    const enText = (svc.en || svc.name || svc.key || '').toLowerCase();
+    if (excludedLabels.some((ex) => ex.includes(enText) || enText.includes(ex))) {
+      return false;
+    }
+    return true;
+  };
+
+  const rawServices =
     bill.packageDetails.includedServices && bill.packageDetails.includedServices.length > 0
       ? bill.packageDetails.includedServices
       : (bill.packageDetails.inclusions || bill.packageDetails.requiredCrew || []).map((inc) => ({
           key: inc,
           en: inc,
           ta: '',
+          selected: true,
         }));
 
-  const addons = bill.packageDetails.addons || [];
+  const includedServices = rawServices.filter(isServiceActive);
+  const addons = (bill.packageDetails.addons || []).filter(isServiceActive);
   const excludedItems = bill.packageDetails.excludedItems || [];
   const tierLabel = bill.packageDetails.tierLabel || 'Signature';
 

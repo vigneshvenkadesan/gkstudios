@@ -455,10 +455,21 @@ export function AdminEventsTimelineModule() {
       )}
 
       {/* Event Lifecycle & Payment Ledger Detail Dialog */}
-      <Dialog open={Boolean(activeProject)} onOpenChange={(open) => { if (!open && !isRecordingPayment && !isSavingFinancials) setActiveProjectId(null); }}>
+      <Dialog
+        open={Boolean(activeProject)}
+        onOpenChange={(open) => {
+          if (!open && !isRecordingPayment && !isSavingFinancials && !isBillModalOpen) {
+            setActiveProjectId(null);
+          }
+        }}
+      >
         <DialogContent
-          onPointerDownOutside={(e) => { if (isRecordingPayment || isSavingFinancials) e.preventDefault(); }}
-          onEscapeKeyDown={(e) => { if (isRecordingPayment || isSavingFinancials) e.preventDefault(); }}
+          onPointerDownOutside={(e) => {
+            if (isRecordingPayment || isSavingFinancials || isBillModalOpen) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isRecordingPayment || isSavingFinancials || isBillModalOpen) e.preventDefault();
+          }}
           className="max-w-4xl bg-[#092E2B] border-[#C5B378]/35"
         >
           {activeProject && (

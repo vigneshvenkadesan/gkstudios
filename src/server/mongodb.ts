@@ -202,6 +202,7 @@ const EventProjectSchema = new Schema<EventProjectDocument>(
     discount: { type: Number, required: true },
     payments: { type: [PaymentSchema], default: [] },
     deliveryNotes: { type: String, required: true },
+    requestedServices: { type: [String], default: [] },
     packageSnapshot: { type: Schema.Types.Mixed },
   },
   { collection: 'event_projects', strict: false, timestamps: false }
@@ -233,6 +234,7 @@ const BillSchema = new Schema<BillDocument>(
           key: String,
           en: String,
           ta: String,
+          selected: { type: Boolean, default: true },
         },
       ],
       deliverables: { type: Schema.Types.Mixed, default: {} },

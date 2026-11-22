@@ -561,6 +561,7 @@ function toPlainEventProject(project: EventProject & { _id?: unknown; packageSna
     discount: Number(project.discount),
     payments: Array.isArray(project.payments) ? project.payments : [],
     deliveryNotes: String(project.deliveryNotes || ''),
+    ...(Array.isArray(project.requestedServices) ? { requestedServices: project.requestedServices } : {}),
     ...(project.packageSnapshot ? { packageSnapshot: project.packageSnapshot as PackageSnapshot } : {}),
   };
 }
@@ -586,11 +587,21 @@ function toPlainBill(b: any): StudioBill {
           basePackageName: String(b.packageDetails.basePackageName || ''),
           tierLabel: b.packageDetails.tierLabel || 'Signature',
           includedServices: Array.isArray(b.packageDetails.includedServices)
-            ? b.packageDetails.includedServices.map((svc: any) => ({
-                key: String(svc.key || ''),
-                en: String(svc.en || ''),
-                ta: String(svc.ta || ''),
-              }))
+            ? b.packageDetails.includedServices
+                .filter(
+                  (svc: any) =>
+                    svc &&
+                    svc.selected !== false &&
+                    svc.included !== false &&
+                    svc.active !== false &&
+                    (typeof svc.quantity !== 'number' || svc.quantity > 0)
+                )
+                .map((svc: any) => ({
+                  key: String(svc.key || ''),
+                  en: String(svc.en || ''),
+                  ta: String(svc.ta || ''),
+                  selected: true,
+                }))
             : [],
           deliverables: b.packageDetails.deliverables || {},
           requiredCrew: Array.isArray(b.packageDetails.requiredCrew)
@@ -600,12 +611,18 @@ function toPlainBill(b: any): StudioBill {
             ? b.packageDetails.inclusions.map(String)
             : [],
           addons: Array.isArray(b.packageDetails.addons)
-            ? b.packageDetails.addons.map(
-                (addon: { label: string; priceDelta: number }) => ({
+            ? b.packageDetails.addons
+                .filter(
+                  (addon: any) =>
+                    addon &&
+                    addon.selected !== false &&
+                    addon.active !== false &&
+                    (typeof addon.quantity !== 'number' || addon.quantity > 0)
+                )
+                .map((addon: { label: string; priceDelta: number }) => ({
                   label: addon.label,
                   priceDelta: addon.priceDelta,
-                })
-              )
+                }))
             : [],
           excludedItems: Array.isArray(b.packageDetails.excludedItems)
             ? b.packageDetails.excludedItems.map(
@@ -739,6 +756,7 @@ export async function createBookingOnServer(input: {
   termsAccepted?: boolean;
   termsAcceptedAt?: string;
   termsVersion?: string;
+  packageSnapshot?: PackageSnapshot;
 }): Promise<BookingRequest> {
   const state = await getStudioState();
   // Studio supports concurrent crews and multiple bookings/orders on the same date.
@@ -786,7 +804,7 @@ export async function createBookingOnServer(input: {
     termsAccepted: input.termsAccepted ?? false,
     termsAcceptedAt: input.termsAcceptedAt || undefined,
     termsVersion: input.termsVersion || undefined,
-    packageSnapshot: {
+    packageSnapshot: input.packageSnapshot || {
       id: selectedPkg?.id || input.packageId || CUSTOM_PACKAGE_ID,
       name: resolvedPkgName,
       price: resolvedQuotedAmount,
@@ -841,6 +859,7 @@ export async function processBookingOnServer(input: {
   acknowledgementNote: string;
   nextStatus: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
   blockCalendarDate?: boolean;
+  eventTime?: string;
 }): Promise<StudioState> {
   const state = await getStudioState();
   const targetBooking = state.bookings.find((b) => b.id === input.bookingId);
@@ -857,6 +876,8 @@ export async function processBookingOnServer(input: {
         : targetBooking.packageName;
   const resolvedCrew =
     input.assignedCrew?.trim() || targetBooking.assignedCrew || 'G Krishna & Studio Unit';
+  const resolvedEventTime =
+    input.eventTime !== undefined ? input.eventTime.trim() : targetBooking.eventTime;
 
   const updatedBookings = state.bookings.map((b) =>
     b.id === input.bookingId
@@ -868,6 +889,7 @@ export async function processBookingOnServer(input: {
           assignedCrew: resolvedCrew,
           acknowledgementNote: input.acknowledgementNote.trim(),
           status: input.nextStatus,
+          eventTime: resolvedEventTime || undefined,
         }
       : b
   );
@@ -901,8 +923,14 @@ export async function processBookingOnServer(input: {
         notes: input.acknowledgementNote.trim() || targetBooking.notes,
         bookingId: targetBooking.id,
         phone: targetBooking.phone,
-        time: targetBooking.eventTime,
+        time: resolvedEventTime || targetBooking.eventTime,
         requestedServices: targetBooking.requestedServices,
+        packageId: pkg ? pkg.id : targetBooking.packageId,
+        packageName: resolvedPkgName,
+        packageTier: pkg
+          ? (pkg.sortOrder === 3 ? 'Premium' : pkg.sortOrder === 1 ? 'Essential' : 'Signature')
+          : undefined,
+        totalPackageAmount: input.quotedAmount,
       };
       const existingIdx = targetBooking.id
         ? updatedCalendar.findIndex(
@@ -956,6 +984,7 @@ export async function processBookingOnServer(input: {
         discount: 0,
         payments: [],
         deliveryNotes: targetBooking.notes || 'Standard album & 4K delivery workflow.',
+        requestedServices: targetBooking.requestedServices || [],
         packageSnapshot: targetBooking.packageSnapshot || {
           id: pkg?.id || targetBooking.packageId || CUSTOM_PACKAGE_ID,
           name: resolvedPkgName,
@@ -1445,19 +1474,56 @@ export async function addEventPaymentOnServer(
 
   const activeServices: PackageIncludedFeatures = { ...baseInclusions };
 
-  // Resolve requested services from booking or calendar
-  const requestedServices = [
+  // Resolve requested services from project, booking, or calendar
+  const requestedServices: BookingServiceOption[] = [
+    ...(project.requestedServices || []),
     ...(matchingBooking?.requestedServices || []),
     ...(matchingCalendarEntry?.requestedServices || []),
   ];
 
-  requestedServices.forEach((svc) => {
-    if (svc === 'Drone') activeServices.drone = true;
-    if (svc === 'LED Wall' || svc === 'TV') activeServices.ledWall = true;
-    if (svc === 'Candid Video') activeServices.candidVideo = true;
-    if (svc === 'Candid Camera') activeServices.candidPhoto = true;
-    if (svc === 'Traditional Camera') activeServices.traditionalPhoto = true;
-    if (svc === 'Traditional Video') activeServices.traditionalVideo = true;
+  // If explicit requested services exist (e.g. client selected 3 out of 5 services),
+  // strictly filter the core coverage services to ONLY what was selected:
+  if (requestedServices.length > 0) {
+    activeServices.traditionalPhoto = requestedServices.includes('Traditional Camera');
+    activeServices.traditionalVideo = requestedServices.includes('Traditional Video');
+    activeServices.candidPhoto = requestedServices.includes('Candid Camera');
+    activeServices.candidVideo = requestedServices.includes('Candid Video');
+    activeServices.drone = requestedServices.includes('Drone');
+    activeServices.ledWall = requestedServices.includes('LED Wall') || requestedServices.includes('TV');
+  }
+
+  // Handle customizer exclusions from booking snapshot or project snapshot
+  const snapshotExclusions = [
+    ...(matchingBooking?.packageSnapshot?.customizerState?.exclusions || []),
+    ...(project.packageSnapshot?.customizerState?.exclusions || []),
+  ];
+  snapshotExclusions.forEach((ex) => {
+    const text = ex.toLowerCase();
+    if (/drone/i.test(text)) activeServices.drone = false;
+    if (/candid\s*video|cinematic\s*(film|video)|highlight\s*film/i.test(text)) activeServices.candidVideo = false;
+    if (/candid\s*(photo|camera)|portrait/i.test(text)) activeServices.candidPhoto = false;
+    if (/traditional\s*video/i.test(text)) activeServices.traditionalVideo = false;
+    if (/traditional\s*(photo|camera)/i.test(text)) activeServices.traditionalPhoto = false;
+    if (/album|photobook/i.test(text)) activeServices.printedAlbum = false;
+    if (/outdoor\s*(couple|session|shoot)/i.test(text)) activeServices.outdoorShoot = false;
+    if (/led|live\s*screen|display/i.test(text)) activeServices.ledWall = false;
+  });
+
+  // Handle customizer additions from snapshot
+  const snapshotAdditions = [
+    ...(matchingBooking?.packageSnapshot?.customizerState?.additions || []),
+    ...(project.packageSnapshot?.customizerState?.additions || []),
+  ];
+  snapshotAdditions.forEach((add) => {
+    const text = add.toLowerCase();
+    if (/drone/i.test(text)) activeServices.drone = true;
+    if (/candid\s*video|cinematic\s*(film|video)|highlight\s*film/i.test(text)) activeServices.candidVideo = true;
+    if (/candid\s*(photo|camera)/i.test(text)) activeServices.candidPhoto = true;
+    if (/traditional\s*video/i.test(text)) activeServices.traditionalVideo = true;
+    if (/traditional\s*(photo|camera)/i.test(text)) activeServices.traditionalPhoto = true;
+    if (/album|photobook/i.test(text)) activeServices.printedAlbum = true;
+    if (/outdoor\s*(couple|session|shoot)/i.test(text)) activeServices.outdoorShoot = true;
+    if (/led|live\s*screen|display/i.test(text)) activeServices.ledWall = true;
   });
 
   // Check text notes for customizer toggles
@@ -1467,16 +1533,17 @@ export async function addEventPaymentOnServer(
     matchingCalendarEntry?.notes || '',
   ].join(' ');
 
-  if (/drone/i.test(notesText)) activeServices.drone = true;
-  if (/candid\s*video|cinematic\s*(film|video)|highlight\s*film/i.test(notesText)) {
+  if (/without\s*drone|no\s*drone/i.test(notesText)) activeServices.drone = false;
+  else if (/drone/i.test(notesText) && requestedServices.length === 0) activeServices.drone = true;
+
+  if (/without\s*candid\s*video|no\s*candid\s*video/i.test(notesText)) activeServices.candidVideo = false;
+  else if (
+    /candid\s*video|cinematic\s*(film|video)|highlight\s*film/i.test(notesText) &&
+    requestedServices.length === 0
+  ) {
     activeServices.candidVideo = true;
   }
-  if (/led\s*wall|live\s*screen|live\s*display/i.test(notesText)) {
-    activeServices.ledWall = true;
-  }
-  if (/outdoor\s*(couple|shoot|session)|pre-wedding/i.test(notesText)) {
-    activeServices.outdoorShoot = true;
-  }
+
   if (/without\s*album|no\s*album|remove\s*album/i.test(notesText)) {
     activeServices.printedAlbum = false;
   }
@@ -1537,13 +1604,14 @@ export async function addEventPaymentOnServer(
     },
   };
 
-  const includedServices: Array<{ key: string; en: string; ta: string }> = [];
+  const includedServices: Array<{ key: string; en: string; ta: string; selected: boolean }> = [];
   for (const [key, meta] of Object.entries(SERVICE_METADATA_MAP)) {
     if (activeServices[key as keyof PackageIncludedFeatures]) {
       includedServices.push({
         key,
         en: meta.en,
         ta: meta.ta,
+        selected: true,
       });
     }
   }

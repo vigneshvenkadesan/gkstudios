@@ -6,6 +6,7 @@ import {
   BookingStatus,
   CUSTOM_PACKAGE_ID,
   EventCategory,
+  PackageSnapshot,
 } from '@/src/types/studio';
 
 const bookingServiceSet = new Set<string>(BOOKING_SERVICE_OPTIONS);
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       termsAcceptedAt?: string;
       termsVersion?: string;
       requestedServices?: unknown;
+      packageSnapshot?: PackageSnapshot;
     };
 
     if (!body.clientName?.trim() || !body.phone?.trim() || !body.preferredDate || !body.venue?.trim()) {
@@ -64,6 +66,7 @@ export async function POST(request: Request) {
       termsAccepted: typeof body.termsAccepted === 'boolean' ? body.termsAccepted : false,
       termsAcceptedAt: typeof body.termsAcceptedAt === 'string' ? body.termsAcceptedAt : undefined,
       termsVersion: typeof body.termsVersion === 'string' ? body.termsVersion : undefined,
+      packageSnapshot: body.packageSnapshot,
     });
 
     return NextResponse.json({ booking: created }, { status: 201 });

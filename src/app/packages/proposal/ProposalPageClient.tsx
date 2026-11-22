@@ -53,9 +53,11 @@ import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import { useEvents } from '@/src/hooks/useEvents';
 import {
+  BookingServiceOption,
   EVENT_CATEGORY_GROUPS,
   PackageDeliverables,
   PackageIncludedFeatures,
+  PackageSnapshot,
   StudioPackage,
 } from '@/src/types/studio';
 import { PROPOSAL_ADDONS } from '@/src/config/packageAddons';
@@ -957,6 +959,32 @@ export function ProposalPageClient() {
         .filter(Boolean)
         .join(' | ');
 
+      const requestedServices: BookingServiceOption[] = [];
+      if (activeFeatures.traditionalPhoto) requestedServices.push('Traditional Camera');
+      if (activeFeatures.traditionalVideo) requestedServices.push('Traditional Video');
+      if (activeFeatures.candidPhoto) requestedServices.push('Candid Camera');
+      if (activeFeatures.candidVideo) requestedServices.push('Candid Video');
+      if (activeFeatures.drone) requestedServices.push('Drone');
+      if (activeFeatures.ledWall) requestedServices.push('LED Wall');
+
+      const snapshot: PackageSnapshot = {
+        id: basePackage?.id || 'pkg-custom',
+        name: basePackage?.name || 'Custom Proposal',
+        price: finalPrice,
+        duration: basePackage?.duration,
+        deliverables: basePackage?.deliverables,
+        snapshotAt: new Date().toISOString(),
+        basePackageName: basePackage?.name,
+        basePrice: basePackage?.price,
+        selectedTier: basePackage?.sortOrder ?? 2,
+        customizerState: {
+          additions: customizedModifications.filter((m) => !m.isDeduction).map((m) => m.label),
+          exclusions: customizedModifications.filter((m) => m.isDeduction).map((m) => m.label),
+          netAdjustment: totalDelta,
+          liveTotal: finalPrice,
+        },
+      };
+
       await submitBooking({
         clientName: clientName.trim(),
         phone: phone.trim(),
@@ -968,11 +996,13 @@ export function ProposalPageClient() {
         packageId: basePackage?.id || 'pkg-custom',
         packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
         quotedAmount: finalPrice,
+        requestedServices,
         notes: combinedNotes,
         status: 'Pending',
         termsAccepted: true,
         termsAcceptedAt: new Date().toISOString(),
         termsVersion: '1.0',
+        packageSnapshot: snapshot,
       });
 
       setIsSubmitted(true);

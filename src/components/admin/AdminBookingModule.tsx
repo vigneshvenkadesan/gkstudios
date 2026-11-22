@@ -26,6 +26,7 @@ import {
   CUSTOM_PACKAGE_NAME,
   EVENT_CATEGORIES,
   EventCategory,
+  StudioEvent,
 } from '@/src/types/studio';
 import { EventSelector } from '@/src/components/common/EventSelector';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
@@ -69,6 +70,43 @@ const LEAD_SOURCE_OPTIONS = [
   'Friend / Family Referral',
   'Website Inquiry',
   'Other Offline',
+] as const;
+
+function extract24HourTime(timeStr: string): string {
+  if (!timeStr) return '';
+  const match24 = timeStr.match(/^([01]\d|2[0-3]):([0-5]\d)/);
+  if (match24) return `${match24[1]}:${match24[2]}`;
+
+  const match12 = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (match12) {
+    let h = parseInt(match12[1], 10);
+    const m = match12[2];
+    const period = match12[3].toUpperCase();
+    if (period === 'PM' && h < 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${m}`;
+  }
+  return '';
+}
+
+function formatTimeTo12Hour(time24: string): string {
+  if (!time24) return '';
+  if (time24.includes('AM') || time24.includes('PM')) return time24;
+  const parts = time24.split(':');
+  if (parts.length < 2) return time24;
+  const h = parseInt(parts[0], 10);
+  const m = parts[1].slice(0, 2);
+  if (isNaN(h)) return time24;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${String(h12).padStart(2, '0')}:${m} ${period}`;
+}
+
+const COMMON_EVENT_TIME_SLOTS = [
+  { label: '06:00 AM (Muhurtham)', value: '06:00 AM (Morning Muhurtham)', time24: '06:00' },
+  { label: '09:00 AM (Morning)', value: '09:00 AM (Morning Session)', time24: '09:00' },
+  { label: '06:00 PM (Reception)', value: '06:00 PM (Evening Reception)', time24: '18:00' },
+  { label: 'Full-Day Session', value: 'Full-Day / Multi-Session', time24: '06:00' },
 ] as const;
 
 function getStatusBadge(status: BookingStatus) {
@@ -158,6 +196,7 @@ export function AdminBookingModule() {
   const [editQuote, setEditQuote] = useState<number>(0);
   const [editCrew, setEditCrew] = useState('');
   const [editNote, setEditNote] = useState('');
+  const [editEventTime, setEditEventTime] = useState('');
   const [processingAction, setProcessingAction] = useState<
     'confirm' | 'acknowledge' | 'inTalks' | 'decline' | null
   >(null);
@@ -196,15 +235,21 @@ export function AdminBookingModule() {
   );
 
   const resetLeadForm = () => {
+    const defaultEv = activeEvents[0]?.name || 'Weddings';
+    const defaultEvId = activeEvents[0]?.id || 'wedding';
+    const evPkgs = getPackagesForEvent(defaultEvId);
+    const signaturePkg =
+      evPkgs.find((p) => (p.sortOrder ?? 2) === 2) || evPkgs[0] || packages[0];
+
     setLeadClientName('');
     setLeadPhone('');
-    setLeadEventType('Weddings');
+    setLeadEventType(defaultEv as EventCategory);
     setLeadPreferredDate(toISODate(new Date()));
     setLeadEndDate('');
     setLeadEventTime('');
     setLeadVenue('');
-    setLeadPackageId(packages[0]?.id || CUSTOM_PACKAGE_ID);
-    setLeadQuotedAmount(packages[0]?.price ?? 0);
+    setLeadPackageId(signaturePkg?.id || CUSTOM_PACKAGE_ID);
+    setLeadQuotedAmount(signaturePkg?.price ?? 0);
     setLeadSource('Direct Referral');
     setLeadStatus('In Discussion');
     setLeadAssignedCrew('G Krishna + Studio Unit');
@@ -217,13 +262,94 @@ export function AdminBookingModule() {
     setIsAddLeadOpen(true);
   };
 
+  const handleLeadEventTypeChange = (
+    selectedId: string,
+    selectedEv?: StudioEvent
+  ) => {
+    const evName = (selectedEv?.name || selectedId) as EventCategory;
+    setLeadEventType(evName);
+
+    // Sync Package Interest with selected Ceremony / Event Type
+    const evPackages = getPackagesForEvent(selectedEv?.id || selectedId || evName);
+    if (evPackages.length > 0) {
+      if (leadPackageId === CUSTOM_PACKAGE_ID) {
+        // Retain custom quote option if previously set
+      } else {
+        // Preserve selected package tier (Essential / Signature / Premium)
+        const currentPkg = packages.find((p) => p.id === leadPackageId);
+        const currentTier = currentPkg ? getPackageTierInfo(currentPkg).tier : 'Signature';
+
+        const matchingTierPkg =
+          evPackages.find((p) => getPackageTierInfo(p).tier === currentTier) ||
+          evPackages.find((p) => (p.sortOrder ?? 2) === 2) ||
+          evPackages[0];
+
+        if (matchingTierPkg) {
+          setLeadPackageId(matchingTierPkg.id);
+          setLeadQuotedAmount(matchingTierPkg.price);
+
+          // Synchronize services based on package inclusions
+          const inc = matchingTierPkg.customizer?.included;
+          const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
+          if (inc?.candidPhoto || matchingTierPkg.sortOrder === 2 || matchingTierPkg.sortOrder === 3) {
+            newServices.push('Candid Camera');
+          }
+          if (inc?.candidVideo || matchingTierPkg.sortOrder === 3) {
+            newServices.push('Candid Video');
+          }
+          if (inc?.drone || matchingTierPkg.sortOrder === 3) {
+            newServices.push('Drone');
+          }
+          if (inc?.ledWall) {
+            newServices.push('LED Wall');
+          }
+          setLeadRequestedServices(newServices);
+        }
+      }
+    }
+  };
+
   const handleLeadPackageChange = (pkgId: string) => {
     setLeadPackageId(pkgId);
     if (pkgId === CUSTOM_PACKAGE_ID) {
       setLeadQuotedAmount(0);
-    } else {
-      const found = packages.find((p) => p.id === pkgId);
-      if (found) setLeadQuotedAmount(found.price);
+      return;
+    }
+
+    const found = packages.find((p) => p.id === pkgId);
+    if (found) {
+      setLeadQuotedAmount(found.price);
+
+      // Two-way sync: If selected package belongs to an event, update ceremony & event type
+      if (found.eventId) {
+        const matchedEv = activeEvents.find(
+          (e) =>
+            e.id.toLowerCase() === found.eventId?.toLowerCase() ||
+            e.name.toLowerCase() === found.eventId?.toLowerCase() ||
+            e.id.toLowerCase().replace(/[^a-z0-9]/g, '') ===
+              found.eventId?.toLowerCase().replace(/[^a-z0-9]/g, '')
+        );
+        if (matchedEv) {
+          setLeadEventType(matchedEv.name as EventCategory);
+        }
+      }
+
+      // Synchronize services based on package inclusions
+      const inc = found.customizer?.included;
+      const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
+      if (inc?.candidPhoto || found.sortOrder === 2 || found.sortOrder === 3) {
+        newServices.push('Candid Camera');
+      }
+      if (inc?.candidVideo || found.sortOrder === 3) {
+        newServices.push('Candid Video');
+      }
+      if (inc?.drone || found.sortOrder === 3) {
+        newServices.push('Drone');
+      }
+      if (inc?.ledWall) {
+        newServices.push('LED Wall');
+      }
+      setLeadRequestedServices(newServices);
     }
   };
 
@@ -295,6 +421,7 @@ export function AdminBookingModule() {
     setEditPackageId(booking.packageId);
     setEditQuote(booking.quotedAmount);
     setEditCrew(booking.assignedCrew || 'G Krishna + Studio Unit');
+    setEditEventTime(booking.eventTime || '');
     setEditNote(
       booking.acknowledgementNote ||
         'Thank you for choosing GK Studios. Date is available for your ceremony.'
@@ -323,11 +450,12 @@ export function AdminBookingModule() {
   const generatedMessage = useMemo(() => {
     if (!activeBooking) return '';
     const pkgName = selectedPkg?.name || activeBooking.packageName;
+    const resolvedTime = editEventTime.trim() || activeBooking.eventTime;
     return [
       `Vanakkam ${activeBooking.clientName}!`,
       `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
       `Regarding your ${activeBooking.eventType} (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}:`,
-      activeBooking.eventTime ? `Event time: ${activeBooking.eventTime}` : '',
+      resolvedTime ? `Event time: ${resolvedTime}` : '',
       activeBooking.requestedServices?.length
         ? `Requested services: ${activeBooking.requestedServices.join(', ')}`
         : '',
@@ -339,7 +467,7 @@ export function AdminBookingModule() {
     ]
       .filter(Boolean)
       .join('\n');
-  }, [activeBooking, selectedPkg, editQuote, editNote]);
+  }, [activeBooking, selectedPkg, editQuote, editNote, editEventTime]);
 
   const handleCopyMessage = async () => {
     try {
@@ -359,6 +487,7 @@ export function AdminBookingModule() {
         packageId: editPackageId,
         quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
         assignedCrew: editCrew,
+        eventTime: editEventTime.trim() || undefined,
         acknowledgementNote: editNote,
         nextStatus: 'In Discussion',
         blockCalendarDate: false,
@@ -381,6 +510,7 @@ export function AdminBookingModule() {
         packageId: editPackageId,
         quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
         assignedCrew: editCrew,
+        eventTime: editEventTime.trim() || undefined,
         acknowledgementNote: editNote,
         nextStatus: 'Acknowledged',
         blockCalendarDate: true,
@@ -403,6 +533,7 @@ export function AdminBookingModule() {
         packageId: editPackageId,
         quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
         assignedCrew: editCrew,
+        eventTime: editEventTime.trim() || undefined,
         acknowledgementNote: editNote,
         nextStatus: 'Confirmed',
         blockCalendarDate: true,
@@ -524,7 +655,7 @@ export function AdminBookingModule() {
                 <TableHead className="px-5 py-4 text-sm">Ref / Client</TableHead>
                 <TableHead className="px-5 py-4 text-sm">Event &amp; Venue</TableHead>
                 <TableHead className="px-5 py-4 text-sm">Event Date</TableHead>
-                <TableHead className="px-5 py-4 text-sm">Package / Quote</TableHead>
+                <TableHead className="px-5 py-4 text-sm">Package, Quote &amp; Services</TableHead>
                 <TableHead className="px-5 py-4 text-sm">Status</TableHead>
                 <TableHead className="px-5 py-4 text-right text-sm">Workflow Action</TableHead>
               </TableRow>
@@ -614,8 +745,13 @@ export function AdminBookingModule() {
                             ? 3
                             : 2)
                       );
+                      const formattedAmount =
+                        booking.packageId === CUSTOM_PACKAGE_ID
+                          ? 'Custom quote'
+                          : formatINR(booking.quotedAmount);
+                      const optedServices = booking.requestedServices || [];
                       return (
-                        <div className="space-y-1">
+                        <div className="space-y-1.5 min-w-[220px] max-w-[340px]">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${tier.badgeClass}`}
@@ -625,17 +761,29 @@ export function AdminBookingModule() {
                             <span className="text-sm font-semibold text-white">
                               {booking.packageName}
                             </span>
+                            <span className="text-[#C5B378]/50 text-xs">•</span>
+                            <span className="font-mono text-sm text-[#D8C78E] tabular-nums font-bold">
+                              {formattedAmount}
+                            </span>
                           </div>
-                          <p className="font-mono text-sm text-[#D8C78E] tabular-nums font-bold">
-                            {booking.packageId === CUSTOM_PACKAGE_ID
-                              ? 'Custom quote'
-                              : formatINR(booking.quotedAmount)}
-                          </p>
-                          {booking.requestedServices?.length ? (
-                            <p className="max-w-[240px] text-[11px] leading-relaxed text-[#E6ECEB]/70">
-                              {booking.requestedServices.join(', ')}
+
+                          {/* Opted Service(s) Display */}
+                          {optedServices.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                              {optedServices.map((service, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E]"
+                                >
+                                  ✓ {service}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-[#E6ECEB]/50 italic">
+                              Standard Package Inclusions
                             </p>
-                          ) : null}
+                          )}
                         </div>
                       );
                     })()}
@@ -731,15 +879,7 @@ export function AdminBookingModule() {
                   id="admin-lead-event"
                   label="Ceremony / Event Type"
                   value={leadEventType}
-                  onChange={(selectedId, selectedEv) => {
-                    const evName = (selectedEv?.name || selectedId) as EventCategory;
-                    setLeadEventType(evName);
-                    const evPackages = getPackagesForEvent(selectedEv?.id || evName);
-                    if (evPackages.length > 0) {
-                      setLeadPackageId(evPackages[0].id);
-                      setLeadQuotedAmount(evPackages[0].price);
-                    }
-                  }}
+                  onChange={handleLeadEventTypeChange}
                   showTamilName={true}
                   required
                 />
@@ -763,7 +903,7 @@ export function AdminBookingModule() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-[#D8C78E]">
                   Event Date *
@@ -793,18 +933,70 @@ export function AdminBookingModule() {
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
+            </div>
 
-              <div className="space-y-1.5">
+            {/* Interactive Time Picker & Quick Slots */}
+            <div className="space-y-1.5 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
+              <div className="flex items-center justify-between">
                 <label className="block text-xs font-medium text-[#D8C78E]">
-                  Time / Slot (Optional)
+                  Ceremony Time / Slot (Interactive Time Picker)
                 </label>
+                {leadEventTime && (
+                  <button
+                    type="button"
+                    disabled={isCreatingLead}
+                    onClick={() => setLeadEventTime('')}
+                    className="text-[11px] text-[#C5B378]/70 hover:text-rose-300 transition-colors cursor-pointer"
+                  >
+                    Clear Time
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative sm:w-44">
+                  <input
+                    type="time"
+                    disabled={isCreatingLead}
+                    value={extract24HourTime(leadEventTime)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLeadEventTime(val ? formatTimeTo12Hour(val) : '');
+                    }}
+                    className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60 cursor-pointer"
+                  />
+                </div>
                 <input
                   type="text"
+                  disabled={isCreatingLead}
                   value={leadEventTime}
                   onChange={(e) => setLeadEventTime(e.target.value)}
-                  placeholder="e.g., 06:00 AM Muhurtham"
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                  placeholder="e.g., 06:00 AM (Muhurtham) or Full-Day Session"
+                  className="h-10 flex-1 rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                 />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-[#C5B378]/70">Quick Slots:</span>
+                {COMMON_EVENT_TIME_SLOTS.map((slot) => {
+                  const isSelected =
+                    leadEventTime.toLowerCase().includes(slot.time24.toLowerCase()) ||
+                    leadEventTime === slot.label ||
+                    leadEventTime === slot.value;
+                  return (
+                    <button
+                      key={slot.label}
+                      type="button"
+                      disabled={isCreatingLead}
+                      onClick={() => setLeadEventTime(slot.label)}
+                      className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#C5B378]/25 border-[#D8C78E] text-[#D8C78E] font-semibold'
+                          : 'bg-[#072421] border-[#C5B378]/20 text-[#E6ECEB]/70 hover:border-[#D8C78E]/40 hover:text-white'
+                      }`}
+                    >
+                      {slot.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1107,6 +1299,21 @@ export function AdminBookingModule() {
                     </span>
                   </div>
                 )}
+
+                {/* Opted Services in Manage Modal */}
+                {activeBooking.requestedServices && activeBooking.requestedServices.length > 0 && (
+                  <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="text-[#D8C78E] font-semibold text-[11px]">Opted Services:</span>
+                    {activeBooking.requestedServices.map((svc, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E]"
+                      >
+                        ✓ {svc}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Instant 3-Tier Switcher Bar (Live MongoDB Rates) */}
@@ -1195,6 +1402,71 @@ export function AdminBookingModule() {
                     onChange={(e) => setEditQuote(Number(e.target.value))}
                     className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white tabular-nums focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                   />
+                </div>
+              </div>
+
+              {/* Interactive Time Picker & Quick Slots for Manage Dialog */}
+              <div className="space-y-1.5 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-[#D8C78E]">
+                    Ceremony Time / Slot (Interactive Time Picker)
+                  </label>
+                  {editEventTime && (
+                    <button
+                      type="button"
+                      disabled={isProcessingAction}
+                      onClick={() => setEditEventTime('')}
+                      className="text-[11px] text-[#C5B378]/70 hover:text-rose-300 transition-colors cursor-pointer"
+                    >
+                      Clear Time
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative sm:w-44">
+                    <input
+                      type="time"
+                      disabled={isProcessingAction}
+                      value={extract24HourTime(editEventTime)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditEventTime(val ? formatTimeTo12Hour(val) : '');
+                      }}
+                      className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60 cursor-pointer"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    disabled={isProcessingAction}
+                    value={editEventTime}
+                    onChange={(e) => setEditEventTime(e.target.value)}
+                    placeholder="e.g., 06:00 AM (Muhurtham) or Full-Day Session"
+                    className="h-10 flex-1 rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-[#C5B378]/70">Quick Slots:</span>
+                  {COMMON_EVENT_TIME_SLOTS.map((slot) => {
+                    const isSelected =
+                      editEventTime.toLowerCase().includes(slot.time24.toLowerCase()) ||
+                      editEventTime === slot.label ||
+                      editEventTime === slot.value;
+                    return (
+                      <button
+                        key={slot.label}
+                        type="button"
+                        disabled={isProcessingAction}
+                        onClick={() => setEditEventTime(slot.label)}
+                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#C5B378]/25 border-[#D8C78E] text-[#D8C78E] font-semibold'
+                            : 'bg-[#072421] border-[#C5B378]/20 text-[#E6ECEB]/70 hover:border-[#D8C78E]/40 hover:text-white'
+                        }`}
+                      >
+                        {slot.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

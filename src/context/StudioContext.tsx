@@ -9,6 +9,7 @@ import {
   EventCategory,
   EventProject,
   EventStage,
+  PackageSnapshot,
   PaymentRecord,
   PortfolioItem,
   StudioBill,
@@ -37,6 +38,7 @@ interface SubmitBookingInput {
   termsAccepted?: boolean;
   termsAcceptedAt?: string;
   termsVersion?: string;
+  packageSnapshot?: PackageSnapshot;
 }
 
 interface AcknowledgeBookingInput {
@@ -47,6 +49,7 @@ interface AcknowledgeBookingInput {
   acknowledgementNote: string;
   nextStatus: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
   blockCalendarDate?: boolean;
+  eventTime?: string;
 }
 
 interface CreateEventProjectInput {
@@ -179,6 +182,7 @@ export function StudioProvider({
         acknowledgementNote: input.acknowledgementNote,
         nextStatus: input.nextStatus,
         blockCalendarDate: input.blockCalendarDate,
+        eventTime: input.eventTime,
       }),
     });
     setState(nextState);

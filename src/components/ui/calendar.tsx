@@ -240,10 +240,15 @@ export function StudioCalendar({
                             {dayEntry.venue}
                           </p>
                         )}
+                        {(dayEntry.packageName || (dayEntry.totalPackageAmount && dayEntry.totalPackageAmount > 0)) && (
+                          <p className="text-[8.5px] sm:text-[9.5px] text-[#D8C78E] font-medium truncate">
+                            {dayEntry.packageName}
+                            {dayEntry.totalPackageAmount ? ` • ₹${dayEntry.totalPackageAmount.toLocaleString('en-IN')}` : ''}
+                          </p>
+                        )}
                         {dayEntry.requestedServices && dayEntry.requestedServices.length > 0 && (
-                          <p className="hidden md:block text-[8px] text-[#D8C78E]/90 truncate font-mono">
-                            {dayEntry.requestedServices.slice(0, 2).join(' · ')}
-                            {dayEntry.requestedServices.length > 2 ? ' +' : ''}
+                          <p className="text-[8px] sm:text-[9px] text-emerald-300/90 truncate font-mono">
+                            {dayEntry.requestedServices.join(' • ')}
                           </p>
                         )}
                       </button>

@@ -61,6 +61,37 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
       ? bill.termsAndConditions
       : STUDIO_TERMS_AND_CONDITIONS;
 
+  // Filter strictly to ONLY active & selected services (exclude unselected / excluded / quantity 0 items)
+  const excludedLabels = (bill.packageDetails?.excludedItems || []).map((e) =>
+    e.label.toLowerCase()
+  );
+
+  const isServiceActive = (svc: any): boolean => {
+    if (!svc) return false;
+    if (svc.selected === false || svc.selected === 'false') return false;
+    if (svc.active === false || svc.active === 'false') return false;
+    if (svc.included === false || svc.included === 'false') return false;
+    if (typeof svc.quantity === 'number' && svc.quantity <= 0) return false;
+    const enText = (svc.en || svc.name || svc.key || '').toLowerCase();
+    if (excludedLabels.some((ex) => ex.includes(enText) || enText.includes(ex))) {
+      return false;
+    }
+    return true;
+  };
+
+  const rawServices =
+    bill.packageDetails?.includedServices && bill.packageDetails.includedServices.length > 0
+      ? bill.packageDetails.includedServices
+      : (bill.packageDetails?.inclusions || bill.packageDetails?.requiredCrew || []).map((inc) => ({
+          key: inc,
+          en: inc,
+          ta: '',
+          selected: true,
+        }));
+
+  const activeServices = rawServices.filter(isServiceActive);
+  const activeAddons = (bill.packageDetails?.addons || []).filter(isServiceActive);
+
   const handleShareWhatsApp = () => {
     const lines = [
       `Vanakkam ${bill.clientName}! 📸`,
@@ -263,9 +294,9 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
           </div>
 
           {/* Active Services Checklist */}
-          {bill.packageDetails.includedServices && bill.packageDetails.includedServices.length > 0 ? (
+          {activeServices.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {bill.packageDetails.includedServices.map((svc, i) => (
+              {activeServices.map((svc, i) => (
                 <div key={i} className="flex items-start gap-2 bg-white p-2 rounded border border-slate-200">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
@@ -308,13 +339,13 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
           )}
 
           {/* Custom Upgrades & Excluded Items */}
-          {((bill.packageDetails.addons && bill.packageDetails.addons.length > 0) ||
+          {((activeAddons.length > 0) ||
             (bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0)) && (
             <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2 text-[10px]">
-              {bill.packageDetails.addons && bill.packageDetails.addons.length > 0 && (
+              {activeAddons.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="font-bold uppercase tracking-wider text-slate-500">Upgrades Added:</span>
-                  {bill.packageDetails.addons.map((a, i) => (
+                  {activeAddons.map((a, i) => (
                     <span
                       key={i}
                       className="inline-flex items-center bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-emerald-800 font-medium"

@@ -139,6 +139,7 @@ export interface StudioBillServiceItem {
   key: string; // "traditionalPhoto" | "traditionalVideo" | "candidPhoto" | "candidVideo" | "drone" | "ledWall" | "outdoorShoot" | "printedAlbum"
   en: string; // "Traditional Photography"
   ta: string; // "பாரம்பரியப் புகைப்படம்"
+  selected?: boolean;
 }
 
 export interface StudioBill {
@@ -218,6 +219,7 @@ export interface EventProject {
   discount: number;
   payments: PaymentRecord[];
   deliveryNotes: string;
+  requestedServices?: BookingServiceOption[];
   packageSnapshot?: PackageSnapshot;
 }
 

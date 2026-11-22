@@ -20,6 +20,7 @@ export async function PATCH(
       acknowledgementNote?: string;
       nextStatus?: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
       blockCalendarDate?: boolean;
+      eventTime?: string;
     };
 
     if (body.action === 'status' && body.status) {
@@ -36,6 +37,7 @@ export async function PATCH(
         acknowledgementNote: body.acknowledgementNote || '',
         nextStatus: body.nextStatus,
         blockCalendarDate: body.blockCalendarDate,
+        eventTime: body.eventTime,
       });
       return NextResponse.json(state);
     }
