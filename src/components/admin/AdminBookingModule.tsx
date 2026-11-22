@@ -33,6 +33,7 @@ import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateMo
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import {
   Dialog,
   DialogContent,
@@ -677,8 +678,12 @@ export function AdminBookingModule() {
       </div>
 
       {/* Add Direct Lead / Offline Referral Dialog */}
-      <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
+      <Dialog open={isAddLeadOpen} onOpenChange={(open) => { if (!open && !isCreatingLead) setIsAddLeadOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isCreatingLead) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isCreatingLead) e.preventDefault(); }}
+          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+        >
           <DialogHeader>
             <div className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-[#D8C78E]" />
@@ -931,23 +936,15 @@ export function AdminBookingModule() {
               >
                 Cancel
               </Button>
-              <Button
+              <SubmitButton
                 type="submit"
-                disabled={isCreatingLead}
+                isLoading={isCreatingLead}
+                loadingText="Creating Lead..."
+                icon={<Plus className="h-4 w-4 mr-1.5" />}
                 className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
               >
-                {isCreatingLead ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                    Creating Lead...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    Create Lead &amp; Start Tracking
-                  </>
-                )}
-              </Button>
+                Create Lead &amp; Start Tracking
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -958,7 +955,11 @@ export function AdminBookingModule() {
         open={Boolean(activeBooking)}
         onOpenChange={(open) => !open && !isProcessingAction && setActiveBooking(null)}
       >
-        <DialogContent className="max-w-2xl bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isProcessingAction) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isProcessingAction) e.preventDefault(); }}
+          className="max-w-2xl bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+        >
           {activeBooking && (
             <>
               <DialogHeader>

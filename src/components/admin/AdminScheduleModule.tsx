@@ -37,6 +37,7 @@ import { getPackageTierInfo } from '@/src/lib/packageTiers';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import {
   Dialog,
@@ -674,8 +675,12 @@ export function AdminScheduleModule() {
       </Card>
 
       {/* Edit / Manage Selected Event Details Modal */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]">
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && !isSaving) setDialogOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSaving) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSaving) e.preventDefault(); }}
+          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+        >
           <DialogHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -1029,23 +1034,15 @@ export function AdminScheduleModule() {
                 >
                   Cancel
                 </Button>
-                <Button
+                <SubmitButton
                   type="submit"
-                  disabled={isSaving}
+                  isLoading={isSaving}
+                  loadingText="Saving..."
+                  icon={<CalendarPlus className="h-4 w-4 mr-1.5" />}
                   className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
                 >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <CalendarPlus className="h-4 w-4 mr-1.5" />
-                      {editingEntryId ? 'Update Schedule Entry' : 'Save Schedule Entry'}
-                    </>
-                  )}
-                </Button>
+                  {editingEntryId ? 'Update Schedule Entry' : 'Save Schedule Entry'}
+                </SubmitButton>
               </div>
             </DialogFooter>
           </form>

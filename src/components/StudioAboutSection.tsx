@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { ArrowRight, Camera } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { translate } from '@/src/i18n/translations';
+import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 
 interface StudioAboutSectionProps {
   onMeetStudio?: () => void;
@@ -35,7 +37,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
   return (
     <section
       id="studio-story"
-      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-20 sm:py-24 border-b border-[#C5B378]/18"
+      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-20 sm:py-24 border-b border-[#C5B378]/18 content-auto"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16 lg:items-center">
@@ -49,11 +51,14 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
           >
             <div className="group relative aspect-[4/3] sm:aspect-[4/4] lg:aspect-[4/5] w-full overflow-hidden rounded-sm bg-[#061E1C]">
               {!imageFailed ? (
-                <img
+                <Image
                   src="/images/portfolio/temple_wedding_gopuram_1794972485937.jpg"
                   alt={t('about.photoAlt')}
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  placeholder="blur"
+                  blurDataURL={SHIMMER_BLUR_DATA_URL}
+                  decoding="async"
                   onError={() => setImageFailed(true)}
                   className="h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03] motion-reduce:group-hover:scale-100"
                 />

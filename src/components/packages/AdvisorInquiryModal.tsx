@@ -21,6 +21,7 @@ import { PackageAddon } from '@/src/data/packageAdvisorConfig';
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { useStudio } from '@/src/context/StudioContext';
 
 interface AdvisorInquiryModalProps {
@@ -158,6 +159,11 @@ export function AdvisorInquiryModal({
 
   return (
     <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) {
+          onClose();
+        }
+      }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm overflow-y-auto"
       role="dialog"
       aria-modal="true"
@@ -174,8 +180,11 @@ export function AdvisorInquiryModal({
         {/* Close Button */}
         <button
           type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[#0E423E]/80 border border-[#C5B378]/30 text-[#E6ECEB]/70 hover:text-white transition-colors"
+          disabled={isSubmitting}
+          onClick={() => {
+            if (!isSubmitting) onClose();
+          }}
+          className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[#0E423E]/80 border border-[#C5B378]/30 text-[#E6ECEB]/70 hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
           aria-label="Close dialog"
         >
           <X className="h-4 w-4" />
@@ -335,18 +344,15 @@ export function AdvisorInquiryModal({
                     <span>Send Custom Plan via WhatsApp</span>
                   </button>
 
-                  <Button
+                  <SubmitButton
                     type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold hover:brightness-105 shadow py-3 text-sm"
+                    isLoading={isSubmitting}
+                    loadingText="Submitting Inquiry..."
+                    icon={<Send className="h-4 w-4" />}
+                    className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold hover:brightness-105 shadow py-3 text-sm cursor-pointer"
                   >
-                    {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                    <span>Submit Online Inquiry</span>
-                  </Button>
+                    Submit Online Inquiry
+                  </SubmitButton>
                 </div>
               </form>
             </>

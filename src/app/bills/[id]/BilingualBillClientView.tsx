@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import {
   Printer,
+  Download,
   MessageCircle,
   ArrowLeft,
   Calendar,
@@ -12,20 +13,53 @@ import {
   Phone,
   ShieldCheck,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { StudioBill } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
 import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
+import { downloadBillPdf } from '@/src/lib/generateBillPdfBlob';
+import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
+import { toast } from 'sonner';
+
+interface BillTermItem {
+  en: string;
+  ta: string;
+  title?: {
+    en?: string;
+    ta?: string;
+  };
+}
 
 interface BilingualBillClientViewProps {
   bill: StudioBill;
 }
 
 export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) {
+  const [isDownloading, setIsDownloading] = React.useState(false);
+
   const handlePrint = () => {
     window.print();
   };
+
+  const handleDirectDownload = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadBillPdf(bill);
+      toast.success(`Downloaded ${bill.billNumber}.pdf`);
+    } catch {
+      toast.error('Failed to generate PDF. Using print dialog.');
+      window.print();
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const termsList: BillTermItem[] =
+    bill.termsAndConditions && bill.termsAndConditions.length > 0
+      ? bill.termsAndConditions
+      : STUDIO_TERMS_AND_CONDITIONS;
 
   const handleShareWhatsApp = () => {
     const lines = [
@@ -70,14 +104,32 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
         </Link>
 
         <div className="flex items-center gap-2">
+          {/* Direct Download PDF */}
+          <Button
+            type="button"
+            disabled={isDownloading}
+            onClick={handleDirectDownload}
+            size="sm"
+            className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold text-xs h-8 px-3 hover:brightness-105"
+          >
+            {isDownloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            <span>Download PDF</span>
+          </Button>
+
+          {/* Print A4 */}
           <Button
             type="button"
             onClick={handlePrint}
             size="sm"
-            className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold text-xs h-8 px-3"
+            variant="outline"
+            className="gap-1.5 border-[#C5B378]/40 text-[#D8C78E] hover:bg-[#D8C78E] hover:text-[#061E1C] text-xs h-8 px-3"
           >
             <Printer className="h-3.5 w-3.5" />
-            <span>Download / Print PDF</span>
+            <span>Print A4</span>
           </Button>
 
           <Button
@@ -94,7 +146,14 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
       </div>
 
       {/* Printable Invoice Container */}
-      <div className="rounded-sm border border-slate-300 bg-white p-6 sm:p-10 text-slate-800 shadow-xl space-y-6 text-xs font-sans print:shadow-none print:border-none print:p-0">
+      <div
+        id="printable-bill-content"
+        style={{
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif',
+        }}
+        className="rounded-sm border border-slate-300 bg-white p-6 sm:p-10 text-slate-800 shadow-xl space-y-6 text-xs font-sans print:shadow-none print:border-none print:p-0"
+      >
         {/* Header: Luxury Studio Identity */}
         <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-[#092E2B] pb-5 gap-4">
           <div className="space-y-1">
@@ -273,28 +332,64 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
           </table>
         </div>
 
-        {/* Terms & Conditions: Shared Bilingual Source of Truth */}
-        <div className="space-y-2 border-t-2 border-slate-300 pt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#072421] flex items-center gap-1.5">
-              <ShieldCheck className="h-4 w-4 text-[#9A7B38]" />
-              Terms & Conditions / விதிமுறைகள் மற்றும் நிபந்தனைகள்
-            </span>
-            <span className="text-[9px] text-slate-500">
-              GK Studios Standard Client Agreement
+        {/* Page 1 Print-Only Footer */}
+        <div className="hidden print:flex justify-between items-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
+          <span>GK STUDIOS • Panruti, Tamil Nadu • Ph: +91 {STUDIO_INFO.phone}</span>
+          <span className="font-semibold text-[#072421]">Page 1 of 2 • Official Payment Receipt</span>
+        </div>
+
+        {/* ─── Page 2: Terms & Conditions: Shared Bilingual Source of Truth (10 Clauses) ─── */}
+        <div className="space-y-3 border-t-2 border-slate-300 pt-5 print-page-break-before print-avoid-break">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-[#072421]" />
+              <h4 className="font-serif text-sm font-bold uppercase tracking-wider text-[#072421]">
+                Terms & Conditions / விதிமுறைகள் மற்றும் நிபந்தனைகள்
+              </h4>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">
+              Bill #{bill.billNumber}
             </span>
           </div>
 
-          <div className="rounded border border-slate-200 bg-slate-50/60 p-3 space-y-2 text-[10px] leading-relaxed text-slate-700">
-            {bill.termsAndConditions.map((term, index) => (
-              <div key={index} className="flex items-start gap-2 border-b border-slate-200 pb-1.5 last:border-none last:pb-0">
-                <span className="font-bold text-[#9A7B38] shrink-0 mt-0.5">{index + 1}.</span>
-                <div className="space-y-0.5">
-                  <p className="font-medium text-slate-900">{term.en}</p>
-                  <p className="text-slate-600 font-sans">{term.ta}</p>
+          <div className="rounded border border-slate-200 bg-slate-50/60 p-3 space-y-2.5 text-[10px] leading-relaxed text-slate-700">
+            {termsList.map((term: BillTermItem, index: number) => {
+              const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
+              const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+
+              return (
+                <div key={index} className="flex items-start gap-2 border-b border-slate-200 pb-2 last:border-none last:pb-0">
+                  <span className="font-bold text-[#9A7B38] shrink-0 mt-0.5">{index + 1}.</span>
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-slate-900 leading-snug">
+                      {term.en}{titleEn}
+                    </p>
+                    <p className="text-slate-600 font-sans leading-relaxed">
+                      {term.ta}{titleTa}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+
+          {/* Client Acceptance Box */}
+          <div className="bg-slate-50 border border-slate-200 rounded p-3 text-[10px] text-slate-700 space-y-1">
+            <p className="font-bold text-[#072421]">
+              Client Acceptance & Agreement / வாடிக்கையாளர் ஒப்புதல்:
+            </p>
+            <p className="text-slate-700 leading-snug">
+              By confirming your booking and payment, you agree that you have read, understood and accepted all the above terms and conditions.
+            </p>
+            <p className="text-slate-500 leading-relaxed">
+              முன்பதிவையும் கட்டணத்தையும் உறுதிப்படுத்துவதன் மூலம், மேலே உள்ள அனைத்து விதிமுறைகளையும் படித்து, புரிந்து, ஏற்றுக்கொண்டதாக ஒப்புக்கொள்கிறீர்கள்.
+            </p>
+          </div>
+
+          {/* Page 2 Print Footer */}
+          <div className="hidden print:flex justify-between items-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
+            <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+            <span className="font-semibold text-[#072421]">Page 2 of 2 • Studio Terms & Conditions</span>
           </div>
         </div>
 

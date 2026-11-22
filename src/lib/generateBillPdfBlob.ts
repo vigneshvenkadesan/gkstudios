@@ -1,266 +1,400 @@
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { StudioBill } from '@/src/types/studio';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
+import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
 
+interface BillTermItem {
+  en: string;
+  ta: string;
+  title?: {
+    en?: string;
+    ta?: string;
+  };
+}
+
+/**
+ * Builds off-screen DOM nodes for Page 1 (Invoice & Payment Ledger) and Page 2 (Full Bilingual Terms & Conditions).
+ * Uses html2canvas to capture both pages at 2x print resolution so all Tamil Unicode text, ligatures,
+ * table styling, and complete terms are preserved with zero clipping or font corruption.
+ */
 export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
-  let y = 14;
-
-  // ─── Luxury Studio Header ───
-  doc.setFillColor(7, 36, 33); // #072421
-  doc.rect(margin, y, pageWidth - margin * 2, 28, 'F');
-
-  doc.setTextColor(216, 199, 142); // #D8C78E
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
-  doc.text('GK STUDIOS', margin + 6, y + 8);
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(230, 236, 235);
-  doc.text('CREATING MEMORIES • PROFESSIONAL PHOTOGRAPHY & CINEMATOGRAPHY', margin + 6, y + 13);
-  doc.text(
-    `${STUDIO_INFO.address}`,
-    margin + 6,
-    y + 18
-  );
-  doc.text(
-    `Phone: +91 ${STUDIO_INFO.phone} | Email: ${STUDIO_INFO.email}`,
-    margin + 6,
-    y + 23
-  );
-
-  // Bill Label Box on Right
-  doc.setFillColor(14, 66, 62); // #0E423E
-  doc.rect(pageWidth - margin - 52, y + 4, 46, 20, 'F');
-  doc.setTextColor(216, 199, 142);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('OFFICIAL RECEIPT', pageWidth - margin - 49, y + 9);
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text(bill.billNumber, pageWidth - margin - 49, y + 15);
-  doc.setFontSize(7);
-  doc.setTextColor(216, 199, 142);
-  doc.text(`Date: ${bill.billDate || bill.financials.paymentDate || bill.createdAt.slice(0, 10)}`, pageWidth - margin - 49, y + 20);
-
-  y += 34;
-
-  // ─── Client & Event Details Grid ───
-  doc.setDrawColor(197, 179, 120);
-  doc.setLineWidth(0.3);
-  doc.setFillColor(248, 246, 240);
-  doc.rect(margin, y, pageWidth - margin * 2, 42, 'FD');
-
-  // Left Column: Client Details
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(7, 36, 33);
-  doc.text('BILLED TO (CLIENT DETAILS):', margin + 4, y + 6);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(40, 40, 40);
-  doc.text(`Client Name: ${bill.clientName}`, margin + 4, y + 13);
-  doc.text(`Phone: ${bill.clientPhone}`, margin + 4, y + 19);
-  doc.text(`Booking Ref: #${bill.bookingId.slice(0, 10).toUpperCase()}`, margin + 4, y + 25);
-  doc.text(`Status: Official Paid Receipt`, margin + 4, y + 31);
-  doc.text(`Generated At: ${new Date(bill.createdAt).toLocaleDateString('en-IN')}`, margin + 4, y + 37);
-
-  // Right Column: Event Details
-  const rightColX = pageWidth / 2 + 2;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(7, 36, 33);
-  doc.text('EVENT & CEREMONY DETAILS:', rightColX, y + 6);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(40, 40, 40);
-  doc.text(
-    `Event: ${bill.eventDetails.eventName} ${bill.eventDetails.tamilEventName ? `(${bill.eventDetails.tamilEventName})` : ''}`,
-    rightColX,
-    y + 13
-  );
-  doc.text(`Event Date: ${bill.eventDetails.eventDate}`, rightColX, y + 19);
-  doc.text(`Event Timing / Slot: ${bill.eventDetails.eventTime || '06:00 AM'}`, rightColX, y + 25);
-  doc.text(`Venue: ${bill.eventDetails.venue || 'To be updated'}`, rightColX, y + 31);
-  doc.text(`Assigned Crew: ${bill.crewDetails?.assignedCrew || 'G Krishna + Studio Unit'}`, rightColX, y + 37);
-
-  y += 48;
-
-  // ─── Package & Service Summary ───
-  doc.setFillColor(7, 36, 33);
-  doc.rect(margin, y, pageWidth - margin * 2, 7, 'F');
-  doc.setTextColor(216, 199, 142);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('PACKAGE & DELIVERABLE SPECIFICATIONS', margin + 4, y + 4.8);
-
-  y += 7;
-  doc.setDrawColor(200, 200, 200);
-  doc.setFillColor(255, 255, 255);
-  doc.rect(margin, y, pageWidth - margin * 2, 18, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(20, 20, 20);
-  doc.text(`Base Package: ${bill.packageDetails.basePackageName}`, margin + 4, y + 5);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(60, 60, 60);
-
-  const inc = bill.packageDetails.inclusions || bill.packageDetails.requiredCrew || [];
-  const inclusionsText = `Inclusions: ${inc.length > 0 ? inc.join(' • ') : 'Standard Complete Studio Coverage'}`;
-  doc.text(doc.splitTextToSize(inclusionsText, pageWidth - margin * 2 - 8), margin + 4, y + 10);
-
-  const addons = bill.packageDetails.addons || [];
-  if (addons.length > 0) {
-    const addonsText = `Custom Add-ons: ${addons.map((a) => `${a.label} (+₹${a.priceDelta})`).join(', ')}`;
-    doc.text(doc.splitTextToSize(addonsText, pageWidth - margin * 2 - 8), margin + 4, y + 15);
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new Error('PDF generation must be executed in a browser context.');
   }
 
-  y += 24;
+  const termsList: BillTermItem[] =
+    bill.termsAndConditions && bill.termsAndConditions.length > 0
+      ? bill.termsAndConditions
+      : STUDIO_TERMS_AND_CONDITIONS;
 
-  // ─── Financial Ledger Table ───
-  doc.setFillColor(7, 36, 33);
-  doc.rect(margin, y, pageWidth - margin * 2, 7, 'F');
-  doc.setTextColor(216, 199, 142);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('PAYMENT TRANSACTION & BALANCE STATEMENT', margin + 4, y + 4.8);
+  // Create temporary off-screen container with fixed A4 aspect ratio (794px = 210mm at 96 DPI)
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '794px';
+  container.style.backgroundColor = '#ffffff';
+  container.style.zIndex = '-9999';
+  container.style.color = '#1e293b';
+  container.style.fontFamily =
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif';
 
-  y += 7;
+  const inclusions =
+    (bill.packageDetails.inclusions && bill.packageDetails.inclusions.length > 0)
+      ? bill.packageDetails.inclusions
+      : bill.packageDetails.requiredCrew || [];
 
-  // Table Rows
-  const tableData: [string, string, string][] = [
-    ['Total Agreed Package Amount', 'Base plan + confirmed customized upgrades', formatINR(bill.financials.totalPackageAmount)],
-    [`Payment Received Now (${bill.financials.paymentStage})`, `Mode: ${bill.financials.paymentMode} · Ref: ${bill.paymentId.slice(0, 8)}`, formatINR(bill.financials.amountPaidNow)],
-    ['Total Paid to Date', 'Cumulative confirmed receipts to date', formatINR(bill.financials.totalPaidToDate)],
-    ['Remaining Balance Due', 'To be cleared prior to final album & video handover', formatINR(bill.financials.balanceDue)],
-  ];
+  const addons = bill.packageDetails.addons || [];
 
-  tableData.forEach(([label, desc, amt], idx) => {
-    const isHighlight = idx === 1; // Payment paid now
-    const isBalance = idx === 3;
-    const rowH = 9;
+  // ═══════════════════════════════════════════════════════════════════════
+  // PAGE 1: OFFICIAL PAYMENT RECEIPT & INVOICE STATEMENT
+  // ═══════════════════════════════════════════════════════════════════════
+  const page1 = document.createElement('div');
+  page1.style.width = '794px';
+  page1.style.minHeight = '1120px';
+  page1.style.padding = '36px 40px';
+  page1.style.boxSizing = 'border-box';
+  page1.style.backgroundColor = '#ffffff';
+  page1.style.display = 'flex';
+  page1.style.flexDirection = 'column';
+  page1.style.justifyContent = 'space-between';
 
-    doc.setFillColor(
-      isHighlight ? 238 : isBalance ? 245 : idx % 2 === 0 ? 255 : 250,
-      isHighlight ? 247 : isBalance ? 240 : idx % 2 === 0 ? 255 : 250,
-      isHighlight ? 238 : isBalance ? 230 : idx % 2 === 0 ? 255 : 250
-    );
-    doc.rect(margin, y, pageWidth - margin * 2, rowH, 'FD');
+  page1.innerHTML = `
+    <div>
+      <!-- Header Banner -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #092E2B; padding-bottom: 16px; margin-bottom: 20px;">
+        <div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #072421; letter-spacing: 0.5px; font-family: serif;">GK STUDIOS</h1>
+            <span style="font-size: 11px; font-weight: 700; color: #9A7B38; letter-spacing: 1px;">CREATING MEMORIES</span>
+          </div>
+          <p style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600; color: #334155;">
+            Professional Wedding Photography & 4K Cinematography
+          </p>
+          <p style="margin: 3px 0 0 0; font-size: 11px; color: #64748b; line-height: 1.4;">
+            ${STUDIO_INFO.address}
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #475569;">
+            Phone: +91 ${STUDIO_INFO.phone} • Email: ${STUDIO_INFO.email}
+          </p>
+        </div>
 
-    doc.setFont('helvetica', isHighlight || isBalance ? 'bold' : 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(
-      isHighlight ? 14 : isBalance ? 180 : 30,
-      isHighlight ? 80 : isBalance ? 40 : 30,
-      isHighlight ? 40 : isBalance ? 30 : 30
-    );
-    doc.text(label, margin + 4, y + 4);
+        <div style="text-align: right; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 4px; min-width: 220px;">
+          <div style="background: #092E2B; color: #D8C78E; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 8px; border-radius: 3px; display: inline-block;">
+            OFFICIAL PAYMENT RECEIPT
+          </div>
+          <p style="margin: 6px 0 0 0; font-size: 10px; font-weight: 700; color: #072421;">கட்டண ரசீது & விலைப்பட்டியல்</p>
+          <p style="margin: 3px 0 0 0; font-family: monospace; font-size: 14px; font-weight: 800; color: #072421;">
+            ${bill.billNumber}
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #475569;">
+            <strong>Date:</strong> ${bill.billDate || bill.financials.paymentDate || bill.createdAt.slice(0, 10)}
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8; font-family: monospace;">Ref: #${bill.bookingId.slice(0, 8)}</p>
+        </div>
+      </div>
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
-    doc.setTextColor(90, 90, 90);
-    doc.text(desc, margin + 4, y + 7.5);
+      <!-- Client & Event Info 2-Column Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+        <!-- Client Details -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px;">
+          <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+            Billed To / வாடிக்கையாளர் விவரம்
+          </h4>
+          <p style="margin: 0; font-size: 13px; font-weight: 700; color: #0f172a;">${bill.clientName}</p>
+          <p style="margin: 3px 0 0 0; font-size: 11px; color: #334155; font-family: monospace;">Phone: +91 ${bill.clientPhone}</p>
+          <p style="margin: 3px 0 0 0; font-size: 10px; color: #64748b;">
+            <strong>Assigned Crew:</strong> ${bill.crewDetails?.assignedCrew || 'G Krishna + Studio Unit'}
+          </p>
+          <p style="margin: 3px 0 0 0; font-size: 10px; color: #059669; font-weight: 600;">
+            Status: Digitally Confirmed Payment
+          </p>
+        </div>
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(
-      isHighlight ? 14 : isBalance ? 180 : 30,
-      isHighlight ? 80 : isBalance ? 40 : 30,
-      isHighlight ? 40 : isBalance ? 30 : 30
-    );
-    doc.text(amt, pageWidth - margin - 4, y + 5.5, { align: 'right' });
+        <!-- Event Details -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px;">
+          <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+            Event & Ceremony / நிகழ்வு விவரம்
+          </h4>
+          <p style="margin: 0; font-size: 13px; font-weight: 700; color: #0f172a;">
+            ${bill.eventDetails.eventName}
+            ${
+              bill.eventDetails.tamilEventName
+                ? `<span style="font-size: 11px; font-weight: 600; color: #072421; background: #e2e8f0; padding: 1px 6px; border-radius: 3px; margin-left: 6px;">${bill.eventDetails.tamilEventName}</span>`
+                : ''
+            }
+          </p>
+          <p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;">
+            <strong>Date & Slot:</strong> ${bill.eventDetails.eventDate} ${bill.eventDetails.eventTime ? `(${bill.eventDetails.eventTime})` : ''}
+          </p>
+          <p style="margin: 3px 0 0 0; font-size: 10px; color: #64748b;">
+            <strong>Venue:</strong> ${bill.eventDetails.venue || 'To be updated'}
+          </p>
+        </div>
+      </div>
 
-    y += rowH;
-  });
+      <!-- Package & Deliverables Summary -->
+      <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px; margin-bottom: 18px; background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px;">
+            Selected Package & Deliverables / தொகுப்பு விவரம்
+          </span>
+          <span style="font-size: 13px; font-weight: 700; color: #072421; font-family: serif;">
+            ${bill.packageDetails.basePackageName}
+          </span>
+        </div>
 
-  y += 6;
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 10px; color: #334155;">
+          ${inclusions
+            .map(
+              (inc) =>
+                `<div style="display: flex; align-items: center; gap: 5px;">
+                  <span style="color: #059669; font-weight: bold;">✓</span>
+                  <span>${inc}</span>
+                </div>`
+            )
+            .join('')}
+        </div>
 
-  // ─── Signatory & Stamp ───
-  const signBoxW = 70;
-  const signBoxX = pageWidth - margin - signBoxW;
-  doc.setDrawColor(200, 200, 200);
-  doc.setFillColor(252, 252, 252);
-  doc.rect(signBoxX, y, signBoxW, 26, 'FD');
+        ${
+          addons.length > 0
+            ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #e2e8f0; font-size: 10px; color: #64748b;">
+                <strong style="color: #072421;">Custom Upgrades:</strong>
+                ${addons.map((a) => `<span style="display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 6px; margin-left: 4px; color: #334155;">${a.label} (+₹${Number(a.priceDelta).toLocaleString('en-IN')})</span>`).join('')}
+              </div>`
+            : ''
+        }
+      </div>
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(7, 36, 33);
-  doc.text('FOR GK STUDIOS (PANRUTI)', signBoxX + 4, y + 5);
+      <!-- Financial Transaction Ledger Table -->
+      <div style="border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
+          <thead>
+            <tr style="background: #092E2B; color: #ffffff; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
+              <th style="padding: 8px 12px;">Description / விவரம்</th>
+              <th style="padding: 8px 12px; text-align: center;">Mode</th>
+              <th style="padding: 8px 12px; text-align: center;">Stage</th>
+              <th style="padding: 8px 12px; text-align: right;">Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+              <td style="padding: 9px 12px; font-weight: 600; color: #1e293b;">
+                Total Agreed Package Investment
+                <span style="display: block; font-size: 9px; color: #64748b; font-weight: 400;">மொத்தத் தொகுப்புக் கட்டணம் (Base + Upgrades)</span>
+              </td>
+              <td style="padding: 9px 12px; text-align: center; color: #64748b;">—</td>
+              <td style="padding: 9px 12px; text-align: center; color: #64748b;">Total Contract</td>
+              <td style="padding: 9px 12px; text-align: right; font-family: monospace; font-weight: 700; color: #0f172a;">
+                ${formatINR(bill.financials.totalPackageAmount)}
+              </td>
+            </tr>
 
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text('G. Krishna', signBoxX + 4, y + 14);
+            <!-- Paid Now Row -->
+            <tr style="border-bottom: 1px solid #e2e8f0; background: #ecfdf5; font-weight: 700;">
+              <td style="padding: 9px 12px; color: #065f46;">
+                Payment Received Now (This Receipt)
+                <span style="display: block; font-size: 9px; color: #047857; font-weight: 400;">
+                  இப்போது செலுத்திய தொகை · Ref: #${bill.paymentId.slice(0, 8)}
+                </span>
+              </td>
+              <td style="padding: 9px 12px; text-align: center; color: #065f46; font-family: monospace; font-size: 10px;">
+                ${bill.financials.paymentMode}
+              </td>
+              <td style="padding: 9px 12px; text-align: center; color: #065f46; font-size: 10px;">
+                ${bill.financials.paymentStage}
+              </td>
+              <td style="padding: 9px 12px; text-align: right; font-family: monospace; font-size: 13px; font-weight: 800; color: #047857;">
+                ${formatINR(bill.financials.amountPaidNow)}
+              </td>
+            </tr>
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(60, 60, 60);
-  doc.text('Authorized Signatory & Founder', signBoxX + 4, y + 19);
-  doc.text('Digitally Verified Payment Record', signBoxX + 4, y + 23);
+            <!-- Total Paid to Date -->
+            <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+              <td style="padding: 9px 12px; color: #334155;">
+                Cumulative Payments to Date
+                <span style="display: block; font-size: 9px; color: #64748b;">இதுவரை செலுத்திய மொத்தத் தொகை</span>
+              </td>
+              <td style="padding: 9px 12px; text-align: center; color: #64748b;">—</td>
+              <td style="padding: 9px 12px; text-align: center; color: #64748b; font-size: 10px;">Cumulative</td>
+              <td style="padding: 9px 12px; text-align: right; font-family: monospace; font-weight: 700; color: #1e293b;">
+                ${formatINR(bill.financials.totalPaidToDate)}
+              </td>
+            </tr>
 
-  // Left Note
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(7, 36, 33);
-  doc.text('OFFICIAL MEMORY GUARANTEE:', margin, y + 6);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(70, 70, 70);
-  const noteLines = [
-    '• Thank you for placing your trust in GK Studios for your celebration.',
-    '• All unedited photos soft-copy provided on pen drive / cloud within 15 working days.',
-    '• Printed album preview provided digitally prior to final non-tearable lay-flat printing.',
-    '• For queries, reach G Krishna directly at +91 74185 43123.',
-  ];
-  noteLines.forEach((l, i) => {
-    doc.text(l, margin, y + 12 + i * 4);
-  });
+            <!-- Balance Due -->
+            <tr style="background: #fffbeb; font-weight: 700; border-top: 2px solid #cbd5e1;">
+              <td style="padding: 10px 12px; color: #78350f;">
+                Remaining Balance Due
+                <span style="display: block; font-size: 9px; color: #92400e; font-weight: 400;">
+                  மீதமுள்ள நிலுவைத் தொகை (To be cleared before final album/video handover)
+                </span>
+              </td>
+              <td style="padding: 10px 12px; text-align: center; color: #78350f;">—</td>
+              <td style="padding: 10px 12px; text-align: center; color: #78350f; font-size: 10px;">Due on Delivery</td>
+              <td style="padding: 10px 12px; text-align: right; font-family: monospace; font-size: 14px; font-weight: 900; color: #78350f;">
+                ${formatINR(bill.financials.balanceDue)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-  y += 30;
+      <!-- Studio Seal & Signatory Row -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 14px 0; border-top: 1px solid #e2e8f0;">
+        <div>
+          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: block;">
+            OFFICIAL STUDIO SEAL / முத்திரை
+          </span>
+          <div style="margin-top: 4px; height: 44px; width: 140px; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: serif; color: #94a3b8; font-weight: bold; letter-spacing: 0.5px;">
+            GK STUDIOS PANRUTI
+          </div>
+          <p style="margin: 4px 0 0 0; font-size: 9px; color: #94a3b8;">
+            Computer-Generated Digitally Verified Receipt
+          </p>
+        </div>
 
-  // ─── Terms & Conditions Header ───
-  doc.setFillColor(240, 238, 230);
-  doc.rect(margin, y, pageWidth - margin * 2, 5, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(7, 36, 33);
-  doc.text('STUDIO TERMS & CONDITIONS / விதிமுறைகள் & நிபந்தனைகள் (SUMMARY)', margin + 2, y + 3.8);
+        <div style="text-align: right;">
+          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: block;">
+            FOR GK STUDIOS / உரிமையாளர் கையொப்பம்
+          </span>
+          <div style="height: 38px; display: flex; align-items: flex-end; justify-content: flex-end;">
+            <span style="font-family: serif; font-style: italic; font-weight: bold; font-size: 15px; color: #072421; border-bottom: 1px solid #94a3b8; padding-bottom: 2px;">
+              G. Krishna
+            </span>
+          </div>
+          <p style="margin: 4px 0 0 0; font-size: 10px; font-weight: 600; color: #334155;">
+            Authorized Signatory & Founder
+          </p>
+        </div>
+      </div>
+    </div>
 
-  y += 6;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.2);
-  doc.setTextColor(70, 70, 70);
+    <!-- Page 1 Bottom Footer -->
+    <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+      <span>GK STUDIOS • Panruti, Tamil Nadu • Ph: +91 74185 43123</span>
+      <span style="font-weight: 600; color: #072421;">Page 1 of 2 • Official Payment Receipt</span>
+    </div>
+  `;
 
-  const terms = [
-    '1. Payment Terms: Advance required to reserve crew. Balance cleared upon final video/album approval prior to physical handover.',
-    '2. 120-Day Collection Period: Albums and USB media must be collected within 120 days from delivery notification.',
-    '3. Photo Selection: Clients must select photos within 30 days of receiving soft copies to ensure timely album layout processing.',
-    '4. Additional Album Sheets: Extra album sheets requested beyond package inclusions are billed at standard studio rates (₹300/sheet).',
-    '5. Post-Delivery Liability: Studio maintains dual local archival backup for 90 days after delivery; client is advised to back up media.',
-  ];
+  // ═══════════════════════════════════════════════════════════════════════
+  // PAGE 2: COMPLETE BILINGUAL TERMS & CONDITIONS (ALL 10 CLAUSES)
+  // ═══════════════════════════════════════════════════════════════════════
+  const page2 = document.createElement('div');
+  page2.style.width = '794px';
+  page2.style.minHeight = '1120px';
+  page2.style.padding = '36px 40px';
+  page2.style.boxSizing = 'border-box';
+  page2.style.backgroundColor = '#ffffff';
+  page2.style.display = 'flex';
+  page2.style.flexDirection = 'column';
+  page2.style.justifyContent = 'space-between';
 
-  terms.forEach((term) => {
-    if (y < 285) {
-      doc.text(doc.splitTextToSize(term, pageWidth - margin * 2), margin, y);
-      y += 4;
+  page2.innerHTML = `
+    <div>
+      <!-- Page 2 Header Banner -->
+      <div style="border-bottom: 2px solid #092E2B; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h2 style="margin: 0; font-size: 16px; font-weight: 800; color: #072421; letter-spacing: 0.5px; font-family: serif;">
+            TERMS & CONDITIONS / விதிமுறைகள் மற்றும் நிபந்தனைகள்
+          </h2>
+          <p style="margin: 2px 0 0 0; font-size: 10px; color: #64748b;">
+            GK Studios Standard Client Agreement • Official Service Guidelines (10 Clauses)
+          </p>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-family: monospace; font-size: 11px; font-weight: 700; color: #072421; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 3px;">
+            Bill #${bill.billNumber}
+          </span>
+        </div>
+      </div>
+
+      <!-- Full 10 Bilingual Clauses Grid -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${termsList
+          .map((term: BillTermItem, idx: number) => {
+            const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
+            const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+
+            return `
+              <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+                <p style="margin: 0; font-size: 10px; font-weight: 700; color: #0f172a; line-height: 1.3;">
+                  ${idx + 1}. ${term.en}${titleEn}
+                </p>
+                <p style="margin: 2px 0 0 0; font-size: 9.5px; color: #475569; line-height: 1.45;">
+                  ${term.ta}${titleTa}
+                </p>
+              </div>
+            `;
+          })
+          .join('')}
+      </div>
+
+      <!-- Agreement & Acceptance Callout -->
+      <div style="margin-top: 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #092E2B; border-radius: 4px; padding: 10px 14px;">
+        <p style="margin: 0; font-size: 10px; font-weight: 700; color: #072421;">
+          Client Acceptance & Agreement / வாடிக்கையாளர் ஒப்புதல்:
+        </p>
+        <p style="margin: 3px 0 0 0; font-size: 9.5px; color: #334155; line-height: 1.4;">
+          By confirming your booking and payment, you agree that you have read, understood and accepted all the above terms and conditions.
+        </p>
+        <p style="margin: 2px 0 0 0; font-size: 9px; color: #64748b; line-height: 1.4;">
+          முன்பதிவையும் கட்டணத்தையும் உறுதிப்படுத்துவதன் மூலம், மேலே உள்ள அனைத்து விதிமுறைகளையும் படித்து, புரிந்து, ஏற்றுக்கொண்டதாக ஒப்புக்கொள்கிறீர்கள்.
+        </p>
+      </div>
+    </div>
+
+    <!-- Page 2 Bottom Footer & Guarantee -->
+    <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+      <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+      <span style="font-weight: 600; color: #072421;">Page 2 of 2 • Studio Terms & Conditions</span>
+    </div>
+  `;
+
+  container.appendChild(page1);
+  container.appendChild(page2);
+  document.body.appendChild(container);
+
+  try {
+    // Render Page 1 to Canvas at 2x resolution
+    const canvas1 = await html2canvas(page1, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+
+    // Render Page 2 to Canvas at 2x resolution
+    const canvas2 = await html2canvas(page2, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    // Page 1: Official Payment Receipt
+    const imgData1 = canvas1.toDataURL('image/jpeg', 0.96);
+    doc.addImage(imgData1, 'JPEG', 0, 0, 210, 297);
+
+    // Page 2: Terms & Conditions
+    doc.addPage();
+    const imgData2 = canvas2.toDataURL('image/jpeg', 0.96);
+    doc.addImage(imgData2, 'JPEG', 0, 0, 210, 297);
+
+    return doc.output('blob');
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
     }
-  });
-
-  return doc.output('blob');
+  }
 }
 
 export async function downloadBillPdf(bill: StudioBill): Promise<void> {
@@ -290,7 +424,7 @@ export async function shareBillPdfWhatsApp(bill: StudioBill): Promise<void> {
       bill.eventDetails.tamilEventName ? ` (${bill.eventDetails.tamilEventName})` : ''
     }`,
     `📅 Event Date & Timing: ${bill.eventDetails.eventDate} at ${bill.eventDetails.eventTime || '06:00 AM'}`,
-    `📍 Venue: ${bill.eventDetails.venue}`,
+    `📍 Venue: ${bill.eventDetails.venue || 'To be updated'}`,
     `📦 Package: ${bill.packageDetails.basePackageName}`,
     ``,
     `💵 Amount Paid Now: ${formatINR(bill.financials.amountPaidNow)} (${bill.financials.paymentMode} · ${bill.financials.paymentStage})`,

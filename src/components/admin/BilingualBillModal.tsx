@@ -25,7 +25,17 @@ import { Button } from '@/src/components/ui/button';
 import { formatINR } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
+import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
 import { toast } from 'sonner';
+
+interface BillTermItem {
+  en: string;
+  ta: string;
+  title?: {
+    en?: string;
+    ta?: string;
+  };
+}
 
 interface BilingualBillModalProps {
   bill: StudioBill | null;
@@ -73,6 +83,11 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
       setIsSharing(false);
     }
   };
+
+  const termsList: BillTermItem[] =
+    bill.termsAndConditions && bill.termsAndConditions.length > 0
+      ? bill.termsAndConditions
+      : STUDIO_TERMS_AND_CONDITIONS;
 
   const modalContent = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto print:p-0 print:bg-white print:static">
@@ -152,6 +167,10 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
         <div
           ref={printRef}
           id="printable-bill-content"
+          style={{
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif',
+          }}
           className="overflow-y-auto p-6 sm:p-8 space-y-6 text-xs bg-white text-slate-800 font-sans print:p-0 print:overflow-visible print:text-[10px]"
         >
           {/* ─── Header: Luxury Studio Identity ─── */}
@@ -384,30 +403,61 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
             </div>
           </div>
 
-          {/* ─── Full Bilingual Terms & Conditions ─── */}
-          <div className="border-t-2 border-slate-200 pt-4 space-y-2">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#072421]" />
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#072421]">
-                Terms & Conditions / விதிமுறைகள் மற்றும் நிபந்தனைகள்
-              </h4>
+          {/* Page 1 Print-Only Footer */}
+          <div className="hidden print:flex justify-between items-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
+            <span>GK STUDIOS • Panruti, Tamil Nadu • Ph: +91 {STUDIO_INFO.phone}</span>
+            <span className="font-semibold text-[#072421]">Page 1 of 2 • Official Payment Receipt</span>
+          </div>
+
+          {/* ─── Page 2: Full Bilingual Terms & Conditions (10 Clauses) ─── */}
+          <div className="border-t-2 border-slate-300 pt-5 space-y-3 print-page-break-before print-avoid-break">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-[#072421]" />
+                <h4 className="font-serif text-sm font-bold uppercase tracking-wider text-[#072421]">
+                  Terms & Conditions / விதிமுறைகள் மற்றும் நிபந்தனைகள்
+                </h4>
+              </div>
+              <span className="text-[10px] text-slate-500 font-medium font-mono">
+                Bill #{bill.billNumber}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 text-[9px] text-slate-600 leading-relaxed">
-              {bill.termsAndConditions && bill.termsAndConditions.length > 0 ? (
-                bill.termsAndConditions.map((term, idx) => (
-                  <div key={idx} className="border-b border-slate-100 pb-1.5">
-                    <p className="font-medium text-slate-800">
-                      {idx + 1}. {term.en}
+            <div className="grid grid-cols-1 gap-2.5 text-[10px] text-slate-700 leading-relaxed">
+              {termsList.map((term: BillTermItem, idx: number) => {
+                const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
+                const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+
+                return (
+                  <div key={idx} className="border-b border-slate-100 pb-2 last:border-none">
+                    <p className="font-bold text-slate-900 leading-snug">
+                      {idx + 1}. {term.en}{titleEn}
                     </p>
-                    <p className="text-slate-600 mt-0.5 font-sans leading-tight">{term.ta}</p>
+                    <p className="text-slate-600 mt-0.5 font-sans leading-relaxed">
+                      {term.ta}{titleTa}
+                    </p>
                   </div>
-                ))
-              ) : (
-                <p className="text-slate-500 italic">
-                  Standard GK Studios service terms apply. All files stored for 120 days.
-                </p>
-              )}
+                );
+              })}
+            </div>
+
+            {/* Client Acceptance Box */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3 text-[10px] text-slate-700 space-y-1">
+              <p className="font-bold text-[#072421]">
+                Client Acceptance & Agreement / வாடிக்கையாளர் ஒப்புதல்:
+              </p>
+              <p className="text-slate-700 leading-snug">
+                By confirming your booking and payment, you agree that you have read, understood and accepted all the above terms and conditions.
+              </p>
+              <p className="text-slate-500 leading-relaxed">
+                முன்பதிவையும் கட்டணத்தையும் உறுதிப்படுத்துவதன் மூலம், மேலே உள்ள அனைத்து விதிமுறைகளையும் படித்து, புரிந்து, ஏற்றுக்கொண்டதாக ஒப்புக்கொள்கிறீர்கள்.
+              </p>
+            </div>
+
+            {/* Page 2 Print Footer */}
+            <div className="flex justify-between items-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
+              <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+              <span className="font-semibold text-[#072421]">Page 2 of 2 • Studio Terms & Conditions</span>
             </div>
           </div>
         </div>

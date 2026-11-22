@@ -23,6 +23,7 @@ import {
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { TermsAndConditionsModal } from '@/src/components/TermsAndConditionsModal';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import {
@@ -588,24 +589,16 @@ export function BookingSection({
                   </span>
                 </div>
 
-                <Button
+                <SubmitButton
                   type="submit"
                   size="lg"
-                  disabled={isSubmitting}
+                  isLoading={isSubmitting}
+                  loadingText={t('booking.submitting') || 'Submitting...'}
+                  icon={<Send className="h-4 w-4" />}
                   className="w-full sm:w-auto"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t('booking.submitting')}
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      {t('booking.submit')}
-                    </>
-                  )}
-                </Button>
+                  {t('booking.submit')}
+                </SubmitButton>
               </div>
             </form>
           </motion.div>

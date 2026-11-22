@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import {
   ArrowDown,
   ArrowRight,
@@ -16,6 +17,7 @@ import { MandalaCorner } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { localizePortfolioText, translate } from '@/src/i18n/translations';
+import { SHIMMER_BLUR_DATA_URL, preloadImage } from '@/src/lib/imageBlur';
 
 interface HeroSectionProps {
   onCheckAvailability: () => void;
@@ -50,6 +52,16 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
     }, 6800);
     return () => window.clearInterval(timer);
   }, [prefersReducedMotion, slides.length]);
+
+  // Pre-warm the next slide's image 
+  useEffect(() => {
+    if (slides.length > 1) {
+      const nextSlide = slides[(currentIndex + 1) % slides.length];
+      if (nextSlide?.imageUrl) {
+        preloadImage(nextSlide.imageUrl);
+      }
+    }
+  }, [currentIndex, slides]);
 
   const activeSlide = slides[currentIndex];
   const activeSlideTitle = activeSlide
@@ -89,11 +101,14 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
               }}
               className="absolute inset-0"
             >
-              <img
+              <Image
                 src={activeSlide.imageUrl}
                 alt={activeSlideTitle}
-                loading="eager"
-                referrerPolicy="no-referrer"
+                fill
+                priority
+                sizes="100vw"
+                placeholder="blur"
+                blurDataURL={SHIMMER_BLUR_DATA_URL}
                 onError={() =>
                   setFailedImages((prev) => ({ ...prev, [activeSlide.id]: true }))
                 }

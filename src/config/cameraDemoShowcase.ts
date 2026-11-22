@@ -4,7 +4,7 @@ export interface ShowcaseMediaItem {
   title: string;
   thumbnailUrl: string;
   mediaUrl: string; // Full-res image URL, MP4/YouTube/Vimeo embed URL, or sample Album PDF URL
-  caption?: string; // Short 1-line demo note (e.g., "18×24 Lay-Flat Velvet Finish Cover")
+  caption?: string; // Short 1-line demo note
   aspectRatio?: '16:9' | '2.39:1' | '9:16' | '4:3' | '1:1';
   details?: {
     resolution?: string;
@@ -24,8 +24,7 @@ export interface CameraCrewDemoItem {
   taSubtitle: string;
   shortTagline: string; // 3–5 word collapsed preview
   description: string; // Collapsed by default; expands on tap
-  badge?: string; // e.g. "Essential Base" | "Heirloom" | "Cinema 4K"
-  gearUsed?: string;
+  badge?: string; // e.g. "Essential Base" | "Signature Style" | "Cinema 4K"
   bestFor?: string;
   media: ShowcaseMediaItem[]; // Multiple photos, videos, or album PDFs
 }
@@ -35,12 +34,11 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     id: 'traditional-photo',
     enTitle: 'Traditional Photography',
     taSubtitle: 'பாரம்பரியப் புகைப்படம்',
-    shortTagline: 'Every Ritual & Every Guest',
+    shortTagline: 'Every Sacred Ritual & Every Family Guest',
     description:
-      'Ensures every sacred blessing, holy thali tying, and family stage portrait is captured with crisp, even flash lighting and direct eye contact—so no elder or relative is missed in the family keepsake album.',
+      'Ensures every sacred blessing, holy thali tying, and family stage portrait is captured with crisp, balanced lighting and direct eye contact—so no elder, relative, or arriving guest is missed in your keepsake album.',
     badge: 'Essential Base',
-    gearUsed: 'Sony A7 IV with on-camera TTL softbox flash & 24-70mm f/2.8 G-Master lenses',
-    bestFor: 'Stage group photos, thali tying, garlands exchange, elder blessings & complete attendance archive',
+    bestFor: 'Stage group portraits, thali tying, garland exchange, elder blessings & complete guest attendance archive',
     media: [
       {
         id: 'trad-stage-group',
@@ -48,10 +46,10 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Grand Stage Family Portrait',
         thumbnailUrl: '/images/guide/traditional-photo-stage.jpg',
         mediaUrl: '/images/guide/traditional-photo-stage.jpg',
-        caption: 'Even flash lighting across the entire family with razor-sharp focus from front to back rows.',
+        caption: 'Even, bright illumination across the entire family with crystal-clear focus from front to back rows.',
         aspectRatio: '16:9',
         details: {
-          resolution: '33 MP High-Res Print File',
+          resolution: 'High-Res Print Master',
           dimensions: 'Ultra-Sharp Stage Archive',
         },
       },
@@ -61,10 +59,10 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Sacred Mangalya Dharanam Ritual',
         thumbnailUrl: '/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg',
         mediaUrl: '/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg',
-        caption: 'Auspicious thali tying moment with bright, clean exposure capturing all elders and family blessings.',
+        caption: 'Auspicious thali tying moment with bright, clean framing capturing all elders and family blessings.',
         aspectRatio: '16:9',
         details: {
-          resolution: '33 MP Print Ready',
+          resolution: 'Print Ready High-Res',
           dimensions: 'Keepsake Family Memory',
         },
       },
@@ -77,7 +75,7 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         caption: 'Stage rituals, flower shower, and cheerful family attendance captured in high clarity.',
         aspectRatio: '16:9',
         details: {
-          resolution: '33 MP High-Res Print File',
+          resolution: 'High-Res Print File',
           dimensions: 'Stage Ceremony Documentation',
         },
       },
@@ -89,10 +87,9 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     taSubtitle: 'கேன்டிட் புகைப்படம்',
     shortTagline: 'Unscripted Emotions & Magazine Portraits',
     description:
-      'Captures unscripted tears of joy, stolen glances, playful laughter, and editorial couple portraits with creamy shallow depth-of-field without interrupting sacred rites.',
+      'Captures spontaneous tears of joy, stolen glances, playful laughter, and elegant couple portraits with soft dreamy backgrounds without interrupting sacred ceremonies.',
     badge: 'Signature Style',
-    gearUsed: 'Sony A1 & A7R V with ultra-fast 35mm, 50mm & 85mm f/1.2–f/1.4 prime portrait lenses',
-    bestFor: 'Tearful joy during vidai, laughing candid moments, couple chemistry & delicate jewelry details',
+    bestFor: 'Tears of joy during vidai, laughing candid moments, couple chemistry & delicate jewelry details',
     media: [
       {
         id: 'candid-bride-tears',
@@ -100,10 +97,10 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Heartfelt Tears & Joy of the Bride',
         thumbnailUrl: '/images/guide/candid-photo-emotion.jpg',
         mediaUrl: '/images/guide/candid-photo-emotion.jpg',
-        caption: 'Captured with creamy f/1.4 background bokeh—pure authentic emotion without posed interruption.',
+        caption: 'Soft, cinematic natural background focus—pure authentic emotion captured without posed interruption.',
         aspectRatio: '16:9',
         details: {
-          resolution: '50 MP Ultra-Detail',
+          resolution: 'High-Resolution Art Master',
           dimensions: 'Magazine Editorial Quality',
         },
       },
@@ -116,7 +113,7 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         caption: 'Natural, unposed romantic connection framed against warm South Indian architecture.',
         aspectRatio: '16:9',
         details: {
-          resolution: '50 MP Master RAW',
+          resolution: 'High-Resolution Master File',
           dimensions: 'Hero Wall Art Enlargeable',
         },
       },
@@ -126,10 +123,10 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Intimate Ceremony & Decor Details',
         thumbnailUrl: '/images/portfolio/birthday_milestone_celebration_1794972489472.jpg',
         mediaUrl: '/images/portfolio/birthday_milestone_celebration_1794972489472.jpg',
-        caption: 'Delicate jasmine flower strings, sacred kumkum, and golden silks caught in cinematic light.',
+        caption: 'Delicate jasmine flower strings, sacred kumkum, and golden silks caught in warm ambient lighting.',
         aspectRatio: '16:9',
         details: {
-          resolution: '50 MP Fine Art Macro',
+          resolution: 'Fine Art Macro Detail',
           dimensions: 'Album Accent Spread',
         },
       },
@@ -139,25 +136,24 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     id: 'traditional-video',
     enTitle: 'Traditional Video (Full Ceremony)',
     taSubtitle: 'பாரம்பரிய வீடியோ',
-    shortTagline: 'Your Complete Ceremony Archive',
+    shortTagline: 'Complete Chronological Ceremony Archive',
     description:
-      'Continuous, uninterrupted Full HD broadcast-grade recording of the entire ceremony with directional lapel audio so distant relatives and future generations can re-watch every mantra, speech, and greeting.',
+      'Continuous, uninterrupted Full HD recording of the entire ceremony with crystal-clear audio so family members abroad and future generations can re-live every mantra, speech, and greeting on their living room TV.',
     badge: 'Full Archive',
-    gearUsed: 'Broadcast-grade 4K camcorders with Sennheiser wireless lapel microphones & continuous soft lights',
     bestFor: 'Complete ritual recording, stage speeches, welcoming entries & TV playback for family abroad',
     media: [
       {
         id: 'trad-video-camcorder-rig',
         type: 'video',
-        title: 'Broadcast Camcorder Continuous Coverage',
+        title: 'Uninterrupted Stage Ceremony Coverage',
         thumbnailUrl: '/images/guide/traditional-video-camcorder.jpg',
         mediaUrl: '/images/guide/traditional-video-camcorder.jpg',
-        caption: 'Continuous live documentation on broadcast-grade video rigs with dual-slot audio backup.',
+        caption: 'Continuous live documentation ensuring every sacred ritual and greeting is archived seamlessly.',
         aspectRatio: '16:9',
         details: {
-          resolution: 'Full HD 1080p 50fps',
-          fps: '50 FPS Broadcast Standard',
-          audioNote: 'Sennheiser Wireless Lapel Mantras',
+          resolution: 'Full HD 1080p',
+          fps: 'Broadcast Standard Motion',
+          audioNote: 'Crystal-Clear Mantra & Stage Audio',
           timecode: 'REC 01:42:15',
           deliveryFormat: 'Complete edited ceremony on USB drive & cloud backup',
         },
@@ -168,12 +164,12 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Full Ceremony Archive & Mantras Playback',
         thumbnailUrl: '/images/portfolio/temple_wedding_gopuram_1794972485937.jpg',
         mediaUrl: '/images/portfolio/temple_wedding_gopuram_1794972485937.jpg',
-        caption: 'Uncut chronological recording tailored for living room TV playback with crisp mantra audio.',
+        caption: 'Uncut chronological recording tailored for living room TV playback with pristine mantra audio.',
         aspectRatio: '16:9',
         details: {
           resolution: 'Full HD 1080p Crystal Clear',
-          fps: '50 FPS Uninterrupted',
-          audioNote: 'Priest Microphone & Live Ambience',
+          fps: 'Smooth Uninterrupted Playback',
+          audioNote: 'Priest Mantras & Live Ambience',
           timecode: '02:15:30 Full Video',
           deliveryFormat: 'Pen drive + 10-Year Cloud Storage',
         },
@@ -188,7 +184,7 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         aspectRatio: '16:9',
         details: {
           resolution: 'Full HD 1080p',
-          fps: '50 FPS Continuous',
+          fps: 'Continuous Recording',
           audioNote: 'Clear Hall Audio Feed',
           timecode: 'REC 03:04:12',
           deliveryFormat: 'High-Bitrate MP4 Archive',
@@ -200,27 +196,26 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     id: 'candid-cinema',
     enTitle: 'Candid Cinematography & Reels',
     taSubtitle: 'சினிமாடிக் வீடியோ & ரீல்ஸ்',
-    shortTagline: 'Your Movie Trailer & Instagram Reels',
+    shortTagline: 'Emotional Movie Trailer & Instagram Reels',
     description:
-      'Filmed on 3-axis motorized gimbals in 4K 120fps slow motion, color-graded into a 3–5 minute emotional music film plus 60-second vertical reels for Instagram & WhatsApp.',
+      'Silky-smooth cinematic gliding shots and dramatic slow motion, color-graded into an emotional 3–5 minute music film trailer plus 60-second vertical reels for Instagram & WhatsApp.',
     badge: 'Cinema 4K',
-    gearUsed: 'Sony FX3 Cinema Line on DJI Ronin motorized gimbals with anamorphic wide glass',
-    bestFor: 'Slow-motion cinematic cuts, cinematic music teaser, emotional story-driven film & social media reels',
+    bestFor: 'Slow-motion cinematic cuts, musical teaser highlights, story-driven wedding film & social media reels',
     media: [
       {
         id: 'cinema-gimbal-teaser',
         type: 'video',
-        title: '3-Axis Motorized Gimbal Cinema Trailer',
+        title: 'Cinematic Wedding Teaser & Film',
         thumbnailUrl: '/images/guide/candid-cinema-gimbal.jpg',
         mediaUrl: '/images/guide/candid-cinema-gimbal.jpg',
-        caption: '2.39:1 widescreen anamorphic framing with silky motorized gimbal motion and film grade.',
+        caption: 'Widescreen cinematic framing with silky-smooth gliding motion and emotive color grading.',
         aspectRatio: '2.39:1',
         details: {
-          resolution: 'Cinema 4K UHD 120fps',
-          fps: '120 FPS Slow Motion',
+          resolution: 'Cinema 4K UHD',
+          fps: 'Cinematic Slow Motion',
           audioNote: 'Custom Instrumental Soundtrack + Vows Voiceover',
           timecode: '03:45 Wedding Film Trailer',
-          deliveryFormat: 'Master 4K ProRes + Master Web Stream',
+          deliveryFormat: 'Master 4K Video + Web Streaming Link',
         },
       },
       {
@@ -232,8 +227,8 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         caption: 'Fast-paced, emotive 9:16 vertical cuts formatted specifically for viral social media sharing.',
         aspectRatio: '9:16',
         details: {
-          resolution: '4K Vertical (2160×3840)',
-          fps: '60 FPS Ultra-Smooth',
+          resolution: '4K Vertical Ultra HD',
+          fps: 'Ultra-Smooth Motion',
           audioNote: 'Trending Audio Teaser Sync',
           timecode: '00:58 Vertical Reel',
           deliveryFormat: 'Instagram Reel & WhatsApp Ready MP4',
@@ -242,14 +237,14 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
       {
         id: 'cinema-slowmo-emotions',
         type: 'video',
-        title: '4K 120fps Slow-Motion Garland Drop',
+        title: 'Slow-Motion Garland Exchange & Smiles',
         thumbnailUrl: '/images/guide/candid-photo-emotion.jpg',
         mediaUrl: '/images/guide/candid-photo-emotion.jpg',
-        caption: 'Flower petals floating in ultra slow motion as the bride and groom exchange playful smiles.',
+        caption: 'Flower petals floating in dramatic slow motion as the couple exchanges playful, joyful smiles.',
         aspectRatio: '2.39:1',
         details: {
-          resolution: '4K Slow-Motion 120fps',
-          fps: '120 FPS Dramatic Motion',
+          resolution: 'Cinema 4K Slow-Motion',
+          fps: 'Dramatic Emotional Pace',
           audioNote: 'Atmospheric Reverb & Temple Chants',
           timecode: '01:15 Slow-Mo Cut',
           deliveryFormat: 'Integrated in Master Wedding Teaser',
@@ -261,11 +256,10 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     id: 'drone-aerial',
     enTitle: 'Drone Aerial Coverage',
     taSubtitle: 'ட்ரோன் வான்வழிப் படப்பிடிப்பு',
-    shortTagline: 'Grand Venue & Crowd Scale',
+    shortTagline: 'Grand Venue Architecture & Celebration Scale',
     description:
-      "Sweeping bird's-eye views revealing majestic Dravidian temple gopurams, grand arrival processions, illuminated wedding halls, and the breathtaking scale of your celebrations.",
+      "Sweeping bird's-eye views revealing majestic Dravidian temple gopurams, grand arrival processions, illuminated wedding halls, and the breathtaking scale of your gathering.",
     badge: 'Grand Scale',
-    gearUsed: 'Licensed 4K DJI Drone with omnidirectional obstacle sensing & dual optical zoom',
     bestFor: 'Temple gopurams, outdoor mandapam arrivals, car processions & sweeping guest views',
     media: [
       {
@@ -274,11 +268,11 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Bird’s-Eye Mandapam & Gopuram Flyover',
         thumbnailUrl: '/images/guide/drone-aerial-mandapam.jpg',
         mediaUrl: '/images/guide/drone-aerial-mandapam.jpg',
-        caption: 'Majestic bird’s-eye perspective from 50 meters altitude showcasing venue scale and floral entrance.',
+        caption: 'Majestic bird’s-eye perspective showcasing venue scale, grand temple architecture, and floral entrance.',
         aspectRatio: '16:9',
         details: {
-          resolution: '4K Aerial 60fps',
-          fps: '60 FPS Cinematic Flight',
+          resolution: '4K Aerial Ultra HD',
+          fps: 'Cinematic Flight Motion',
           audioNote: 'Ambient Temple Bells & Procession Beats',
           timecode: 'ALT 48m · 4K AERIAL',
           deliveryFormat: 'Raw 4K flight footage + integrated film cuts',
@@ -294,7 +288,7 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         aspectRatio: '16:9',
         details: {
           resolution: '4K High Dynamic Range',
-          fps: '60 FPS Smooth Fly-by',
+          fps: 'Smooth Panoramic Flyover',
           audioNote: 'Procession Nadaswaram Sync',
           timecode: 'ALT 35m · PROCESSION',
           deliveryFormat: 'High-Res Cinematic Drone Cut',
@@ -306,12 +300,12 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Illuminated Mandapam Grounds at Twilight',
         thumbnailUrl: '/images/portfolio/temple_wedding_gopuram_1794972485937.jpg',
         mediaUrl: '/images/portfolio/temple_wedding_gopuram_1794972485937.jpg',
-        caption: 'Golden dusk aerial illumination of the mandapam architecture impossible from ground cameras.',
+        caption: 'Golden dusk aerial illumination of the mandapam architecture impossible from ground angles.',
         aspectRatio: '16:9',
         details: {
-          resolution: '4K Low-Light Sensor',
-          fps: '30 FPS Night Flight',
-          audioNote: 'Evening Evening Sky Drone Feed',
+          resolution: '4K Twilight Flight',
+          fps: 'Cinematic Twilight Flight',
+          audioNote: 'Evening Sky Ambience',
           timecode: 'ALT 60m · TWILIGHT',
           deliveryFormat: 'Stunning Opener for Master Film',
         },
@@ -324,9 +318,8 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     taSubtitle: 'புகைப்பட ஆல்பம் & கவர்',
     shortTagline: 'Heirloom Velvet, Acrylic & Lay-Flat Spreads',
     description:
-      'Handcrafted 18×24 panoramic seamless lay-flat photo books on tear-proof Fuji pearl photographic paper, with custom velvet / crystal acrylic glass covers and wooden keepsake boxes.',
+      'Handcrafted panoramic seamless lay-flat photo books on tear-proof archival photographic paper, paired with personalized royal velvet or crystal acrylic glass covers and wooden keepsake boxes.',
     badge: 'Heirloom Print',
-    gearUsed: 'Fuji Crystal Archive HD Photographic Paper, Italian Velvet & High-Density Acrylic Glass',
     bestFor: 'Living room centerpiece heirloom, multigenerational keepsake, and touch-and-feel luxury memories',
     media: [
       {
@@ -347,13 +340,13 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
       {
         id: 'album-panoramic-layflat-spread',
         type: 'pdf',
-        title: '18×24 Seamless Panoramic Lay-Flat Spreads',
+        title: 'Seamless Panoramic Lay-Flat Spreads',
         thumbnailUrl: '/images/guide/album-spread-panoramic.jpg',
         mediaUrl: '/images/guide/album-spread-panoramic.jpg',
-        caption: '100% borderless panoramic lay-flat spread with zero center cut line across the couple portraits.',
+        caption: '100% borderless panoramic lay-flat spread with zero center cut line across couple portraits.',
         aspectRatio: '16:9',
         details: {
-          dimensions: '36×12 Inch Open Spread View',
+          dimensions: 'Panoramic Open Spread View',
           pagesCount: 60,
           spreadsCount: 30,
           deliveryFormat: 'Archival Matte Tear-Proof Photographic Paper',
@@ -380,27 +373,26 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     id: 'led-wall',
     enTitle: 'Live LED Wall',
     taSubtitle: 'நேரடி எல்.ஈ.டி திரை',
-    shortTagline: 'Everyone Sees Every Ritual Live',
+    shortTagline: 'Everyone Sees Every Sacred Ritual Live',
     description:
-      'Ultra-bright P2.9 multi-camera live video broadcast across dining and hall back rows, ensuring elderly relatives witness the thali tying with razor-sharp clarity without stage crowding.',
-    badge: 'Live Production',
-    gearUsed: 'P2.9 Ultra-Bright Indoor LED panels with 4-channel video switcher & SDI stage runs',
+      'Ultra-bright stage broadcast across dining and hall seating rows, ensuring elderly relatives witness the thali tying with razor-sharp clarity without stage crowding.',
+    badge: 'Live Broadcast',
     bestFor: 'Large wedding halls with 300+ guests where the mandapam stage is far from back seating',
     media: [
       {
         id: 'led-wall-stage-broadcast',
         type: 'video',
-        title: 'Stage P2.9 Live Multi-Camera Broadcast',
+        title: 'Stage Live Multi-Camera Broadcast',
         thumbnailUrl: '/images/guide/led-wall-hall.jpg',
         mediaUrl: '/images/guide/led-wall-hall.jpg',
         caption: 'Real-time zero latency feed so guests in every corner see the sacred thali tying in high definition.',
         aspectRatio: '16:9',
         details: {
-          resolution: 'P2.9 Ultra-High Brightness',
+          resolution: 'Ultra-Bright Broadcast Clarity',
           fps: 'Real-Time Low Latency (0.01s)',
           audioNote: 'Hall PA System Balanced Audio',
           timecode: 'LIVE MULTI-CAM FEED',
-          deliveryFormat: 'Onsite Live Video Mixer Production',
+          deliveryFormat: 'Onsite Live Video Screen Setup',
         },
       },
       {
@@ -412,21 +404,21 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         caption: 'Banquet and dining area screens enable elders to enjoy the feast without missing any stage ritual.',
         aspectRatio: '16:9',
         details: {
-          resolution: '1080p Stage Feed Extension',
+          resolution: 'Stage Feed Extension',
           dimensions: 'Auxiliary Banquet Screen',
         },
       },
       {
         id: 'led-wall-switcher-console',
         type: 'image',
-        title: 'Professional Multi-Camera Switcher Desk',
+        title: 'Multi-Angle Live Stage Production',
         thumbnailUrl: '/images/guide/traditional-photo-stage.jpg',
         mediaUrl: '/images/guide/traditional-photo-stage.jpg',
-        caption: 'Live video engineer switching between wide stage, priest close-up, and family reactions.',
+        caption: 'Live production switching between wide stage coverage, sacred ritual close-ups, and family reactions.',
         aspectRatio: '16:9',
         details: {
-          resolution: 'Multi-Camera Switcher Console',
-          dimensions: '4-Channel SDI Production',
+          resolution: 'Multi-Angle Live Mixing',
+          dimensions: 'Complete Stage Ritual Production',
         },
       },
     ],
@@ -439,7 +431,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
     description:
       'Scenic location photography at beach shores, temple lakes, and royal heritage pillars capturing timeless romantic chemistry before or after your wedding day.',
     badge: 'Couple Special',
-    gearUsed: 'Sony A7R V with 50mm f/1.2 GM prime and portable battery strobe light with diffusion umbrella',
     bestFor: 'Pre-wedding invitations, reception stage welcome displays, and couple chemistry in silk & casuals',
     media: [
       {
@@ -451,7 +442,7 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         caption: 'Warm golden sunset framing couple silhouettes with gentle ocean reflections.',
         aspectRatio: '16:9',
         details: {
-          resolution: '61 MP Ultra-High Resolution',
+          resolution: 'Ultra-High Resolution Art Master',
           dimensions: 'Hero Canvas Print File',
         },
       },
@@ -464,7 +455,7 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         caption: 'Dravidian carved stone pillars creating an eternal, regal frame for South Indian couple silk attire.',
         aspectRatio: '16:9',
         details: {
-          resolution: '61 MP Master Portrait',
+          resolution: 'Master Portrait File',
           dimensions: 'Regal South Indian Architecture',
         },
       },
@@ -474,10 +465,10 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
         title: 'Intimate Storytelling & Welcoming Frames',
         thumbnailUrl: '/images/portfolio/multifaith_south_wedding_1794972486248.jpg',
         mediaUrl: '/images/portfolio/multifaith_south_wedding_1794972486248.jpg',
-        caption: 'Magazine-style couple portraits perfect for reception entry LED screens and invitation covers.',
+        caption: 'Magazine-style couple portraits perfect for reception entry screens and digital invitation covers.',
         aspectRatio: '16:9',
         details: {
-          resolution: '61 MP Fine Art',
+          resolution: 'Fine Art Master Quality',
           dimensions: 'Invitation & Welcome Display',
         },
       },

@@ -579,11 +579,23 @@ function toPlainBill(b: any): StudioBill {
       venue: '',
       schedulePlan: '',
     },
-    packageDetails: b.packageDetails || {
-      basePackageName: '',
-      requiredCrew: [],
-      addons: [],
-    },
+    packageDetails: b.packageDetails
+      ? {
+          ...b.packageDetails,
+          addons: Array.isArray(b.packageDetails.addons)
+            ? b.packageDetails.addons.map(
+                (addon: { label: string; priceDelta: number }) => ({
+                  label: addon.label,
+                  priceDelta: addon.priceDelta,
+                })
+              )
+            : [],
+        }
+      : {
+          basePackageName: '',
+          requiredCrew: [],
+          addons: [],
+        },
     financials: b.financials || {
       totalPackageAmount: 0,
       amountPaidNow: 0,
@@ -593,7 +605,12 @@ function toPlainBill(b: any): StudioBill {
       paymentDate: '',
       paymentStage: 'Payment',
     },
-    termsAndConditions: Array.isArray(b.termsAndConditions) ? b.termsAndConditions : [],
+    termsAndConditions: Array.isArray(b.termsAndConditions)
+      ? b.termsAndConditions.map((term: { en?: unknown; ta?: unknown }) => ({
+          en: String(term.en || ''),
+          ta: String(term.ta || ''),
+        }))
+      : [],
     createdAt: String(b.createdAt),
   };
 }

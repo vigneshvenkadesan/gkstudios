@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import {
   Camera,
   Film,
@@ -21,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CAMERA_TEAM_GUIDES, CameraTeamMemberGuide } from '@/src/config/cameraGuide';
 import { Button } from '@/src/components/ui/button';
+import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 
 export function CameraTeamEducationGuide() {
   const [activeModalGuide, setActiveModalGuide] = useState<CameraTeamMemberGuide | null>(null);
@@ -37,7 +39,7 @@ export function CameraTeamEducationGuide() {
   const candidGuide = CAMERA_TEAM_GUIDES.find((g) => g.id === 'candid-photo')!;
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 content-auto">
       {/* ─── Header: Eyebrow & Title ─── */}
       <div className="space-y-2">
         <div className="inline-flex items-center gap-1.5 rounded-full bg-[#C5B378]/15 border border-[#C5B378]/35 px-3 py-1 text-xs font-semibold text-[#D8C78E]">
@@ -103,13 +105,18 @@ export function CameraTeamEducationGuide() {
           >
             <div className="space-y-3">
               <div className="relative aspect-[16/10] w-full overflow-hidden rounded-sm bg-[#041513] border border-[#C5B378]/25">
-                <img
+                <Image
                   src={traditionalGuide.previewImage}
                   alt="Traditional Stage Group Photo"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  placeholder="blur"
+                  blurDataURL={SHIMMER_BLUR_DATA_URL}
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
-                <div className="absolute top-2.5 left-2.5">
-                  <span className="rounded-full bg-[#072421]/90 border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-bold text-[#D8C78E] uppercase tracking-wider backdrop-blur-sm shadow">
+                <div className="absolute top-2.5 left-2.5 z-10">
+                  <span className="rounded-full bg-[#072421] border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-bold text-[#D8C78E] uppercase tracking-wider shadow-xs">
                     Traditional Photo
                   </span>
                 </div>
@@ -154,12 +161,17 @@ export function CameraTeamEducationGuide() {
           >
             <div className="space-y-3">
               <div className="relative aspect-[16/10] w-full overflow-hidden rounded-sm bg-[#041513] border border-[#C5B378]/25">
-                <img
+                <Image
                   src={candidGuide.previewImage}
                   alt="Candid Emotional Bride Portrait"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  placeholder="blur"
+                  blurDataURL={SHIMMER_BLUR_DATA_URL}
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
-                <div className="absolute top-2.5 left-2.5">
+                <div className="absolute top-2.5 left-2.5 z-10">
                   <span className="rounded-full bg-gradient-to-r from-[#C5B378] to-[#D8C78E] px-2.5 py-0.5 text-[10px] font-bold text-[#061E1C] uppercase tracking-wider shadow">
                     Candid Storytelling
                   </span>
@@ -268,13 +280,18 @@ export function CameraTeamEducationGuide() {
                   : 'aspect-[16/9]'
               }`}
             >
-              <img
+              <Image
                 src={
                   videoMode === 'cinema'
                     ? candidGuide.previewImage
                     : '/images/portfolio/iyer_wedding_muhurtham_1794972484653.jpg'
                 }
                 alt="Video Simulation Preview"
+                fill
+                sizes="(max-width: 1024px) 100vw, 700px"
+                placeholder="blur"
+                blurDataURL={SHIMMER_BLUR_DATA_URL}
+                decoding="async"
                 className="h-full w-full object-cover transition-transform duration-700 ease-out"
               />
 
@@ -413,16 +430,21 @@ export function CameraTeamEducationGuide() {
               >
                 {/* Image Preview with Sample Badge */}
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#041513]">
-                  <img
+                  <Image
                     src={guide.previewImage}
                     alt={guide.title}
-                    className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
+                    decoding="async"
                     loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/30" />
 
-                  <div className="absolute top-2.5 right-2.5">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#072421]/90 border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold text-[#D8C78E] backdrop-blur-sm shadow">
+                  <div className="absolute top-2.5 right-2.5 z-10">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold text-[#D8C78E] shadow-xs">
                       {guide.tagline}
                     </span>
                   </div>
@@ -509,9 +531,14 @@ export function CameraTeamEducationGuide() {
 
                 {/* Hero Sample Photo */}
                 <div className="relative aspect-[16/10] w-full overflow-hidden rounded-sm border border-[#C5B378]/30 bg-[#041513]">
-                  <img
+                  <Image
                     src={activeModalGuide.previewImage}
                     alt={activeModalGuide.title}
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 600px"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />

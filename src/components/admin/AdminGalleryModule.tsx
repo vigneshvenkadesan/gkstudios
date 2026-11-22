@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Eye, EyeOff, ImagePlus, Pencil, Star, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
@@ -20,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
+import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 
 export function AdminGalleryModule() {
   const { portfolio, addPortfolioItem, updatePortfolioItem, deletePortfolioItem } = useStudio();
@@ -282,14 +284,17 @@ export function AdminGalleryModule() {
           >
             <div>
               <div className="relative aspect-[16/10] w-full bg-[#041715]">
-                <img
+                <Image
                   src={item.imageUrl}
                   alt={item.title}
-                  referrerPolicy="no-referrer"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  placeholder="blur"
+                  blurDataURL={SHIMMER_BLUR_DATA_URL}
                   className="h-full w-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#041715]/85 via-transparent to-transparent" />
-                <div className="absolute bottom-2.5 left-3 right-3 text-xs text-[#D8C78E] truncate">
+                <div className="absolute inset-0 bg-gradient-to-t from-[#041715]/85 via-transparent to-transparent z-10" />
+                <div className="absolute bottom-2.5 left-3 right-3 text-xs text-[#D8C78E] truncate z-20">
                   {item.category} · {item.location}
                 </div>
               </div>

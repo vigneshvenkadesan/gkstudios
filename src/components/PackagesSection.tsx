@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 import {
   ArrowRight,
   BookOpen,
@@ -27,6 +28,7 @@ import { useEvents } from '@/src/hooks/useEvents';
 import { EventCategoryTabs } from './packages/EventCategoryTabs';
 import { PackageCardSkeleton } from './packages/PackageCardSkeleton';
 import { FastIntakeWizard } from './packages/FastIntakeWizard';
+import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 
 interface PackagesSectionProps {
   selectedPackageId: string;
@@ -292,7 +294,7 @@ export function PackagesSection({
               </div>
             ) : (
               /* Package Cards Grid - Center aligned horizontally */
-              <div className="flex flex-wrap justify-center items-stretch gap-6">
+              <div className="flex flex-wrap justify-center items-stretch gap-6 content-auto">
                 {matchingPackages.map((pkg, idx) => {
                   const copy = getPackageCopy(pkg);
                   const isSelected = selectedPackageId === pkg.id;
@@ -353,25 +355,31 @@ export function PackagesSection({
 
                       {pkgImg && (
                         <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#041513] border-b border-[#C5B378]/15">
-                          <img
+                          <Image
                             src={pkgImg}
                             alt={copy.name}
+                            fill
+                            decoding="async"
+                            loading={idx < 2 ? 'eager' : 'lazy'}
+                            priority={idx < 2}
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                            placeholder="blur"
+                            blurDataURL={SHIMMER_BLUR_DATA_URL}
                             className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                            loading="lazy"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/25" />
-                          <div className="absolute top-2.5 right-2.5">
+                          <div className="absolute top-2.5 right-2.5 z-10">
                             {isSignature ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#C5B378] to-[#D8C78E] px-3 py-1 text-[10px] font-bold tracking-wider text-[#061E1C] uppercase shadow-[0_2px_12px_rgba(216,199,142,0.45)]">
                                 <Sparkles className="h-3 w-3 fill-[#061E1C]" />
                                 Signature · Most Popular
                               </span>
                             ) : isPremium ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421]/90 border border-amber-400/50 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-amber-300 uppercase backdrop-blur-sm shadow">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-amber-400/50 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-amber-300 uppercase shadow-xs">
                                 👑 Premium Tier
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421]/90 border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#D8C78E] uppercase backdrop-blur-sm shadow">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#D8C78E] uppercase shadow-xs">
                                 ✨ Essential Tier
                               </span>
                             )}

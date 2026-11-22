@@ -51,7 +51,7 @@ export function DeliveryPromiseSection() {
   return (
     <section
       aria-labelledby="promise-heading"
-      className="relative overflow-hidden border-b border-[#C5B378]/15 bg-[#072421] py-14 sm:py-20"
+      className="relative overflow-hidden border-b border-[#C5B378]/15 bg-[#072421] py-14 sm:py-20 content-auto"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import NextImage from 'next/image';
 import {
   AlertCircle,
   ArrowDown,
@@ -24,6 +25,7 @@ import {
   Image as ImageIcon,
   Layers,
   LayoutGrid,
+  Loader2,
   Package as PackageIcon,
   Pencil,
   Plus,
@@ -53,6 +55,8 @@ import { formatINR } from '@/src/lib/utils';
 import { useEvents } from '@/src/hooks/useEvents';
 import { EventSelector } from '@/src/components/common/EventSelector';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
+import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
 import {
@@ -574,6 +578,7 @@ export function AdminPackagesModule() {
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
 
   // Global package stats
   const totalCount = packages.length;
@@ -1051,6 +1056,8 @@ export function AdminPackagesModule() {
 
   // Quick toggle status
   const handleToggleStatus = async (pkg: StudioPackage) => {
+    if (loadingActionId) return;
+    setLoadingActionId(`status-${pkg.id}`);
     const nextStatus = (pkg.status ?? 'active') === 'active' ? 'inactive' : 'active';
     try {
       await updatePackage(pkg.id, { status: nextStatus });
@@ -1059,11 +1066,15 @@ export function AdminPackagesModule() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle package status.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   // Quick toggle display on portfolio
   const handleTogglePortfolio = async (pkg: StudioPackage) => {
+    if (loadingActionId) return;
+    setLoadingActionId(`portfolio-${pkg.id}`);
     const nextDisplay = pkg.displayOnPortfolio === false ? true : false;
     try {
       await updatePackage(pkg.id, { displayOnPortfolio: nextDisplay });
@@ -1072,11 +1083,15 @@ export function AdminPackagesModule() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle portfolio visibility.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   // Quick toggle highlighted
   const handleToggleHighlighted = async (pkg: StudioPackage) => {
+    if (loadingActionId) return;
+    setLoadingActionId(`highlight-${pkg.id}`);
     const nextHighlight = !Boolean(pkg.highlighted || pkg.featured);
     try {
       await updatePackage(pkg.id, {
@@ -1091,11 +1106,14 @@ export function AdminPackagesModule() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle badge.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
   // Move sort order up or down
   const handleMoveOrder = async (index: number, direction: 'up' | 'down') => {
+    if (loadingActionId) return;
     const newIdx = direction === 'up' ? index - 1 : index + 1;
     if (newIdx < 0 || newIdx >= sortedPackages.length) return;
 
@@ -1104,11 +1122,14 @@ export function AdminPackagesModule() {
     newOrderList.splice(newIdx, 0, moved);
 
     const orderedIds = newOrderList.map((p) => p.id);
+    setLoadingActionId(`order-${moved.id}`);
     try {
       await reorderPackages(orderedIds);
       toast.success('Package display order updated.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to reorder packages.');
+    } finally {
+      setLoadingActionId(null);
     }
   };
 
@@ -1138,9 +1159,13 @@ export function AdminPackagesModule() {
           {/* Image Banner */}
           {pkgImg ? (
             <div className="relative aspect-[21/9] w-full overflow-hidden bg-[#041513] border-b border-[#C5B378]/15">
-              <img
+              <NextImage
                 src={pkgImg}
                 alt={pkg.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                placeholder="blur"
+                blurDataURL={SHIMMER_BLUR_DATA_URL}
                 className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/30" />
@@ -1265,51 +1290,68 @@ export function AdminPackagesModule() {
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
+                disabled={Boolean(loadingActionId)}
                 onClick={() => handleToggleStatus(pkg)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-60 ${
                   isActive
                     ? 'bg-[#25D366]/15 border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/25'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                 }`}
                 title="Click to toggle active status"
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    isActive ? 'bg-[#25D366]' : 'bg-zinc-500'
-                  }`}
-                />
+                {loadingActionId === `status-${pkg.id}` ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isActive ? 'bg-[#25D366]' : 'bg-zinc-500'
+                    }`}
+                  />
+                )}
                 {isActive ? 'Active' : 'Disabled'}
               </button>
 
               <button
                 type="button"
+                disabled={Boolean(loadingActionId)}
                 onClick={() => handleTogglePortfolio(pkg)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-60 ${
                   isDisplayed
                     ? 'bg-[#C5B378]/15 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#C5B378]/25'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                 }`}
                 title="Click to show/hide on website"
               >
-                {isDisplayed ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3 text-zinc-500" />}
+                {loadingActionId === `portfolio-${pkg.id}` ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-[#D8C78E]" />
+                ) : isDisplayed ? (
+                  <Eye className="h-3 w-3" />
+                ) : (
+                  <EyeOff className="h-3 w-3 text-zinc-500" />
+                )}
                 {isDisplayed ? 'On Portfolio' : 'Hidden'}
               </button>
 
               <button
                 type="button"
+                disabled={Boolean(loadingActionId)}
                 onClick={() => handleToggleHighlighted(pkg)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-60 ${
                   pkg.highlighted
                     ? 'bg-[#C5B378]/25 border-[#C5B378]/50 text-[#D8C78E] hover:bg-[#C5B378]/35'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                 }`}
                 title="Click to toggle Signature / Flagship badge"
               >
-                <Star
-                  className={`h-3 w-3 ${
-                    pkg.highlighted ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
-                  }`}
-                />
+                {loadingActionId === `highlight-${pkg.id}` ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <Star
+                    className={`h-3 w-3 ${
+                      pkg.highlighted ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                    }`}
+                  />
+                )}
                 {pkg.highlighted ? 'Signature' : 'Standard'}
               </button>
             </div>
@@ -1321,22 +1363,30 @@ export function AdminPackagesModule() {
                 variant="ghost"
                 size="sm"
                 onClick={() => handleMoveOrder(idx, 'up')}
-                disabled={idx === 0}
+                disabled={idx === 0 || Boolean(loadingActionId)}
                 className="h-7 w-7 p-0 text-[#E6ECEB]/70 hover:text-white hover:bg-[#072421] disabled:opacity-20"
                 title="Move up"
               >
-                <ArrowUp className="h-3.5 w-3.5" />
+                {loadingActionId === `order-${pkg.id}` ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <ArrowUp className="h-3.5 w-3.5" />
+                )}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => handleMoveOrder(idx, 'down')}
-                disabled={idx === sortedPackages.length - 1}
+                disabled={idx === sortedPackages.length - 1 || Boolean(loadingActionId)}
                 className="h-7 w-7 p-0 text-[#E6ECEB]/70 hover:text-white hover:bg-[#072421] disabled:opacity-20"
                 title="Move down"
               >
-                <ArrowDown className="h-3.5 w-3.5" />
+                {loadingActionId === `order-${pkg.id}` ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D8C78E]" />
+                ) : (
+                  <ArrowDown className="h-3.5 w-3.5" />
+                )}
               </Button>
             </div>
           </div>
@@ -1828,8 +1878,12 @@ export function AdminPackagesModule() {
       )}
 
       {/* Add New Event Dialog */}
-      <Dialog open={isAddEventModalOpen} onOpenChange={setIsAddEventModalOpen}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={isAddEventModalOpen} onOpenChange={(open) => { if (!open && !isCreatingEvent) setIsAddEventModalOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isCreatingEvent) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isCreatingEvent) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <FolderPlus className="h-5 w-5 text-[#D8C78E]" />
@@ -1931,26 +1985,31 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isCreatingEvent}
                 onClick={() => setIsAddEventModalOpen(false)}
                 className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isCreatingEvent}
+              <SubmitButton
+                isLoading={isCreatingEvent}
+                loadingText="Creating Ceremony..."
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isCreatingEvent ? 'Creating...' : 'Create Event'}
-              </Button>
+                Create Event
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Edit Event Dialog */}
-      <Dialog open={!!editingEvent} onOpenChange={(open) => !open && setEditingEvent(null)}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={!!editingEvent} onOpenChange={(open) => { if (!open && !isUpdatingEvent) setEditingEvent(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <Pencil className="h-5 w-5 text-[#D8C78E]" />
@@ -2040,6 +2099,7 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="ghost"
+                disabled={isUpdatingEvent}
                 onClick={() => {
                   setDeletingEvent(editingEvent);
                   setEditingEvent(null);
@@ -2054,18 +2114,19 @@ export function AdminPackagesModule() {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={isUpdatingEvent}
                   onClick={() => setEditingEvent(null)}
                   className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={isUpdatingEvent}
+                <SubmitButton
+                  isLoading={isUpdatingEvent}
+                  loadingText="Saving Ceremony..."
                   className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
                 >
-                  {isUpdatingEvent ? 'Saving...' : 'Save Changes'}
-                </Button>
+                  Save Changes
+                </SubmitButton>
               </div>
             </DialogFooter>
           </form>
@@ -2073,8 +2134,12 @@ export function AdminPackagesModule() {
       </Dialog>
 
       {/* Delete Event Confirmation Dialog */}
-      <Dialog open={!!deletingEvent} onOpenChange={(open) => !open && setDeletingEvent(null)}>
-        <DialogContent className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6">
+      <Dialog open={!!deletingEvent} onOpenChange={(open) => { if (!open && !isDeletingEvent) setDeletingEvent(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isDeletingEvent) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isDeletingEvent) e.preventDefault(); }}
+          className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6"
+        >
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-rose-400" />
@@ -2092,27 +2157,32 @@ export function AdminPackagesModule() {
             <Button
               type="button"
               variant="outline"
+              disabled={isDeletingEvent}
               onClick={() => setDeletingEvent(null)}
               className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
             >
               Cancel
             </Button>
-            <Button
-              type="button"
+            <SubmitButton
               variant="destructive"
-              disabled={isDeletingEvent}
+              isLoading={isDeletingEvent}
+              loadingText="Deleting Ceremony..."
               onClick={handleConfirmDeleteEvent}
               className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
             >
-              {isDeletingEvent ? 'Deleting...' : 'Delete Ceremony'}
-            </Button>
+              Delete Ceremony
+            </SubmitButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Package Modal */}
-      <Dialog open={!!editingPackage} onOpenChange={(open) => !open && setEditingPackage(null)}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={!!editingPackage} onOpenChange={(open) => { if (!open && !isSubmitting) setEditingPackage(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <Pencil className="h-4 w-4 text-[#D8C78E]" />
@@ -2474,26 +2544,31 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isSubmitting}
                 onClick={() => setEditingPackage(null)}
                 className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
+              <SubmitButton
+                isLoading={isSubmitting}
+                loadingText="Saving Package..."
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
-              </Button>
+                Save Changes
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Add New Package Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4">
+      <Dialog open={isAddModalOpen} onOpenChange={(open) => { if (!open && !isSubmitting) setIsAddModalOpen(false); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
+          className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
               <Plus className="h-4 w-4 text-[#D8C78E]" />
@@ -2857,26 +2932,31 @@ export function AdminPackagesModule() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isSubmitting}
                 onClick={() => setIsAddModalOpen(false)}
                 className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
+              <SubmitButton
+                isLoading={isSubmitting}
+                loadingText="Creating Package..."
                 className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
               >
-                {isSubmitting ? 'Creating...' : 'Create Package'}
-              </Button>
+                Create Package
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Delete Package Confirmation Dialog */}
-      <Dialog open={!!deletingPackage} onOpenChange={(open) => !open && setDeletingPackage(null)}>
-        <DialogContent className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6">
+      <Dialog open={!!deletingPackage} onOpenChange={(open) => { if (!open && !isSubmitting) setDeletingPackage(null); }}>
+        <DialogContent
+          onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
+          className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6"
+        >
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-rose-400" />
@@ -2894,20 +2974,21 @@ export function AdminPackagesModule() {
             <Button
               type="button"
               variant="outline"
+              disabled={isSubmitting}
               onClick={() => setDeletingPackage(null)}
               className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
             >
               Cancel
             </Button>
-            <Button
-              type="button"
+            <SubmitButton
               variant="destructive"
-              disabled={isSubmitting}
+              isLoading={isSubmitting}
+              loadingText="Deleting Package..."
               onClick={handleConfirmDelete}
               className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
             >
-              {isSubmitting ? 'Deleting...' : 'Delete Package'}
-            </Button>
+              Delete Package
+            </SubmitButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2934,10 +3015,14 @@ export function AdminPackagesModule() {
                 onClick={() => handleSelectGalleryPhoto(item.imageUrl)}
                 className="group relative rounded-xl overflow-hidden border border-white/10 hover:border-[#D8C78E] text-left transition-all cursor-pointer"
               >
-                <div className="aspect-[4/3] w-full bg-[#041513] overflow-hidden">
-                  <img
+                <div className="relative aspect-[4/3] w-full bg-[#041513] overflow-hidden">
+                  <NextImage
                     src={item.imageUrl}
                     alt={item.title}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 250px"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>

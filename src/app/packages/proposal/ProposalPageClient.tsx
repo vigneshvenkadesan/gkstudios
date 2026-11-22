@@ -64,6 +64,8 @@ import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoS
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
+import { SubmitButton } from '@/src/components/ui/SubmitButton';
+import { PackageCardSkeleton } from '@/src/components/ui/skeleton';
 import {
   SESSION_PLANS,
   GUEST_SCALES,
@@ -228,7 +230,7 @@ function parseDeliverables(
 export function ProposalPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { packages, submitBooking } = useStudio();
+  const { packages, submitBooking, isLoading } = useStudio();
   const { activeEvents } = useEvents();
 
   // URL Query Params detection for Fallback / Standalone mode
@@ -1222,6 +1224,17 @@ export function ProposalPageClient() {
             <CameraDemoShowcaseSection />
 
             {/* ─── Instant Tier Switcher Bar (Essential / Signature / Premium) ─── */}
+            {isLoading && eventPackages.length === 0 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="h-24 rounded border border-[#C5B378]/20 bg-[#092E2B]/80 animate-pulse" />
+                  <div className="h-24 rounded border border-[#C5B378]/20 bg-[#092E2B]/80 animate-pulse" />
+                  <div className="h-24 rounded border border-[#C5B378]/20 bg-[#092E2B]/80 animate-pulse" />
+                </div>
+                <PackageCardSkeleton />
+              </div>
+            )}
+
             {eventPackages.length > 0 && (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1897,6 +1910,11 @@ export function ProposalPageClient() {
       <AnimatePresence>
         {isOrderModalOpen && (
           <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isSubmitting) {
+                setIsOrderModalOpen(false);
+              }
+            }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto"
             role="dialog"
             aria-modal="true"
@@ -1911,8 +1929,11 @@ export function ProposalPageClient() {
 
               <button
                 type="button"
-                onClick={() => setIsOrderModalOpen(false)}
-                className="absolute top-4 right-4 text-white/70 hover:text-white"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!isSubmitting) setIsOrderModalOpen(false);
+                }}
+                className="absolute top-4 right-4 text-white/70 hover:text-white disabled:opacity-40 cursor-pointer"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -2107,29 +2128,22 @@ export function ProposalPageClient() {
                     </div>
 
                     <div className="flex gap-2 pt-2">
-                      <Button
+                      <SubmitButton
                         type="submit"
-                        disabled={isSubmitting}
-                        className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold py-2.5 text-xs hover:brightness-105 shadow"
+                        isLoading={isSubmitting}
+                        loadingText="Locking Your Plan..."
+                        icon={<Send className="h-4 w-4" />}
+                        className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold py-2.5 text-xs hover:brightness-105 shadow cursor-pointer"
                       >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Checking Availability...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-4 w-4" />
-                            <span>Submit Online Inquiry</span>
-                          </>
-                        )}
-                      </Button>
+                        Submit Online Inquiry
+                      </SubmitButton>
 
                       <Button
                         type="button"
                         variant="outline"
+                        disabled={isSubmitting}
                         onClick={handleWhatsAppSend}
-                        className="gap-1.5 border-[#25D366]/60 bg-[#25D366]/15 text-emerald-300 hover:bg-[#25D366]/25 text-xs py-2.5 px-4"
+                        className="gap-1.5 border-[#25D366]/60 bg-[#25D366]/15 text-emerald-300 hover:bg-[#25D366]/25 text-xs py-2.5 px-4 disabled:opacity-50 cursor-pointer"
                       >
                         <MessageCircle className="h-4 w-4" />
                         <span>Send via WhatsApp</span>

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Camera, ChevronLeft, ChevronRight, Expand, MapPin } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
@@ -28,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
-import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoShowcaseSection';
+import { SHIMMER_BLUR_DATA_URL, usePreloadImagesOnApproach } from '@/src/lib/imageBlur';
 
 interface PortfolioSectionProps {
   onBookCategory: (category: EventCategory) => void;
@@ -61,6 +62,8 @@ export function PortfolioSection({
   const [selectedCategory, setSelectedCategory] = useState<FilterOption>('All Events');
   const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (externalCategoryFilter) {
@@ -137,10 +140,17 @@ export function PortfolioSection({
     return 'aspect-[4/3]';
   };
 
+  const preloadUrls = useMemo(
+    () => filteredItems.slice(0, 6).map((i) => i.imageUrl),
+    [filteredItems]
+  );
+  usePreloadImagesOnApproach(sectionRef, preloadUrls, '600px 0px');
+
   return (
     <section
       id="portfolio"
-      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-16 sm:py-24 border-b border-[#C5B378]/18"
+      ref={sectionRef}
+      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-16 sm:py-24 border-b border-[#C5B378]/18 content-auto"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Minimal Editorial Header */}
@@ -254,11 +264,16 @@ export function PortfolioSection({
                 )}`}
               >
                 {!failedImages[item.id] ? (
-                  <img
+                  <Image
                     src={item.imageUrl}
                     alt={`${localizePortfolioText(locale, item.id, 'title', item.title)} — ${translateCategory(locale, item.category)} · ${localizePortfolioText(locale, item.id, 'location', item.location)}`}
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
+                    fill
+                    priority={idx < 3}
+                    loading={idx < 3 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
                     onError={() =>
                       setFailedImages((prev) => ({ ...prev, [item.id]: true }))
                     }
@@ -295,14 +310,6 @@ export function PortfolioSection({
           </div>
         )}
 
-        {/* Interactive Camera Styles, Crew & Heirloom Albums Demo Showcase */}
-        <div className="mt-16 pt-10 border-t border-[#C5B378]/20">
-          <CameraDemoShowcaseSection
-            title="Studio Gear, Camera Styles & Heirloom Albums"
-            subtitle="Explore how our team captures sacred rituals, candid emotions, 4K cinema films & panoramic lay-flat albums"
-          />
-        </div>
-
         <MandalaDivider className="mt-12" />
       </div>
 
@@ -316,10 +323,14 @@ export function PortfolioSection({
             <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
               <div className="relative min-h-0 w-full bg-[#041412]">
                 {!failedImages[lightboxItem.id] ? (
-                  <img
+                  <Image
                     src={lightboxItem.imageUrl}
                     alt={lightboxItem.title}
-                    referrerPolicy="no-referrer"
+                    fill
+                    priority
+                    sizes="100vw"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-contain"
                   />
                 ) : (
