@@ -1053,12 +1053,12 @@ export async function upsertCalendarEntryOnServer(
           ? entry.eventType
           : 'Weddings') as any,
         eventDate: entry.date,
-        venue: entry.venue ? entry.venue.trim() : '',
+        venue: entry.venue?.trim() || 'To be confirmed',
         packageName:
           entry.packageName ||
           `${entry.packageTier || 'Signature'} Package`,
         assignedCrew: entry.assignedCrew || 'G Krishna + Studio Unit',
-        deliveryNotes: entry.notes || '',
+        deliveryNotes: entry.notes?.trim() || 'No delivery notes provided.',
       };
 
       if (agreedAmount > 0) {
@@ -1087,7 +1087,7 @@ export async function upsertCalendarEntryOnServer(
           phone: projectPayload.phone || '',
           eventType: projectPayload.eventType || 'Weddings',
           eventDate: entry.date,
-          venue: projectPayload.venue || '',
+          venue: projectPayload.venue || 'To be confirmed',
           packageName: projectPayload.packageName || 'Signature Package',
           assignedCrew: projectPayload.assignedCrew || 'G Krishna + Studio Unit',
           currentStage: 'Booking Confirmed',
@@ -1101,7 +1101,7 @@ export async function upsertCalendarEntryOnServer(
           extraCharges: 0,
           discount: 0,
           payments: [],
-          deliveryNotes: projectPayload.deliveryNotes || '',
+          deliveryNotes: projectPayload.deliveryNotes || 'No delivery notes provided.',
         };
         await eventProjects.create(newProject);
       }

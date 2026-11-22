@@ -26,9 +26,7 @@ import {
   BOOKING_SERVICE_OPTIONS,
   BookingServiceOption,
   CalendarDayEntry,
-  EVENT_CATEGORIES,
   EventCategory,
-  normalizeEventCategory,
 } from '@/src/types/studio';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
@@ -114,6 +112,11 @@ export function AdminScheduleModule() {
     };
   }, [activeEvents, activePackages]);
 
+  const getDefaultEventType = () =>
+    activeEvents.find((event) => event.id.toLowerCase() === 'wedding')?.name ||
+    activeEvents[0]?.name ||
+    'Weddings';
+
   const getEntryPaymentStatus = (entry: CalendarDayEntry) => {
     if (entry.paymentStatus) return entry.paymentStatus;
     const project = eventProjects.find(
@@ -193,10 +196,14 @@ export function AdminScheduleModule() {
     if (entry) {
       setStatus(entry.status);
       setTitle(entry.title);
+      const matchingEvent = activeEvents.find(
+        (event) => event.name === entry.eventType || event.id === entry.eventType
+      );
       setEventType(
-        entry.eventType === 'Studio Maintenance' || entry.eventType === 'Muhurtham Rush'
-          ? entry.eventType
-          : normalizeEventCategory(entry.eventType)
+        (matchingEvent?.name || entry.eventType || getDefaultEventType()) as
+          | EventCategory
+          | 'Studio Maintenance'
+          | 'Muhurtham Rush'
       );
       setClientName(entry.clientName || '');
       setVenue(entry.venue || '');
@@ -231,7 +238,8 @@ export function AdminScheduleModule() {
     } else {
       setStatus('Booked');
       setTitle('');
-      setEventType('Weddings');
+      const defaultEventType = getDefaultEventType();
+      setEventType(defaultEventType as EventCategory);
       setClientName('');
       setVenue('');
       setPhone('');
@@ -239,7 +247,7 @@ export function AdminScheduleModule() {
       setNotes('');
       setLinkedBookingId(undefined);
 
-      const evPkgs = getPackagesForEvent('Weddings');
+      const evPkgs = getPackagesForEvent(defaultEventType);
       const signaturePkg = evPkgs.find((p) => (p.sortOrder ?? 2) === 2) || evPkgs[0];
       if (signaturePkg) {
         applyPackageToSchedule(signaturePkg);
@@ -263,8 +271,8 @@ export function AdminScheduleModule() {
 
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !title.trim()) {
-      toast.error('Please select a date and provide an event or block title.');
+    if (!selectedDate || !title.trim() || !eventType || !venue.trim() || !phone.trim()) {
+      toast.error('Please provide the event title, category, venue, and phone number.');
       return;
     }
 
@@ -798,8 +806,9 @@ export function AdminScheduleModule() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Event Category</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Category *</label>
                 <select
+                  required
                   value={eventType}
                   onChange={(e) => {
                     const newType = e.target.value as
@@ -813,6 +822,13 @@ export function AdminScheduleModule() {
                   }}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 >
+                  {!activeEvents.some((event) => event.name === eventType) &&
+                    eventType !== 'Muhurtham Rush' &&
+                    eventType !== 'Studio Maintenance' && (
+                      <option value={eventType} className="bg-[#072421] text-white">
+                        {eventType}
+                      </option>
+                    )}
                   <optgroup label="Ceremonies & Events" className="bg-[#051B19] text-[#D8C78E]">
                     {activeEvents.map((ev) => (
                       <option key={ev.id} value={ev.name} className="bg-[#072421] text-white">
@@ -828,9 +844,10 @@ export function AdminScheduleModule() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Venue / Location</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Venue / Location *</label>
                 <input
                   type="text"
+                  required
                   value={venue}
                   onChange={(e) => setVenue(e.target.value)}
                   placeholder="Mandapam / Hall / City"
@@ -930,9 +947,10 @@ export function AdminScheduleModule() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Phone Number</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Phone Number *</label>
                 <input
                   type="tel"
+                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g., 9842211900"
