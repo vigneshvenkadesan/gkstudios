@@ -9,8 +9,13 @@ import type {
   StudioService,
 } from '../types/studio';
 
-const uri = process.env.MONGODB_STANDARD_URI || process.env.MONGODB_URI;
-const databaseName = process.env.MONGODB_DATABASE || 'gk_studios';
+function getMongoUri(): string | undefined {
+  return process.env.MONGODB_STANDARD_URI || process.env.MONGODB_URI;
+}
+
+function getDatabaseName(): string {
+  return process.env.MONGODB_DATABASE || 'gkstudios_dev';
+}
 
 interface BookingRequestDocument extends BookingRequest, mongoose.Document {}
 
@@ -52,7 +57,7 @@ const globalForMongoose = globalThis as typeof globalThis & {
 
 async function connectToMongo(uri: string): Promise<typeof mongoose> {
   return mongoose.connect(uri, {
-    dbName: databaseName,
+    dbName: getDatabaseName(),
     maxPoolSize: 5,
     minPoolSize: 0,
     maxIdleTimeMS: 30000,
@@ -61,6 +66,7 @@ async function connectToMongo(uri: string): Promise<typeof mongoose> {
 }
 
 async function ensureMongoConnection(): Promise<boolean> {
+  const uri = getMongoUri();
   if (!uri) return false;
 
   try {
