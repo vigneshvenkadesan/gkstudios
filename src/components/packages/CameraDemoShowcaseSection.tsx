@@ -38,9 +38,11 @@ interface CameraDemoShowcaseSectionProps {
 export function CameraDemoShowcaseSection({
   className = '',
   defaultExpandedId = null,
-  title = 'Camera Styles, Crew & Heirloom Albums',
-  subtitle = 'Tap any element to explore multiple sample photos, cinema videos & album spreads',
+  title = 'Curious What Traditional Coverage Looks Like?',
+  subtitle = 'Explore real examples of our photography styles, crew and heirloom albums.',
 }: CameraDemoShowcaseSectionProps) {
+  const [isShowcaseExpanded, setIsShowcaseExpanded] = useState(false);
+
   // Expanded crew cards (collapsed by default as requested)
   const [expandedIds, setExpandedIds] = useState<string[]>(
     defaultExpandedId ? [defaultExpandedId] : []
@@ -110,8 +112,12 @@ export function CameraDemoShowcaseSection({
 
   return (
     <section className={`space-y-4 content-auto ${className}`}>
-      {/* ─── Header: Minimal Visual First ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#C5B378]/20 pb-3">
+      <button
+        type="button"
+        onClick={() => setIsShowcaseExpanded((expanded) => !expanded)}
+        aria-expanded={isShowcaseExpanded}
+        className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#C5B378]/20 pb-3 text-left focus:outline-hidden focus-visible:ring-1 focus-visible:ring-[#D8C78E]"
+      >
         <div>
           <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
             <Camera className="h-3.5 w-3.5 text-[#D8C78E]" />
@@ -121,13 +127,23 @@ export function CameraDemoShowcaseSection({
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <span className="text-[10px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full bg-[#C5B378]/15 text-[#D8C78E] border border-[#C5B378]/30">
-            8 Styles • 24 Visual Samples
+            8 Styles • 24 Samples
           </span>
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-[#D8C78E]">
+            {isShowcaseExpanded ? 'Hide samples' : 'Explore styles'}
+          </span>
+          {isShowcaseExpanded ? (
+            <ChevronUp className="h-4 w-4 text-[#D8C78E]" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-[#D8C78E]" />
+          )}
         </div>
-      </div>
+      </button>
 
       {/* ─── Responsive Grid: 8 Camera & Crew Styles (Stacked Mobile, 2-Column Desktop) ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+      <div
+        className={`${isShowcaseExpanded ? 'grid' : 'hidden'} grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5`}
+      >
         {CAMERA_CREW_DEMO_ITEMS.map((item) => {
           const isExpanded = expandedIds.includes(item.id);
           const firstMedia = item.media[0];
