@@ -6,7 +6,7 @@ export type PublicTheme = 'dark' | 'light';
 const translations = {
   'nav.home': { en: 'Home', ta: 'முகப்பு' },
   'nav.work': { en: 'Our Work', ta: 'எங்கள் படைப்புகள்' },
-  'nav.packages': { en: 'Packages', ta: 'தொகுப்புகள்' },
+  'nav.packages': { en: 'Check Packages and Book', ta: 'தொகுப்புகளைப் பார்த்து முன்பதிவு செய்யுங்கள்' },
   'nav.about': { en: 'About', ta: 'எங்களைப் பற்றி' },
   'nav.contact': { en: 'Contact', ta: 'தொடர்பு' },
   'nav.checkAvailability': { en: 'Reserve Your Date', ta: 'உங்கள் தேதியை முன்பதிவு செய்யுங்கள்' },

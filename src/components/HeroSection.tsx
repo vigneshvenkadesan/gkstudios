@@ -5,7 +5,6 @@ import Image from 'next/image';
 import {
   ArrowDown,
   ArrowRight,
-  Calendar,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -20,11 +19,11 @@ import { localizePortfolioText, translate } from '@/src/i18n/translations';
 import { SHIMMER_BLUR_DATA_URL, preloadImage } from '@/src/lib/imageBlur';
 
 interface HeroSectionProps {
-  onCheckAvailability: () => void;
+  onViewPackages: () => void;
   onExploreWork: () => void;
 }
 
-export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionProps) {
+export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps) {
   const { portfolio } = useStudio();
   const { locale } = usePublicPreferences();
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
@@ -187,13 +186,11 @@ export function HeroSection({ onCheckAvailability, onExploreWork }: HeroSectionP
             <Button
               size="sm"
               variant="secondary"
-              onClick={onCheckAvailability}
-              aria-label="Check Availability"
+              onClick={onViewPackages}
+              aria-label={t('nav.packages')}
               className="h-9 min-w-0 px-1.5 text-[11px] sm:h-12 sm:w-auto sm:px-7 sm:text-sm"
             >
-              <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-              <span className="sm:hidden">{locale === 'ta' ? 'தேதி' : 'Date'}</span>
-              <span className="hidden sm:inline">Check Availability</span>
+              {t('nav.packages')}
             </Button>
             <Button
               size="sm"
