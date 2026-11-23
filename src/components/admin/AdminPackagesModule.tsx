@@ -22,7 +22,6 @@ import {
   Flame,
   FolderPlus,
   Heart,
-  Image as ImageIcon,
   Layers,
   LayoutGrid,
   Loader2,
@@ -35,22 +34,29 @@ import {
   Sparkles,
   Star,
   Trash2,
-  Upload,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import {
+  DurationTier,
   EVENT_CATEGORIES,
   EVENT_CATEGORY_GROUPS,
   EventCategory,
-  PackageAddon,
   PackageCustomizer,
   PackageDeliverables,
   PackageIncludedFeatures,
+  PackageIncludedService,
   StudioEvent,
   StudioPackage,
 } from '@/src/types/studio';
+import {
+  calculatePackageBasePrice,
+  getDynamicPackageDisplaySections,
+  resolveServicePrice,
+  sanitizePackageDeliverables,
+} from '@/src/lib/pricing';
+import { DynamicPackageServicesConfigurator } from './DynamicPackageServicesConfigurator';
 import { formatINR } from '@/src/lib/utils';
 import { useEvents } from '@/src/hooks/useEvents';
 import { EventSelector } from '@/src/components/common/EventSelector';
@@ -70,79 +76,68 @@ import {
 
 export type PackageTier = 'essential' | 'signature' | 'premium';
 
+const DURATION_TIER_DISPLAY_LABELS: Record<DurationTier, string> = {
+  threeHours: 'Up to 3 Hours',
+  halfDay: 'Half Day',
+  fullDay: 'Full Day',
+};
+
+const DURATION_TIER_BADGE_LABELS: Record<DurationTier, string> = {
+  threeHours: '3 Hours',
+  halfDay: 'Half Day',
+  fullDay: 'Full Day',
+};
+
+function getPackageDurationTier(pkg: StudioPackage): DurationTier {
+  if (
+    pkg.durationTier === 'threeHours' ||
+    pkg.durationTier === 'halfDay' ||
+    pkg.durationTier === 'fullDay'
+  ) {
+    return pkg.durationTier;
+  }
+  return pkg.sortOrder === 3 ? 'fullDay' : 'halfDay';
+}
+
+const STANDARD_DURATION_LABELS = new Set([
+  'Up to 3 Hours',
+  '3 Hours',
+  'Three Hours (3h)',
+  'Half Day',
+  'Half Day (Up to 6 Hours)',
+  'Half-Day',
+  'Full Day',
+  'Full Day (10h - 12h)',
+  'Full-Day',
+]);
+
+const RESERVED_DERIVED_DELIVERABLE_KEYS = new Set([
+  'event coverage & crew',
+  'event coverage',
+  'coverage & crew',
+  'albums & photo frames',
+  'albums',
+  'album',
+  'photo albums',
+  'digital deliverables',
+  'inclusions',
+]);
+
+function isReservedDeliverableCategory(category: string): boolean {
+  return RESERVED_DERIVED_DELIVERABLE_KEYS.has(category.trim().toLowerCase());
+}
+
+function shouldSyncDurationDisplay(duration: string): boolean {
+  return !duration.trim() || STANDARD_DURATION_LABELS.has(duration.trim());
+}
+
 /**
  * Normalizes any package deliverables (object or legacy string array) into a PackageDeliverables object.
  */
 export function normalizePackageDeliverables(
   raw: unknown
 ): PackageDeliverables {
-  if (!raw) return {};
-
-  if (Array.isArray(raw)) {
-    const result: PackageDeliverables = {};
-    const items = raw.map(String).map((s) => s.trim()).filter(Boolean);
-    items.forEach((item) => {
-      const lower = item.toLowerCase();
-      if (
-        lower.includes('photographer') ||
-        lower.includes('videographer') ||
-        lower.includes('drone') ||
-        lower.includes('crew') ||
-        lower.includes('gimbal') ||
-        lower.includes('operator') ||
-        lower.includes('camera') ||
-        lower.includes('coverage')
-      ) {
-        result['Event Coverage & Crew'] = result['Event Coverage & Crew']
-          ? `${result['Event Coverage & Crew']} + ${item}`
-          : item;
-      } else if (
-        lower.includes('album') ||
-        lower.includes('book') ||
-        lower.includes('frame') ||
-        lower.includes('print') ||
-        lower.includes('box') ||
-        lower.includes('karizma')
-      ) {
-        result['Albums & Photo Frames'] = result['Albums & Photo Frames']
-          ? `${result['Albums & Photo Frames']} + ${item}`
-          : item;
-      } else if (
-        lower.includes('digital') ||
-        lower.includes('raw') ||
-        lower.includes('teaser') ||
-        lower.includes('video') ||
-        lower.includes('film') ||
-        lower.includes('cloud') ||
-        lower.includes('drive') ||
-        lower.includes('footage') ||
-        lower.includes('reel') ||
-        lower.includes('stills') ||
-        lower.includes('photos')
-      ) {
-        result['Digital Deliverables'] = result['Digital Deliverables']
-          ? `${result['Digital Deliverables']} + ${item}`
-          : item;
-      } else {
-        result['Event Coverage & Crew'] = result['Event Coverage & Crew']
-          ? `${result['Event Coverage & Crew']} + ${item}`
-          : item;
-      }
-    });
-    return result;
-  }
-
-  if (typeof raw === 'object') {
-    const result: PackageDeliverables = {};
-    for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
-      if (typeof val === 'string' && val.trim()) {
-        result[key] = val.trim();
-      }
-    }
-    return result;
-  }
-
-  return {};
+  return sanitizePackageDeliverables(raw);
 }
 
 /**
@@ -234,14 +229,6 @@ const DEFAULT_INCLUDED_FEATURES: PackageIncludedFeatures = {
   printedAlbum: true,
 };
 
-const DEFAULT_CUSTOMIZER_ADDONS: PackageAddon[] = [
-  { id: 'candid-photo', label: 'Candid Photography', priceDelta: 8000, type: 'upgrade' },
-  { id: 'candid-video', label: 'Candid Cinema & 3-Min Film', priceDelta: 12000, type: 'upgrade' },
-  { id: 'drone', label: 'Drone Aerial Coverage', priceDelta: 8000, type: 'upgrade' },
-  { id: 'extra-frame-16x24', label: 'Extra 16×24 Wall Frame', priceDelta: 2500, type: 'upgrade' },
-  { id: 'remove-album', label: 'Digital-Only (Remove Printed Album)', priceDelta: -4000, type: 'downgrade' },
-];
-
 const INCLUDED_FEATURE_CONFIG: { key: keyof PackageIncludedFeatures; label: string }[] = [
   { key: 'traditionalPhoto', label: 'Traditional Photo' },
   { key: 'traditionalVideo', label: 'Traditional Video' },
@@ -256,25 +243,9 @@ const INCLUDED_FEATURE_CONFIG: { key: keyof PackageIncludedFeatures; label: stri
 function PackageCustomizerSection({
   included,
   onChangeIncluded,
-  addons,
-  onChangeAddons,
-  addonLabelInput,
-  setAddonLabelInput,
-  addonPriceDeltaInput,
-  setAddonPriceDeltaInput,
-  addonTypeInput,
-  setAddonTypeInput,
 }: {
   included: PackageIncludedFeatures;
   onChangeIncluded: (newInc: PackageIncludedFeatures) => void;
-  addons: PackageAddon[];
-  onChangeAddons: (newAddons: PackageAddon[]) => void;
-  addonLabelInput: string;
-  setAddonLabelInput: (val: string) => void;
-  addonPriceDeltaInput: number | '';
-  setAddonPriceDeltaInput: (val: number | '') => void;
-  addonTypeInput: 'upgrade' | 'downgrade';
-  setAddonTypeInput: (val: 'upgrade' | 'downgrade') => void;
 }) {
   const handleToggleIncluded = (key: keyof PackageIncludedFeatures) => {
     onChangeIncluded({
@@ -283,49 +254,15 @@ function PackageCustomizerSection({
     });
   };
 
-  const handleRemoveAddon = (index: number) => {
-    const next = [...addons];
-    next.splice(index, 1);
-    onChangeAddons(next);
-  };
-
-  const handleAddAddon = () => {
-    if (!addonLabelInput.trim() || addonPriceDeltaInput === '') {
-      toast.error('Please enter add-on title and price delta.');
-      return;
-    }
-    const rawDelta = Number(addonPriceDeltaInput);
-    const priceDelta = addonTypeInput === 'downgrade' ? -Math.abs(rawDelta) : Math.abs(rawDelta);
-    const slug =
-      addonLabelInput
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '') || `addon-${Date.now()}`;
-
-    onChangeAddons([
-      ...addons,
-      {
-        id: slug,
-        label: addonLabelInput.trim(),
-        priceDelta,
-        type: addonTypeInput,
-      },
-    ]);
-    setAddonLabelInput('');
-    setAddonPriceDeltaInput('');
-    setAddonTypeInput('upgrade');
-    toast.success(`Add-on "${addonLabelInput.trim()}" added.`);
-  };
-
   return (
     <div className="space-y-4 border-t border-[#C5B378]/20 pt-4">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5 text-[#D8C78E]" />
-          Proposal Customizer & Add-ons Configuration (customizer)
+          Proposal Base Features
         </h4>
         <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
-          Configures the interactive checklist and dynamic add-on price recalculator on the Proposal page (<code className="text-[#D8C78E]">/packages/proposal</code>).
+          Select the base features included in this package.
         </p>
       </div>
 
@@ -359,118 +296,20 @@ function PackageCustomizerSection({
         </div>
       </div>
 
-      {/* 2. Proposal Add-ons & Downgrades */}
-      <div className="space-y-2.5 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E]">
-            Proposal Add-ons & Downgrade Swaps ({addons.length})
-          </span>
-          <span className="text-[10px] text-[#E6ECEB]/50">Upgrades (+) & Downgrades (−)</span>
-        </div>
-
-        {/* Existing Add-ons List */}
-        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-          {addons.length === 0 ? (
-            <p className="text-xs text-[#E6ECEB]/50 italic p-2 text-center">
-              No custom add-ons configured. Add one below.
-            </p>
-          ) : (
-            addons.map((addon, idx) => {
-              const isDowngrade = addon.type === 'downgrade' || addon.priceDelta < 0;
-              return (
-                <div
-                  key={`${addon.id}-${idx}`}
-                  className="flex items-center justify-between gap-2 p-2 rounded-md bg-[#092E2B] border border-[#C5B378]/15 text-xs"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
-                        isDowngrade
-                          ? 'bg-rose-950/60 border border-rose-500/30 text-rose-300'
-                          : 'bg-[#C5B378]/20 border border-[#C5B378]/30 text-[#D8C78E]'
-                      }`}
-                    >
-                      {isDowngrade ? 'Downgrade' : 'Upgrade'}
-                    </span>
-                    <span className="text-white font-medium truncate">{addon.label}</span>
-                    <span className="text-[10px] text-[#E6ECEB]/40 font-mono hidden sm:inline">
-                      ({addon.id})
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`font-semibold font-mono text-xs ${
-                        isDowngrade ? 'text-rose-300' : 'text-[#D8C78E]'
-                      }`}
-                    >
-                      {addon.priceDelta > 0 ? `+${formatINR(addon.priceDelta)}` : formatINR(addon.priceDelta)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAddon(idx)}
-                      className="p-1 text-[#E6ECEB]/40 hover:text-rose-400 transition-colors"
-                      title="Remove add-on"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Add New Add-on Input Row */}
-        <div className="pt-2 border-t border-[#C5B378]/15 space-y-1.5">
-          <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
-            + Add Proposal Add-on or Downgrade Option
-          </span>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              value={addonLabelInput}
-              onChange={(e) => setAddonLabelInput(e.target.value)}
-              placeholder="Add-on title (e.g. Drone Aerial Coverage)"
-              className="h-8 flex-[2] rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-            />
-            <select
-              value={addonTypeInput}
-              onChange={(e) => setAddonTypeInput(e.target.value as 'upgrade' | 'downgrade')}
-              className="h-8 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none shrink-0"
-            >
-              <option value="upgrade">Upgrade (+)</option>
-              <option value="downgrade">Downgrade (−)</option>
-            </select>
-            <input
-              type="number"
-              value={addonPriceDeltaInput}
-              onChange={(e) =>
-                setAddonPriceDeltaInput(e.target.value === '' ? '' : Math.abs(Number(e.target.value)))
-              }
-              placeholder="Amount (e.g. 8000)"
-              className="h-8 w-28 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none shrink-0 font-mono"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddAddon}
-              className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-3 shrink-0"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Add
-            </Button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
 
 export function AdminPackagesModule() {
-  const { packages, portfolio, addPackage, updatePackage, deletePackage, reorderPackages } =
-    useStudio();
+  const {
+    packages,
+    services,
+    addPackage,
+    getPackage,
+    updatePackage,
+    deletePackage,
+    reorderPackages,
+  } = useStudio();
   const {
     events: dynamicEvents,
     createEvent,
@@ -521,7 +360,11 @@ export function AdminPackagesModule() {
   const [newAudience, setNewAudience] = useState('');
   const [newPrice, setNewPrice] = useState<number | ''>('');
   const [newDuration, setNewDuration] = useState('');
-  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newDurationTier, setNewDurationTier] = useState<DurationTier>('halfDay');
+  const [newIncludedServices, setNewIncludedServices] = useState<PackageIncludedService[]>([
+    { serviceSlug: 'traditional-camera', quantity: 1 },
+    { serviceSlug: 'traditional-video', quantity: 1 },
+  ]);
   const [newHighlighted, setNewHighlighted] = useState(true);
   const [newSortOrder, setNewSortOrder] = useState<number>(2);
   const [newStatus, setNewStatus] = useState<'active' | 'inactive'>('active');
@@ -529,19 +372,13 @@ export function AdminPackagesModule() {
 
   // Categorized Deliverables State for New Package
   const [newDeliverables, setNewDeliverables] = useState<PackageDeliverables>({
-    'Event Coverage & Crew': '1 Lead Candid Photographer + 1 Traditional Photographer',
-    'Albums & Photo Frames': '30-Sheet Layflat Karizma Photo Album',
-    'Digital Deliverables': 'Full Event Edited Video + Complete Raw Footage Drive',
+    Deliverables: 'Full Event Edited Video + Complete Raw Footage Drive',
   });
   const [newCustomCategoryInput, setNewCustomCategoryInput] = useState('');
   const [newCustomDetailInput, setNewCustomDetailInput] = useState('');
 
   // Customizer State for New Package
   const [newCustomizerIncluded, setNewCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
-  const [newCustomizerAddons, setNewCustomizerAddons] = useState<PackageAddon[]>(DEFAULT_CUSTOMIZER_ADDONS);
-  const [newAddonLabel, setNewAddonLabel] = useState('');
-  const [newAddonPriceDelta, setNewAddonPriceDelta] = useState<number | ''>('');
-  const [newAddonType, setNewAddonType] = useState<'upgrade' | 'downgrade'>('upgrade');
 
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
@@ -551,7 +388,8 @@ export function AdminPackagesModule() {
   const [editAudience, setEditAudience] = useState('');
   const [editPrice, setEditPrice] = useState<number | ''>('');
   const [editDuration, setEditDuration] = useState('');
-  const [editImageUrl, setEditImageUrl] = useState('');
+  const [editDurationTier, setEditDurationTier] = useState<DurationTier>('halfDay');
+  const [editIncludedServices, setEditIncludedServices] = useState<PackageIncludedService[]>([]);
   const [editHighlighted, setEditHighlighted] = useState(false);
   const [editSortOrder, setEditSortOrder] = useState<number>(2);
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
@@ -564,21 +402,33 @@ export function AdminPackagesModule() {
 
   // Customizer State for Editing Package
   const [editCustomizerIncluded, setEditCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
-  const [editCustomizerAddons, setEditCustomizerAddons] = useState<PackageAddon[]>(DEFAULT_CUSTOMIZER_ADDONS);
-  const [editAddonLabel, setEditAddonLabel] = useState('');
-  const [editAddonPriceDelta, setEditAddonPriceDelta] = useState<number | ''>('');
-  const [editAddonType, setEditAddonType] = useState<'upgrade' | 'downgrade'>('upgrade');
 
   // Delete confirmation dialog
   const [deletingPackage, setDeletingPackage] = useState<StudioPackage | null>(null);
-
-  // Gallery Picker modal state
-  const [isGalleryPickerOpen, setIsGalleryPickerOpen] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<'new' | 'edit'>('new');
+  const [viewingPackage, setViewingPackage] = useState<StudioPackage | null>(null);
+  const [loadingViewPackageId, setLoadingViewPackageId] = useState<string | null>(null);
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+
+  const handleNewDurationTierChange = (tier: DurationTier) => {
+    setNewDurationTier(tier);
+    setNewDuration((current) =>
+      shouldSyncDurationDisplay(current)
+        ? DURATION_TIER_DISPLAY_LABELS[tier]
+        : current
+    );
+  };
+
+  const handleEditDurationTierChange = (tier: DurationTier) => {
+    setEditDurationTier(tier);
+    setEditDuration((current) =>
+      shouldSyncDurationDisplay(current)
+        ? DURATION_TIER_DISPLAY_LABELS[tier]
+        : current
+    );
+  };
 
   // Global package stats
   const totalCount = packages.length;
@@ -750,46 +600,6 @@ export function AdminPackagesModule() {
     filteredPackages,
   ]);
 
-  // File upload helper
-  const handleFileUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    target: 'new' | 'edit'
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Please pick an image under 5 MB.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        if (target === 'new') {
-          setNewImageUrl(reader.result);
-        } else {
-          setEditImageUrl(reader.result);
-        }
-        toast.success(`Loaded image: ${file.name}`);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleOpenGalleryPicker = (target: 'new' | 'edit') => {
-    setPickerTarget(target);
-    setIsGalleryPickerOpen(true);
-  };
-
-  const handleSelectGalleryPhoto = (url: string) => {
-    if (pickerTarget === 'new') {
-      setNewImageUrl(url);
-    } else {
-      setEditImageUrl(url);
-    }
-    setIsGalleryPickerOpen(false);
-    toast.success('Selected image from studio portfolio.');
-  };
-
   // Event Handlers
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -887,10 +697,21 @@ export function AdminPackagesModule() {
   // Submit new package
   const handleCreatePackage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || newPrice === '' || !newDuration.trim()) {
-      toast.error('Please enter package name, price, and duration.');
+    if (!newName.trim() || !newDuration.trim()) {
+      toast.error('Please enter package name and duration.');
       return;
     }
+
+    if (newIncludedServices.length === 0) {
+      toast.error('Please select at least one included service from the services catalog.');
+      return;
+    }
+
+    const calculatedPrice = calculatePackageBasePrice(
+      { includedServices: newIncludedServices, durationTier: newDurationTier },
+      services,
+      newDurationTier
+    );
 
     setIsSubmitting(true);
     try {
@@ -910,15 +731,15 @@ export function AdminPackagesModule() {
         tier: newTier,
         name: newName.trim(),
         audience: newAudience.trim() || 'For weddings & celebrations',
-        price: Number(newPrice),
+        price: calculatedPrice,
         duration: newDuration.trim(),
+        durationTier: newDurationTier,
+        includedServices: newIncludedServices,
         category: newEventId, // Matches eventId per schema requirement
-        deliverables: newDeliverables,
+        deliverables: sanitizePackageDeliverables(newDeliverables),
         customizer: {
           included: newCustomizerIncluded,
-          addons: newCustomizerAddons,
         },
-        imageUrl: newImageUrl.trim() || undefined,
         highlighted: isSig,
         featured: isSig,
         status: newStatus,
@@ -933,22 +754,20 @@ export function AdminPackagesModule() {
       setNewAudience('');
       setNewPrice('');
       setNewDuration('');
-      setNewImageUrl('');
+      setNewDurationTier('halfDay');
+      setNewIncludedServices([
+        { serviceSlug: 'traditional-camera', quantity: 1 },
+        { serviceSlug: 'traditional-video', quantity: 1 },
+      ]);
       setNewTier('signature');
       setNewHighlighted(true);
       setNewSortOrder(2);
       setNewStatus('active');
       setNewDisplayOnPortfolio(true);
       setNewDeliverables({
-        'Event Coverage & Crew': '1 Lead Candid Photographer + 1 Traditional Photographer',
-        'Albums & Photo Frames': '30-Sheet Layflat Karizma Photo Album',
-        'Digital Deliverables': 'Full Event Edited Video + Complete Raw Footage Drive',
+        Deliverables: 'Full Event Edited Video + Complete Raw Footage Drive',
       });
       setNewCustomizerIncluded(DEFAULT_INCLUDED_FEATURES);
-      setNewCustomizerAddons(DEFAULT_CUSTOMIZER_ADDONS);
-      setNewAddonLabel('');
-      setNewAddonPriceDelta('');
-      setNewAddonType('upgrade');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create package.');
     } finally {
@@ -956,17 +775,34 @@ export function AdminPackagesModule() {
     }
   };
 
+  const openPackagePreview = async (pkg: StudioPackage) => {
+    setLoadingViewPackageId(pkg.id);
+    try {
+      setViewingPackage(await getPackage(pkg.id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load package details.');
+    } finally {
+      setLoadingViewPackageId(null);
+    }
+  };
+
   // Open edit modal
   const openEditModal = (pkg: StudioPackage) => {
     setEditingPackage(pkg);
     const resolvedTier = pkg.tier || getPackageTier(pkg);
+    const resolvedDurationTier = getPackageDurationTier(pkg);
     setEditEventId(pkg.eventId || 'wedding');
     setEditTier(resolvedTier);
     setEditName(pkg.name);
     setEditAudience(pkg.audience);
     setEditPrice(pkg.price);
-    setEditDuration(pkg.duration);
-    setEditImageUrl(pkg.imageUrl || pkg.image || '');
+    setEditDuration(pkg.duration || DURATION_TIER_DISPLAY_LABELS[resolvedDurationTier]);
+    setEditDurationTier(resolvedDurationTier);
+    setEditIncludedServices(
+      pkg.includedServices && pkg.includedServices.length > 0
+        ? JSON.parse(JSON.stringify(pkg.includedServices))
+        : []
+    );
     setEditHighlighted(Boolean(pkg.highlighted || pkg.featured));
     setEditSortOrder(typeof pkg.sortOrder === 'number' ? pkg.sortOrder : resolvedTier === 'essential' ? 1 : resolvedTier === 'signature' ? 2 : 3);
     setEditDeliverables(normalizePackageDeliverables(pkg.deliverables));
@@ -978,24 +814,27 @@ export function AdminPackagesModule() {
       ...DEFAULT_INCLUDED_FEATURES,
       ...(pkg.customizer?.included || {}),
     });
-    setEditCustomizerAddons(
-      pkg.customizer?.addons && pkg.customizer.addons.length > 0
-        ? JSON.parse(JSON.stringify(pkg.customizer.addons))
-        : JSON.parse(JSON.stringify(DEFAULT_CUSTOMIZER_ADDONS))
-    );
-    setEditAddonLabel('');
-    setEditAddonPriceDelta('');
-    setEditAddonType('upgrade');
   };
 
   // Submit edit package
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPackage) return;
-    if (!editName.trim() || editPrice === '' || !editDuration.trim()) {
-      toast.error('Please enter package name, price, and duration.');
+    if (!editName.trim() || !editDuration.trim()) {
+      toast.error('Please enter package name and duration.');
       return;
     }
+
+    if (editIncludedServices.length === 0) {
+      toast.error('Please select at least one included service from the services catalog.');
+      return;
+    }
+
+    const calculatedPrice = calculatePackageBasePrice(
+      { includedServices: editIncludedServices, durationTier: editDurationTier },
+      services,
+      editDurationTier
+    );
 
     setIsSubmitting(true);
     try {
@@ -1014,15 +853,15 @@ export function AdminPackagesModule() {
         eventId: editEventId,
         tier: editTier,
         audience: editAudience.trim(),
-        price: Number(editPrice),
+        price: calculatedPrice,
         duration: editDuration.trim(),
+        durationTier: editDurationTier,
+        includedServices: editIncludedServices,
         category: editEventId, // Matches eventId per schema requirement
-        deliverables: editDeliverables,
+        deliverables: sanitizePackageDeliverables(editDeliverables),
         customizer: {
           included: editCustomizerIncluded,
-          addons: editCustomizerAddons,
         },
-        imageUrl: editImageUrl.trim(),
         highlighted: isSig,
         featured: isSig,
         status: editStatus,
@@ -1141,6 +980,19 @@ export function AdminPackagesModule() {
     const linkedEvent = dynamicEvents.find((e) => e.id === (pkg.eventId || 'wedding'));
     const pkgTier = getPackageTier(pkg);
     const deliverablesMap = normalizePackageDeliverables(pkg.deliverables);
+    const durationTier = getPackageDurationTier(pkg);
+    const calculatedBasePrice = calculatePackageBasePrice(pkg, services, durationTier);
+    const displayPrice = calculatedBasePrice > 0 ? calculatedBasePrice : pkg.price;
+    const dynamicSections = getDynamicPackageDisplaySections(pkg.includedServices, services);
+    const displayDeliverables = [
+      ...(dynamicSections.coverage
+        ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
+        : []),
+      ...(dynamicSections.albums
+        ? [{ category: 'Albums', text: dynamicSections.albums }]
+        : []),
+      ...Object.entries(deliverablesMap).map(([category, text]) => ({ category, text })),
+    ];
 
     return (
       <Card
@@ -1247,6 +1099,9 @@ export function AdminPackagesModule() {
                   {pkg.duration && (
                     <span className="text-[11px] text-[#E6ECEB]/60">⏱️ {pkg.duration}</span>
                   )}
+                    <span className="text-[10px] rounded border border-[#C5B378]/30 bg-[#072421] px-2 py-0.5 font-semibold text-[#D8C78E]">
+                      {DURATION_TIER_BADGE_LABELS[durationTier]}
+                    </span>
                   <span className="text-[10px] text-[#E6ECEB]/50 font-mono">
                     Order: {pkg.sortOrder ?? 1}
                   </span>
@@ -1255,9 +1110,14 @@ export function AdminPackagesModule() {
 
               <div className="text-right sm:shrink-0 pt-1 sm:pt-0">
                 <span className="text-xl font-serif font-bold text-white font-mono">
-                  {formatINR(pkg.price)}
+                  {formatINR(displayPrice)}
                 </span>
                 <span className="text-[10px] text-[#E6ECEB]/50 block">Investment</span>
+                {pkg.includedServices && pkg.includedServices.length > 0 && (
+                  <span className="text-[9px] text-[#E6ECEB]/40 block">
+                    {pkg.includedServices.length} master services
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1267,7 +1127,7 @@ export function AdminPackagesModule() {
                 Deliverables & Inclusions:
               </p>
               <div className="space-y-1.5 max-h-36 overflow-y-auto text-xs pr-1">
-                {Object.entries(deliverablesMap).map(([category, detail]) => (
+                {displayDeliverables.map(({ category, text: detail }) => (
                   <div
                     key={category}
                     className="rounded bg-[#072421] p-1.5 border border-[#C5B378]/20 text-[11px]"
@@ -1393,6 +1253,20 @@ export function AdminPackagesModule() {
 
           {/* Primary Actions */}
           <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#C5B378]/15">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void openPackagePreview(pkg)}
+              className="text-[#E6ECEB]/80 hover:bg-[#072421] hover:text-white h-7 px-2.5 text-xs"
+            >
+              {loadingViewPackageId === pkg.id ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Eye className="h-3 w-3 mr-1" />
+              )}
+              View
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -2176,6 +2050,127 @@ export function AdminPackagesModule() {
         </DialogContent>
       </Dialog>
 
+      {/* Package Preview Modal */}
+      <Dialog
+        open={Boolean(viewingPackage)}
+        onOpenChange={(open) => { if (!open) setViewingPackage(null); }}
+      >
+        <DialogContent className="max-h-[90dvh] w-[95vw] max-w-3xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6">
+          {viewingPackage && (() => {
+            const durationTier = getPackageDurationTier(viewingPackage);
+            const price = calculatePackageBasePrice(viewingPackage, services, durationTier);
+            const dynamicSections = getDynamicPackageDisplaySections(
+              viewingPackage.includedServices,
+              services
+            );
+            const deliverables = normalizePackageDeliverables(viewingPackage.deliverables);
+            const displayDeliverables = [
+              ...(dynamicSections.coverage
+                ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
+                : []),
+              ...(dynamicSections.albums
+                ? [{ category: 'Albums', text: dynamicSections.albums }]
+                : []),
+              ...Object.entries(deliverables).map(([category, text]) => ({ category, text })),
+            ];
+            const linkedEvent = dynamicEvents.find((event) => event.id === viewingPackage.eventId);
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="font-serif text-xl font-bold text-white">
+                    {viewingPackage.name}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-[#E6ECEB]/70">
+                    Package details and current service-catalog pricing.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="border border-[#C5B378]/30 bg-[#0E423E] text-[#D8C78E]">
+                      {linkedEvent?.name || viewingPackage.category || viewingPackage.eventId}
+                    </Badge>
+                    <Badge className="border border-[#C5B378]/30 bg-[#072421] text-[#D8C78E]">
+                      {DURATION_TIER_BADGE_LABELS[durationTier]}
+                    </Badge>
+                    <Badge className={viewingPackage.status === 'inactive'
+                      ? 'border border-white/10 bg-zinc-800 text-zinc-300'
+                      : 'border border-emerald-500/30 bg-emerald-950/40 text-emerald-300'}>
+                      {viewingPackage.status === 'inactive' ? 'Inactive' : 'Active'}
+                    </Badge>
+                    {(viewingPackage.featured || viewingPackage.highlighted) && (
+                      <Badge className="border border-amber-400/30 bg-amber-500/15 text-amber-200">
+                        Featured
+                      </Badge>
+                    )}
+                    <span className="ml-auto font-mono text-lg font-bold text-white">
+                      {formatINR(price)}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 rounded-lg border border-[#C5B378]/20 bg-[#051C1A] p-4 text-sm sm:grid-cols-2">
+                    <div><span className="text-[#D8C78E]">ID:</span> {viewingPackage.id}</div>
+                    <div><span className="text-[#D8C78E]">Event:</span> {viewingPackage.eventId}</div>
+                    <div><span className="text-[#D8C78E]">Audience:</span> {viewingPackage.audience || '—'}</div>
+                    <div><span className="text-[#D8C78E]">Duration:</span> {viewingPackage.duration || DURATION_TIER_DISPLAY_LABELS[durationTier]}</div>
+                  </div>
+
+                  <section className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                      Included services
+                    </h3>
+                    {viewingPackage.includedServices?.length ? (
+                      <div className="divide-y divide-[#C5B378]/15 rounded-lg border border-[#C5B378]/20 bg-[#051C1A] px-3">
+                        {viewingPackage.includedServices.map((item) => {
+                          const service = services.find((entry) => entry.slug === item.serviceSlug);
+                          if (!service) return null;
+                          const { unitPrice, total } = resolveServicePrice(
+                            service,
+                            durationTier,
+                            item.quantity
+                          );
+                          return (
+                            <div key={item.serviceSlug} className="flex items-center justify-between gap-3 py-2 text-sm">
+                              <span>{service.name} × {item.quantity}</span>
+                              <span className="text-right font-mono text-[#D8C78E]">
+                                {service.pricingType === 'per_unit'
+                                  ? `${formatINR(unitPrice)} / ${service.unitLabel} · ${formatINR(total)}`
+                                  : `${formatINR(unitPrice)} · ${formatINR(total)}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#E6ECEB]/55">No included services configured.</p>
+                    )}
+                  </section>
+
+                  <section className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                      Deliverables & inclusions
+                    </h3>
+                    {displayDeliverables.length ? (
+                      <div className="space-y-2">
+                        {displayDeliverables.map(({ category, text }) => (
+                          <div key={category} className="rounded-lg border border-[#C5B378]/20 bg-[#051C1A] p-3">
+                            <h4 className="text-sm font-semibold text-[#D8C78E]">{category}</h4>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-[#E6ECEB]/85">{text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#E6ECEB]/55">No text deliverables configured.</p>
+                    )}
+                  </section>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Package Modal */}
       <Dialog open={!!editingPackage} onOpenChange={(open) => { if (!open && !isSubmitting) setEditingPackage(null); }}>
         <DialogContent
@@ -2236,22 +2231,7 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Investment Price (₹) *</label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  step={500}
-                  value={editPrice}
-                  onChange={(e) =>
-                    setEditPrice(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Duration *</label>
+                <label className="text-xs font-medium text-[#D8C78E]">Duration Display *</label>
                 <input
                   type="text"
                   required
@@ -2261,9 +2241,7 @@ export function AdminPackagesModule() {
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Audience Description</label>
                 <input
@@ -2274,7 +2252,9 @@ export function AdminPackagesModule() {
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <EventSelector
                   id="edit-package-event"
@@ -2283,18 +2263,6 @@ export function AdminPackagesModule() {
                   onChange={(selectedId) => setEditEventId(selectedId)}
                   showTamilName={true}
                   includeInactive={true}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Sort Order (1 = Essential, 2 = Signature, 3 = Premium)</label>
-                <input
-                  type="number"
-                  value={editSortOrder}
-                  onChange={(e) => setEditSortOrder(Number(e.target.value) || 1)}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
 
@@ -2311,113 +2279,54 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
-            {/* Image URL & Upload */}
-            <div className="space-y-2 border-t border-[#C5B378]/20 pt-3">
-              <label className="text-xs font-medium text-[#D8C78E] block">Package Image</label>
-              <div className="flex gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Sort Order (1 = Essential, 2 = Signature, 3 = Premium)</label>
                 <input
-                  type="text"
-                  value={editImageUrl}
-                  onChange={(e) => setEditImageUrl(e.target.value)}
-                  placeholder="https://... or /images/portfolio/..."
-                  className="h-10 flex-1 rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                  type="number"
+                  value={editSortOrder}
+                  onChange={(e) => setEditSortOrder(Number(e.target.value) || 1)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenGalleryPicker('edit')}
-                  className="h-10 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] shrink-0"
-                >
-                  <ImageIcon className="h-4 w-4 mr-1.5" />
-                  From Gallery
-                </Button>
-                <label className="h-10 inline-flex items-center justify-center px-3 rounded-md border border-[#C5B378]/30 bg-[#092E2B] text-xs font-medium text-[#E6ECEB] hover:text-white cursor-pointer shrink-0">
-                  <Upload className="h-3.5 w-3.5 mr-1" />
-                  Upload
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, 'edit')}
-                  />
-                </label>
               </div>
-              {editImageUrl && (
-                <div className="relative h-28 w-44 rounded-lg overflow-hidden border border-[#C5B378]/30 bg-black mt-2">
-                  <img src={editImageUrl} alt="Preview" className="h-full w-full object-cover" />
-                </div>
-              )}
             </div>
+
+            {/* Dynamic Master Services & Pricing Configurator */}
+            <DynamicPackageServicesConfigurator
+              services={services}
+              durationTier={editDurationTier}
+              onChangeDurationTier={handleEditDurationTierChange}
+              includedServices={editIncludedServices}
+              onChangeIncludedServices={setEditIncludedServices}
+            />
 
             {/* Categorized Deliverables Builder */}
             <div className="space-y-3 border-t border-[#C5B378]/20 pt-3">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] block">
-                  Deliverables & Inclusions (Categorized)
+                  Custom Deliverables
                 </label>
                 <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
-                  Specify deliverables by category to allow clients to compare tiers effortlessly.
+                  Coverage and album details are generated from the included services.
                 </p>
               </div>
 
               <div className="space-y-3 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
-                {/* 1. Event Coverage & Crew */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
-                    <Camera className="h-3.5 w-3.5 text-[#D8C78E]" />
-                    Event Coverage & Crew
-                  </label>
-                  <input
-                    type="text"
-                    value={editDeliverables['Event Coverage & Crew'] || ''}
-                    onChange={(e) =>
-                      setEditDeliverables((prev) => ({
-                        ...prev,
-                        'Event Coverage & Crew': e.target.value,
-                      }))
-                    }
-                    placeholder="e.g. 1 Lead Candid Photographer + 1 Traditional Photographer"
-                    className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                  />
-                </div>
-
-                {/* 2. Albums & Photo Frames */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5 text-[#D8C78E]" />
-                    Albums & Photo Frames
-                  </label>
-                  <input
-                    type="text"
-                    value={editDeliverables['Albums & Photo Frames'] || ''}
-                    onChange={(e) =>
-                      setEditDeliverables((prev) => ({
-                        ...prev,
-                        'Albums & Photo Frames': e.target.value,
-                      }))
-                    }
-                    placeholder="e.g. 30-Sheet Layflat Karizma Photo Album"
-                    className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                  />
-                </div>
-
-                {/* 3. Digital Deliverables */}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
                     <Film className="h-3.5 w-3.5 text-[#D8C78E]" />
-                    Digital Deliverables
+                    Deliverables
                   </label>
                   <input
                     type="text"
-                    value={editDeliverables['Digital Deliverables'] || ''}
+                    value={editDeliverables.Deliverables || ''}
                     onChange={(e) =>
                       setEditDeliverables((prev) => ({
                         ...prev,
-                        'Digital Deliverables': e.target.value,
+                        Deliverables: e.target.value,
                       }))
                     }
-                    placeholder="e.g. Full Event Edited Video + Complete Raw Footage Drive"
+                    placeholder="e.g. Edited film, USB drive, framed prints"
                     className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
                   />
                 </div>
@@ -2426,9 +2335,7 @@ export function AdminPackagesModule() {
                 {Object.entries(editDeliverables)
                   .filter(
                     ([key]) =>
-                      key !== 'Event Coverage & Crew' &&
-                      key !== 'Albums & Photo Frames' &&
-                      key !== 'Digital Deliverables'
+                      key !== 'Deliverables'
                   )
                   .map(([customKey, customValue]) => (
                     <div key={customKey} className="space-y-1 pt-1 border-t border-[#C5B378]/15">
@@ -2486,6 +2393,10 @@ export function AdminPackagesModule() {
                       size="sm"
                       onClick={() => {
                         if (!editCustomCategoryInput.trim() || !editCustomDetailInput.trim()) return;
+                        if (isReservedDeliverableCategory(editCustomCategoryInput)) {
+                          toast.error('Coverage and album sections are generated from selected services.');
+                          return;
+                        }
                         setEditDeliverables((prev) => ({
                           ...prev,
                           [editCustomCategoryInput.trim()]: editCustomDetailInput.trim(),
@@ -2507,14 +2418,6 @@ export function AdminPackagesModule() {
             <PackageCustomizerSection
               included={editCustomizerIncluded}
               onChangeIncluded={setEditCustomizerIncluded}
-              addons={editCustomizerAddons}
-              onChangeAddons={setEditCustomizerAddons}
-              addonLabelInput={editAddonLabel}
-              setAddonLabelInput={setEditAddonLabel}
-              addonPriceDeltaInput={editAddonPriceDelta}
-              setAddonPriceDeltaInput={setEditAddonPriceDelta}
-              addonTypeInput={editAddonType}
-              setAddonTypeInput={setEditAddonType}
             />
 
             {/* Checkboxes */}
@@ -2623,23 +2526,7 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Investment Price (₹) *</label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  step={500}
-                  value={newPrice}
-                  onChange={(e) =>
-                    setNewPrice(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  placeholder="35000"
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Duration *</label>
+                <label className="text-xs font-medium text-[#D8C78E]">Duration Display *</label>
                 <input
                   type="text"
                   required
@@ -2649,9 +2536,7 @@ export function AdminPackagesModule() {
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Audience Description</label>
                 <input
@@ -2662,7 +2547,9 @@ export function AdminPackagesModule() {
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <EventSelector
                   id="new-package-event"
@@ -2672,6 +2559,18 @@ export function AdminPackagesModule() {
                   showTamilName={true}
                   includeInactive={true}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Status</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as 'active' | 'inactive')}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                >
+                  <option value="active">Active (Available)</option>
+                  <option value="inactive">Inactive (Disabled)</option>
+                </select>
               </div>
             </div>
 
@@ -2685,127 +2584,44 @@ export function AdminPackagesModule() {
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white font-mono focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Status</label>
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as 'active' | 'inactive')}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  <option value="active">Active (Available)</option>
-                  <option value="inactive">Inactive (Disabled)</option>
-                </select>
-              </div>
             </div>
 
-            {/* Image URL & Upload */}
-            <div className="space-y-2 border-t border-[#C5B378]/20 pt-3">
-              <label className="text-xs font-medium text-[#D8C78E] block">Package Image</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  placeholder="https://... or /images/portfolio/..."
-                  className="h-10 flex-1 rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenGalleryPicker('new')}
-                  className="h-10 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] shrink-0"
-                >
-                  <ImageIcon className="h-4 w-4 mr-1.5" />
-                  Gallery
-                </Button>
-                <label className="h-10 inline-flex items-center justify-center px-3 rounded-md border border-[#C5B378]/30 bg-[#092E2B] text-xs font-medium text-[#E6ECEB] hover:text-white cursor-pointer shrink-0">
-                  <Upload className="h-3.5 w-3.5 mr-1" />
-                  Upload
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, 'new')}
-                  />
-                </label>
-              </div>
-              {newImageUrl && (
-                <div className="relative h-28 w-44 rounded-lg overflow-hidden border border-[#C5B378]/30 bg-black mt-2">
-                  <img src={newImageUrl} alt="Preview" className="h-full w-full object-cover" />
-                </div>
-              )}
-            </div>
+            {/* Dynamic Master Services & Pricing Configurator */}
+            <DynamicPackageServicesConfigurator
+              services={services}
+              durationTier={newDurationTier}
+              onChangeDurationTier={handleNewDurationTierChange}
+              includedServices={newIncludedServices}
+              onChangeIncludedServices={setNewIncludedServices}
+            />
 
             {/* Categorized Deliverables Builder */}
             <div className="space-y-3 border-t border-[#C5B378]/20 pt-3">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] block">
-                  Deliverables & Inclusions (Categorized)
+                  Custom Deliverables
                 </label>
                 <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
-                  Specify deliverables by category to allow clients to compare tiers effortlessly.
+                  Coverage and album details are generated from the included services.
                 </p>
               </div>
 
               <div className="space-y-3 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
-                {/* 1. Event Coverage & Crew */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
-                    <Camera className="h-3.5 w-3.5 text-[#D8C78E]" />
-                    Event Coverage & Crew
-                  </label>
-                  <input
-                    type="text"
-                    value={newDeliverables['Event Coverage & Crew'] || ''}
-                    onChange={(e) =>
-                      setNewDeliverables((prev) => ({
-                        ...prev,
-                        'Event Coverage & Crew': e.target.value,
-                      }))
-                    }
-                    placeholder="e.g. 1 Lead Candid Photographer + 1 Traditional Photographer"
-                    className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                  />
-                </div>
-
-                {/* 2. Albums & Photo Frames */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5 text-[#D8C78E]" />
-                    Albums & Photo Frames
-                  </label>
-                  <input
-                    type="text"
-                    value={newDeliverables['Albums & Photo Frames'] || ''}
-                    onChange={(e) =>
-                      setNewDeliverables((prev) => ({
-                        ...prev,
-                        'Albums & Photo Frames': e.target.value,
-                      }))
-                    }
-                    placeholder="e.g. 30-Sheet Layflat Karizma Photo Album"
-                    className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                  />
-                </div>
-
-                {/* 3. Digital Deliverables */}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
                     <Film className="h-3.5 w-3.5 text-[#D8C78E]" />
-                    Digital Deliverables
+                    Deliverables
                   </label>
                   <input
                     type="text"
-                    value={newDeliverables['Digital Deliverables'] || ''}
+                    value={newDeliverables.Deliverables || ''}
                     onChange={(e) =>
                       setNewDeliverables((prev) => ({
                         ...prev,
-                        'Digital Deliverables': e.target.value,
+                        Deliverables: e.target.value,
                       }))
                     }
-                    placeholder="e.g. Full Event Edited Video + Complete Raw Footage Drive"
+                    placeholder="e.g. Edited film, USB drive, framed prints"
                     className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
                   />
                 </div>
@@ -2814,9 +2630,7 @@ export function AdminPackagesModule() {
                 {Object.entries(newDeliverables)
                   .filter(
                     ([key]) =>
-                      key !== 'Event Coverage & Crew' &&
-                      key !== 'Albums & Photo Frames' &&
-                      key !== 'Digital Deliverables'
+                      key !== 'Deliverables'
                   )
                   .map(([customKey, customValue]) => (
                     <div key={customKey} className="space-y-1 pt-1 border-t border-[#C5B378]/15">
@@ -2874,6 +2688,10 @@ export function AdminPackagesModule() {
                       size="sm"
                       onClick={() => {
                         if (!newCustomCategoryInput.trim() || !newCustomDetailInput.trim()) return;
+                        if (isReservedDeliverableCategory(newCustomCategoryInput)) {
+                          toast.error('Coverage and album sections are generated from selected services.');
+                          return;
+                        }
                         setNewDeliverables((prev) => ({
                           ...prev,
                           [newCustomCategoryInput.trim()]: newCustomDetailInput.trim(),
@@ -2895,14 +2713,6 @@ export function AdminPackagesModule() {
             <PackageCustomizerSection
               included={newCustomizerIncluded}
               onChangeIncluded={setNewCustomizerIncluded}
-              addons={newCustomizerAddons}
-              onChangeAddons={setNewCustomizerAddons}
-              addonLabelInput={newAddonLabel}
-              setAddonLabelInput={setNewAddonLabel}
-              addonPriceDeltaInput={newAddonPriceDelta}
-              setAddonPriceDeltaInput={setNewAddonPriceDelta}
-              addonTypeInput={newAddonType}
-              setAddonTypeInput={setNewAddonType}
             />
 
             {/* Checkboxes */}
@@ -2993,59 +2803,6 @@ export function AdminPackagesModule() {
         </DialogContent>
       </Dialog>
 
-      {/* Gallery Selector Lightbox */}
-      <Dialog open={isGalleryPickerOpen} onOpenChange={setIsGalleryPickerOpen}>
-        <DialogContent className="max-h-[85vh] w-[90vw] max-w-3xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] flex flex-col">
-          <div className="border-b border-[#C5B378]/20 bg-[#092E2B] px-6 py-4 flex items-center justify-between">
-            <div>
-              <DialogTitle className="text-lg font-semibold text-white">
-                Select Photo from Studio Gallery
-              </DialogTitle>
-              <DialogDescription className="text-xs text-[#E6ECEB]/70">
-                Pick a photograph to use as this package&apos;s cover image.
-              </DialogDescription>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {portfolio.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleSelectGalleryPhoto(item.imageUrl)}
-                className="group relative rounded-xl overflow-hidden border border-white/10 hover:border-[#D8C78E] text-left transition-all cursor-pointer"
-              >
-                <div className="relative aspect-[4/3] w-full bg-[#041513] overflow-hidden">
-                  <NextImage
-                    src={item.imageUrl}
-                    alt={item.title}
-                    fill
-                    sizes="(max-width: 768px) 50vw, 250px"
-                    placeholder="blur"
-                    blurDataURL={SHIMMER_BLUR_DATA_URL}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                </div>
-                <div className="p-2.5 bg-[#092E2B]/95 text-xs">
-                  <p className="font-semibold text-white truncate">{item.title}</p>
-                  <p className="text-[11px] text-[#D8C78E] truncate">{item.category}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="border-t border-[#C5B378]/20 bg-[#092E2B] px-6 py-3 flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsGalleryPickerOpen(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

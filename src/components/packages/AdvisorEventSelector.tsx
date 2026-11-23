@@ -122,7 +122,7 @@ export function AdvisorEventSelector({
           What milestone are we capturing?
         </h3>
         <p className="text-sm text-[#E6ECEB]/75 leading-relaxed max-w-2xl">
-          Choose your celebration type below. We customize coverage hours, lens choices, and crew size to match each ritual’s unique rhythm.
+          Choose your celebration type below. We customize lens choices and crew size to match each ritual’s unique rhythm.
         </p>
       </div>
 

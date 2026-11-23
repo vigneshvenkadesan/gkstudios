@@ -18,6 +18,96 @@ export const DURATION_TIER_LABELS: Record<DurationTier, { en: string; ta: string
   },
 };
 
+const DERIVED_DELIVERABLE_KEYS = new Set([
+  'event coverage & crew',
+  'event coverage',
+  'coverage & crew',
+  'albums & photo frames',
+  'albums',
+  'album',
+  'photo albums',
+]);
+
+function isDerivedDeliverableKey(key: string): boolean {
+  return DERIVED_DELIVERABLE_KEYS.has(key.trim().toLowerCase());
+}
+
+/**
+ * Keeps only human-authored package deliverables, migrating legacy digital text to Deliverables.
+ */
+export function sanitizePackageDeliverables(raw: unknown): Record<string, string> {
+  const entries: Array<[string, unknown]> = [];
+  if (Array.isArray(raw)) {
+    for (const rawItem of raw) {
+      const item = String(rawItem).trim();
+      if (!item) continue;
+      const separatorIndex = item.indexOf(':');
+      entries.push(
+        separatorIndex < 0
+          ? ['Deliverables', item]
+          : [item.slice(0, separatorIndex).trim(), item.slice(separatorIndex + 1).trim()]
+      );
+    }
+  } else if (raw && typeof raw === 'object') {
+    entries.push(...Object.entries(raw as Record<string, unknown>));
+  }
+
+  const result: Record<string, string> = {};
+  for (const [rawKey, rawValue] of entries) {
+    if (typeof rawValue !== 'string' || !rawValue.trim()) continue;
+    const key = rawKey.trim();
+    const lowerKey = key.toLowerCase();
+    if (isDerivedDeliverableKey(key)) continue;
+    const displayKey = lowerKey === 'digital deliverables' || lowerKey === 'inclusions'
+      ? 'Deliverables'
+      : key;
+    result[displayKey] = result[displayKey]
+      ? `${result[displayKey]} + ${rawValue.trim()}`
+      : rawValue.trim();
+  }
+  return result;
+}
+
+const COVERAGE_SERVICE_LABELS: Record<string, string> = {
+  'traditional-camera': 'Traditional Photo',
+  'traditional-video': 'Traditional Video',
+  'candid-photography': 'Candid Photo',
+  'candid-cinematography': 'Candid Video',
+  'drone-aerial-coverage': 'Drone Aerial Coverage',
+  'led-wall': 'Live LED Wall',
+  'led-tv': 'LED TV Display',
+  'live-streaming': 'Live Streaming',
+};
+
+export function getDynamicPackageDisplaySections(
+  activeServiceItems: Array<{ serviceSlug: string; quantity: number }> | undefined,
+  services: StudioService[]
+): { coverage: string | null; albums: string | null } {
+  const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
+  const album = items.find((item) => item.serviceSlug === 'photo-album');
+  const coverageItems = items
+    .filter((item) => item.serviceSlug !== 'photo-album')
+    .map((item) => {
+      const label =
+        COVERAGE_SERVICE_LABELS[item.serviceSlug] ||
+        services.find((service) => service.slug === item.serviceSlug)?.name ||
+        item.serviceSlug;
+      return `${item.quantity > 1 ? `${item.quantity} × ` : ''}${label}`;
+    });
+
+  let coverage: string | null = null;
+  if (coverageItems.length === 1) {
+    coverage = coverageItems[0];
+  } else if (coverageItems.length > 1) {
+    coverage = `${coverageItems.slice(0, -1).join(', ')} & ${coverageItems[coverageItems.length - 1]}`;
+  }
+
+  return {
+    coverage,
+    albums: album ? `1 × ${album.quantity}-Sheet Album (${album.quantity * 2} Pages)` : null,
+  };
+}
+
 export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
   {
     name: 'Traditional Camera',

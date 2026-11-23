@@ -297,9 +297,7 @@ export interface PortfolioItem {
 }
 
 export interface PackageDeliverables {
-  "Event Coverage & Crew"?: string;
-  "Albums & Photo Frames"?: string;
-  "Digital Deliverables"?: string;
+  Deliverables?: string;
   [key: string]: string | undefined; // Allow dynamic category keys
 }
 
