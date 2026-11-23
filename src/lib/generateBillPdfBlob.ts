@@ -2,7 +2,12 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { StudioBill } from '@/src/types/studio';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
-import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
+import {
+  buildWhatsAppUrl,
+  formatDateDisplay,
+  formatINR,
+  getBillPaymentHistory,
+} from '@/src/lib/utils';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
 
 interface BillTermItem {
@@ -69,8 +74,8 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         }));
 
   const includedServices = rawServices.filter(isServiceActive);
-  const addons = (bill.packageDetails.addons || []).filter(isServiceActive);
   const excludedItems = bill.packageDetails.excludedItems || [];
+  const paymentHistory = getBillPaymentHistory(bill);
   const tierLabel = bill.packageDetails.tierLabel || 'Signature';
   const optedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
 
@@ -239,18 +244,9 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         }
 
         ${
-          addons.length > 0 || excludedItems.length > 0
+          excludedItems.length > 0
             ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #e2e8f0; font-size: 9.5px; color: #64748b; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
-                ${
-                  addons.length > 0
-                    ? `<div><strong style="color: #072421;">Upgrades Added:</strong> ${addons.map((a) => `<span style="display: inline-block; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 3px; padding: 1px 6px; color: #065f46; margin-left: 2px;">+ ${a.label} (+₹${Number(a.priceDelta).toLocaleString('en-IN')})</span>`).join('')}</div>`
-                    : ''
-                }
-                ${
-                  excludedItems.length > 0
-                    ? `<div><strong style="color: #991b1b;">Items Excluded:</strong> ${excludedItems.map((e) => `<span style="display: inline-block; background: #fef2f2; border: 1px solid #fecaca; border-radius: 3px; padding: 1px 6px; color: #991b1b; margin-left: 2px;">- ${e.label} (-₹${Math.abs(Number(e.priceDelta)).toLocaleString('en-IN')})</span>`).join('')}</div>`
-                    : ''
-                }
+                <div><strong style="color: #991b1b;">Items Excluded:</strong> ${excludedItems.map((e) => `<span style="display: inline-block; background: #fef2f2; border: 1px solid #fecaca; border-radius: 3px; padding: 1px 6px; color: #991b1b; margin-left: 2px;">- ${e.label} (-₹${Math.abs(Number(e.priceDelta)).toLocaleString('en-IN')})</span>`).join('')}</div>
               </div>`
             : ''
         }
@@ -280,37 +276,28 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
               </td>
             </tr>
 
-            <!-- Paid Now Row -->
-            <tr style="border-bottom: 1px solid #e2e8f0; background: #ecfdf5; font-weight: 700;">
-              <td style="padding: 9px 12px; color: #065f46;">
-                Payment Received Now (This Receipt)
-                <span style="display: block; font-size: 9px; color: #047857; font-weight: 400;">
-                  இப்போது செலுத்திய தொகை · Ref: #${bill.paymentId.slice(0, 8)}
-                </span>
-              </td>
-              <td style="padding: 9px 12px; text-align: center; color: #065f46; font-family: monospace; font-size: 10px;">
-                ${bill.financials.paymentMode}
-              </td>
-              <td style="padding: 9px 12px; text-align: center; color: #065f46; font-size: 10px;">
-                ${bill.financials.paymentStage}
-              </td>
-              <td style="padding: 9px 12px; text-align: right; font-family: monospace; font-size: 13px; font-weight: 800; color: #047857;">
-                ${formatINR(bill.financials.amountPaidNow)}
-              </td>
-            </tr>
-
-            <!-- Total Paid to Date -->
-            <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-              <td style="padding: 9px 12px; color: #334155;">
-                Cumulative Payments to Date
-                <span style="display: block; font-size: 9px; color: #64748b;">இதுவரை செலுத்திய மொத்தத் தொகை</span>
-              </td>
-              <td style="padding: 9px 12px; text-align: center; color: #64748b;">—</td>
-              <td style="padding: 9px 12px; text-align: center; color: #64748b; font-size: 10px;">Cumulative</td>
-              <td style="padding: 9px 12px; text-align: right; font-family: monospace; font-weight: 700; color: #1e293b;">
-                ${formatINR(bill.financials.totalPaidToDate)}
-              </td>
-            </tr>
+            ${paymentHistory
+              .map(
+                (payment, index) => `
+                  <tr style="border-bottom: 1px solid #e2e8f0; background: ${index % 2 === 0 ? '#ecfdf5' : '#ffffff'};">
+                    <td style="padding: 9px 12px; color: #065f46; font-weight: 600;">
+                      Payment ${index + 1}
+                      <span style="display: block; font-size: 9px; color: #047857; font-weight: 400;">
+                        Date: ${formatDateDisplay(payment.date) || 'Not recorded'}
+                      </span>
+                    </td>
+                    <td style="padding: 9px 12px; text-align: center; color: #065f46; font-family: monospace; font-size: 10px;">
+                      ${payment.method}
+                    </td>
+                    <td style="padding: 9px 12px; text-align: center; color: #065f46; font-size: 10px;">
+                      ${payment.label}
+                    </td>
+                    <td style="padding: 9px 12px; text-align: right; font-family: monospace; font-size: 13px; font-weight: 800; color: #047857;">
+                      ${formatINR(payment.amount)}
+                    </td>
+                  </tr>`
+              )
+              .join('')}
 
             <!-- Balance Due -->
             <tr style="background: #fffbeb; font-weight: 700; border-top: 2px solid #cbd5e1;">

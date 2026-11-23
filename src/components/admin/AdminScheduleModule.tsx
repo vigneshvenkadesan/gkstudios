@@ -410,11 +410,54 @@ export function AdminScheduleModule() {
   };
 
   const handleClearDate = async (dateToRemove: string, entryId?: string) => {
+    const entriesToRemove = entryId
+      ? calendarEntries.filter((entry) => entry.id === entryId)
+      : calendarEntries.filter((entry) => entry.date === dateToRemove);
+    const entryIds = new Set(
+      [...entriesToRemove.map((entry) => entry.id), ...(entryId ? [entryId] : [])].filter(
+        (id): id is string => Boolean(id)
+      )
+    );
+    const bookingIds = new Set(
+      entriesToRemove.map((entry) => entry.bookingId).filter((id): id is string => Boolean(id))
+    );
+    const linkedProjects = eventProjects.filter(
+      (project) =>
+        (project.calendarEntryId && entryIds.has(project.calendarEntryId)) ||
+        (project.bookingId && bookingIds.has(project.bookingId))
+    );
+    linkedProjects.forEach((project) => {
+      if (project.bookingId) bookingIds.add(project.bookingId);
+    });
+    const hasLinkedProject = linkedProjects.length > 0;
+    const hasLinkedBooking = bookings.some((booking) => bookingIds.has(booking.id));
+    const linkedRecords = [];
+    if (hasLinkedProject) linkedRecords.push('the linked event project, its payments, and bills');
+    if (hasLinkedBooking) linkedRecords.push('the original booking inquiry');
+    const targetLabel = entryId
+      ? 'this calendar entry'
+      : `all calendar entries on ${formatDateDisplay(dateToRemove)}`;
+    const linkedRecordsWarning =
+      linkedRecords.length > 0
+        ? ` This will also permanently delete ${linkedRecords.join(' and ')}.`
+        : '';
+    if (
+      !window.confirm(
+        `Remove ${targetLabel}?${linkedRecordsWarning} This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
     setIsSaving(true);
     try {
       await removeCalendarEntry(dateToRemove, entryId);
       setDialogOpen(false);
-      toast.info(`Schedule entry removed for ${formatDateDisplay(dateToRemove)}.`);
+      toast.success(
+        hasLinkedProject
+          ? 'Calendar order and linked payment records deleted.'
+          : `Schedule entry removed for ${formatDateDisplay(dateToRemove)}.`
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to remove schedule entry.');
     } finally {

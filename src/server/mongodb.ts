@@ -305,6 +305,7 @@ const BillSchema = new Schema<BillDocument>(
       paymentDate: { type: String, required: true },
       paymentStage: { type: String, default: 'Payment' },
     },
+    paymentHistory: { type: [PaymentSchema], default: [] },
     termsAndConditions: [{ en: String, ta: String }],
     optedServices: { type: Schema.Types.Mixed, default: [] },
     createdAt: { type: String, required: true },

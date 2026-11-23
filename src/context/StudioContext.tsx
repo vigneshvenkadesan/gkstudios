@@ -84,7 +84,7 @@ interface StudioContextValue {
   calendarEntries: CalendarDayEntry[];
   eventProjects: EventProject[];
   bills: StudioBill[];
-  refreshStudio: () => Promise<void>;
+  refreshStudio: () => Promise<boolean>;
   submitBooking: (input: SubmitBookingInput) => Promise<BookingRequest>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
   processBookingAction: (input: AcknowledgeBookingInput) => Promise<void>;
@@ -150,8 +150,10 @@ export function StudioProvider({
     try {
       const serverState = await requestJson<StudioState>('/api/studio', { cache: 'no-store' });
       setState(serverState);
-    } catch {
-      // Keep current state if transient error
+      return true;
+    } catch (error) {
+      console.error('Failed to refresh studio data.', error);
+      return false;
     } finally {
       setIsLoading(false);
     }

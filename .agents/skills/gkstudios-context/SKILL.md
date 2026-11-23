@@ -398,13 +398,15 @@ The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, 
 3. Processing can create/update `calendar_schedule` entries for the start and end date range.
 4. Confirmation creates `event_projects` at `Booking Confirmed` if none exists.
 5. Multiple bookings can use the same date; date blocking is not a uniqueness constraint.
+6. Removing a calendar entry cascades through its linked multi-day schedule entries, `event_projects`, payment bills, and linked `booking_requests`; unrelated entries on the same date remain.
+7. While authenticated, the Admin Dashboard refreshes studio state every five minutes. Leads & Inquiries also has a manual Refresh action; pending inquiries trigger a persistent, manually dismissible alert, and newly received pending inquiries trigger it again.
 
 ### Payments and bills
 
 1. Record payment in an event project's embedded `payments` array.
 2. Generate a sequential `GKS-YYYY-NNNN` bill.
 3. Copy project, booking, calendar, and package snapshot data into `bills`.
-4. Store paid-now, cumulative-paid, balance-due, and payment stage.
+4. Store payment history, the current payment, cumulative-paid balance calculation, balance due, and payment stage. Bill ledgers display individual payments oldest to newest with dates and omit a cumulative-payment row.
 5. Link payment -> bill with `billId` and `billNumber`.
 6. Deleting a payment removes its associated bill and payment entry.
 7. The bilingual modal prints only `#printable-bill-content`.

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { StudioBill } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
-import { formatINR } from '@/src/lib/utils';
+import { formatDateDisplay, formatINR, getBillPaymentHistory } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
@@ -48,6 +48,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
   const [isMounted, setIsMounted] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const paymentHistory = bill ? getBillPaymentHistory(bill) : [];
 
   useEffect(() => {
     setIsMounted(true);
@@ -134,7 +135,6 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
         }));
 
   const activeServices = rawServices.filter(isServiceActive);
-  const activeAddons = (bill.packageDetails?.addons || []).filter(isServiceActive);
   const billOptedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
 
   return (
@@ -394,36 +394,20 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                   </div>
                 )}
 
-                {/* Custom Upgrades & Excluded Items */}
-                {((activeAddons.length > 0) ||
-                  (bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0)) && (
+                {/* Excluded Items */}
+                {bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0 && (
                   <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2 text-[10px]">
-                    {activeAddons.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold uppercase tracking-wider text-slate-500">Upgrades Added:</span>
-                        {activeAddons.map((a, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-emerald-800 font-medium"
-                          >
-                            + {a.label} (+{formatINR(a.priceDelta)})
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold uppercase tracking-wider text-red-600">Items Excluded:</span>
-                        {bill.packageDetails.excludedItems.map((e, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center bg-red-50 border border-red-200 px-2 py-0.5 rounded text-red-800 font-medium"
-                          >
-                            - {e.label} (-{formatINR(Math.abs(e.priceDelta))})
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold uppercase tracking-wider text-red-600">Items Excluded:</span>
+                      {bill.packageDetails.excludedItems.map((e, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center bg-red-50 border border-red-200 px-2 py-0.5 rounded text-red-800 font-medium"
+                        >
+                          - {e.label} (-{formatINR(Math.abs(e.priceDelta))})
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -454,34 +438,28 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                       </td>
                     </tr>
 
-                    {/* Amount Paid Now Row */}
-                    <tr className="bg-emerald-50/70 font-semibold">
-                      <td className="p-2.5 text-emerald-900">
-                        Payment Received Now (This Receipt)
-                        <span className="block text-[10px] text-emerald-700 font-normal">
-                          Transaction Ref: #{bill.paymentId.slice(0, 8)}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-center text-emerald-800 font-mono text-[11px]">
-                        {bill.financials.paymentMode}
-                      </td>
-                      <td className="p-2.5 text-center text-emerald-800 text-[11px]">
-                        {bill.financials.paymentStage}
-                      </td>
-                      <td className="p-2.5 text-right font-mono text-sm text-emerald-800 font-extrabold">
-                        {formatINR(bill.financials.amountPaidNow)}
-                      </td>
-                    </tr>
-
-                    {/* Total Paid to Date */}
-                    <tr className="bg-slate-50">
-                      <td className="p-2.5 text-slate-700">Cumulative Paid to Date</td>
-                      <td className="p-2.5 text-center text-slate-500">—</td>
-                      <td className="p-2.5 text-center text-slate-500">Paid Total</td>
-                      <td className="p-2.5 text-right font-mono font-bold text-slate-800">
-                        {formatINR(bill.financials.totalPaidToDate)}
-                      </td>
-                    </tr>
+                    {paymentHistory.map((payment, index) => (
+                      <tr
+                        key={payment.id || `${payment.date}-${index}`}
+                        className={index % 2 === 0 ? 'bg-emerald-50/70' : ''}
+                      >
+                        <td className="p-2.5 font-medium text-slate-800">
+                          Payment {index + 1}
+                          <span className="block text-[10px] text-slate-500 font-normal">
+                            Date: {formatDateDisplay(payment.date) || 'Not recorded'}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-center text-slate-700 font-mono text-[11px]">
+                          {payment.method}
+                        </td>
+                        <td className="p-2.5 text-center text-slate-700 text-[11px]">
+                          {payment.label}
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-800">
+                          {formatINR(payment.amount)}
+                        </td>
+                      </tr>
+                    ))}
 
                     {/* Balance Due */}
                     <tr className="bg-amber-50/80 font-bold border-t-2 border-slate-300">

@@ -772,6 +772,18 @@ function toPlainBill(b: any): StudioBill {
       paymentDate: '',
       paymentStage: 'Payment',
     },
+    paymentHistory: Array.isArray(b.paymentHistory)
+      ? b.paymentHistory.map((payment: PaymentRecord) => ({
+          id: String(payment.id || ''),
+          date: String(payment.date || ''),
+          label: String(payment.label || 'Payment'),
+          amount: Number(payment.amount) || 0,
+          method: payment.method || 'UPI / GPay',
+          referenceNote: payment.referenceNote,
+          billId: payment.billId,
+          billNumber: payment.billNumber,
+        }))
+      : [],
     termsAndConditions: Array.isArray(b.termsAndConditions)
       ? b.termsAndConditions.map((term: { en?: unknown; ta?: unknown }) => ({
           en: String(term.en || ''),
@@ -1290,14 +1302,103 @@ export async function removeCalendarEntryOnServer(
   entryId?: string
 ): Promise<StudioState> {
   const schedule = await requireCalendarScheduleModel();
+  const selectedEntries = await schedule
+    .find(entryId ? { id: entryId } : { date })
+    .lean()
+    .exec();
+  const selectedEntryIds = [
+    ...new Set([
+      ...selectedEntries.map((entry) => String(entry.id || '')),
+      ...(entryId ? [entryId] : []),
+    ].filter(Boolean)),
+  ];
+  const linkedBookingIds = new Set(
+    selectedEntries
+      .map((entry) => String(entry.bookingId || ''))
+      .filter(Boolean)
+  );
 
-  if (entryId) {
-    await schedule.deleteOne({ id: entryId });
-  } else {
-    await schedule.deleteMany({ date });
+  const projectFilters: Array<Record<string, unknown>> = [];
+  if (selectedEntryIds.length > 0) {
+    projectFilters.push({ calendarEntryId: { $in: selectedEntryIds } });
+  }
+  if (linkedBookingIds.size > 0) {
+    projectFilters.push({ bookingId: { $in: [...linkedBookingIds] } });
+  }
+
+  const eventProjects = await requireEventProjectModel();
+  const linkedProjects =
+    projectFilters.length > 0
+      ? await eventProjects.find({ $or: projectFilters }).lean().exec()
+      : [];
+  const plainLinkedProjects = linkedProjects as unknown as EventProject[];
+  const linkedProjectIds = new Set(plainLinkedProjects.map((project) => project.id));
+  for (const project of plainLinkedProjects) {
+    if (project.bookingId) linkedBookingIds.add(project.bookingId);
+  }
+
+  if (plainLinkedProjects.length > 0 || linkedBookingIds.size > 0) {
+    await deleteBillsForEventProjects(plainLinkedProjects, [...linkedBookingIds]);
+  }
+  if (plainLinkedProjects.length > 0) {
+    await eventProjects.deleteMany({ id: { $in: [...linkedProjectIds] } });
+  }
+
+  if (linkedBookingIds.size > 0) {
+    const bookings = await requireBookingModel();
+    await bookings.deleteMany({ id: { $in: [...linkedBookingIds] } });
+  }
+
+  const scheduleFilters: Array<Record<string, unknown>> = [];
+  if (selectedEntryIds.length > 0) {
+    scheduleFilters.push({ id: { $in: selectedEntryIds } });
+  }
+  if (linkedBookingIds.size > 0) {
+    scheduleFilters.push({ bookingId: { $in: [...linkedBookingIds] } });
+  }
+  if (!entryId && selectedEntries.length === 0) {
+    scheduleFilters.push({ date });
+  }
+  if (scheduleFilters.length > 0) {
+    await schedule.deleteMany({ $or: scheduleFilters });
   }
 
   return getStudioState();
+}
+
+async function deleteBillsForEventProjects(
+  projects: EventProject[],
+  additionalOrderIds: string[] = []
+): Promise<void> {
+  const bills = await requireBillModel();
+  const relatedOrderIds = [
+    ...new Set([
+      ...additionalOrderIds,
+      ...projects.flatMap((project) => [project.id, project.bookingId || '']),
+    ].filter(Boolean)),
+  ];
+  const payments = projects.flatMap((project) => project.payments || []);
+  const paymentIds = [...new Set(payments.map((payment) => payment.id).filter(Boolean))];
+  const billIds = [...new Set(payments.map((payment) => payment.billId).filter(Boolean))];
+  const billNumbers = [...new Set(payments.map((payment) => payment.billNumber).filter(Boolean))];
+  const filters: Array<Record<string, unknown>> = [];
+
+  if (relatedOrderIds.length > 0) {
+    filters.push({ bookingId: { $in: relatedOrderIds } });
+  }
+  if (paymentIds.length > 0) {
+    filters.push({ paymentId: { $in: paymentIds } });
+  }
+  if (billIds.length > 0) {
+    filters.push({ id: { $in: billIds } });
+  }
+  if (billNumbers.length > 0) {
+    filters.push({ billNumber: { $in: billNumbers } });
+  }
+
+  if (filters.length > 0) {
+    await bills.deleteMany({ $or: filters });
+  }
 }
 
 export async function addPortfolioItemOnServer(
@@ -1781,6 +1882,17 @@ export async function addEventPaymentOnServer(
   const previousPaid = project.payments.reduce((sum, p) => sum + p.amount, 0);
   const totalPaidToDate = previousPaid + amountPaidNow;
   const balanceDue = Math.max(0, totalPackageAmount - totalPaidToDate);
+  const paymentDate = payment.date || new Date().toISOString().split('T')[0];
+  const newPayment: PaymentRecord = {
+    ...payment,
+    date: paymentDate,
+    id: paymentId,
+    billId,
+    billNumber,
+  };
+  const paymentHistory = [...project.payments, newPayment].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
 
   const newBill: StudioBill = {
     id: billId,
@@ -1815,9 +1927,10 @@ export async function addEventPaymentOnServer(
       totalPaidToDate,
       balanceDue,
       paymentMode: payment.method || 'UPI',
-      paymentDate: payment.date || new Date().toISOString().split('T')[0],
+      paymentDate,
       paymentStage: payment.label || 'Payment',
     },
+    paymentHistory,
     termsAndConditions: STUDIO_TERMS_AND_CONDITIONS.map((t) => ({
       en: t.en,
       ta: t.ta,
@@ -1827,13 +1940,6 @@ export async function addEventPaymentOnServer(
   };
 
   await billModel.create(newBill);
-
-  const newPayment: PaymentRecord = {
-    ...payment,
-    id: paymentId,
-    billId,
-    billNumber,
-  };
 
   const projects = await requireEventProjectModel();
   await projects.updateOne(
@@ -1901,6 +2007,11 @@ export async function getBillByIdOnServer(idOrNumber: string): Promise<StudioBil
 
 export async function deleteEventProjectOnServer(projectId: string): Promise<StudioState> {
   const projects = await requireEventProjectModel();
+  const project = await projects.findOne({ id: projectId }).lean().exec();
+  if (!project) {
+    throw new Error('Event project not found.');
+  }
+  await deleteBillsForEventProjects([project as unknown as EventProject]);
   const result = await projects.deleteOne({ id: projectId });
   if (result.deletedCount === 0) {
     throw new Error('Event project not found.');

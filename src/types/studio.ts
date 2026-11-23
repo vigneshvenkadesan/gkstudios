@@ -244,6 +244,7 @@ export interface StudioBill {
     paymentDate: string;
     paymentStage: string; // e.g., "Advance (20%)", "Event Day", "Final Settlement"
   };
+  paymentHistory?: PaymentRecord[];
   termsAndConditions: Array<{
     en: string;
     ta: string;

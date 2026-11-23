@@ -17,7 +17,12 @@ import {
 } from 'lucide-react';
 import { StudioBill } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
-import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
+import {
+  buildWhatsAppUrl,
+  formatDateDisplay,
+  formatINR,
+  getBillPaymentHistory,
+} from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf } from '@/src/lib/generateBillPdfBlob';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
@@ -38,6 +43,7 @@ interface BilingualBillClientViewProps {
 
 export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) {
   const [isDownloading, setIsDownloading] = React.useState(false);
+  const paymentHistory = getBillPaymentHistory(bill);
 
   const handlePrint = () => {
     window.print();
@@ -90,7 +96,6 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
         }));
 
   const activeServices = rawServices.filter(isServiceActive);
-  const activeAddons = (bill.packageDetails?.addons || []).filter(isServiceActive);
   const billOptedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
 
   const handleShareWhatsApp = () => {
@@ -367,36 +372,20 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
             </div>
           )}
 
-          {/* Custom Upgrades & Excluded Items */}
-          {((activeAddons.length > 0) ||
-            (bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0)) && (
+          {/* Excluded Items */}
+          {bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0 && (
             <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2 text-[10px]">
-              {activeAddons.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-bold uppercase tracking-wider text-slate-500">Upgrades Added:</span>
-                  {activeAddons.map((a, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-emerald-800 font-medium"
-                    >
-                      + {a.label} (+{formatINR(a.priceDelta)})
-                    </span>
-                  ))}
-                </div>
-              )}
-              {bill.packageDetails.excludedItems && bill.packageDetails.excludedItems.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-bold uppercase tracking-wider text-red-600">Items Excluded:</span>
-                  {bill.packageDetails.excludedItems.map((e, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center bg-red-50 border border-red-200 px-2 py-0.5 rounded text-red-800 font-medium"
-                    >
-                      - {e.label} (-{formatINR(Math.abs(e.priceDelta))})
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-bold uppercase tracking-wider text-red-600">Items Excluded:</span>
+                {bill.packageDetails.excludedItems.map((e, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center bg-red-50 border border-red-200 px-2 py-0.5 rounded text-red-800 font-medium"
+                  >
+                    - {e.label} (-{formatINR(Math.abs(e.priceDelta))})
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -426,27 +415,22 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                 </td>
               </tr>
 
-              <tr className="bg-emerald-50/60">
-                <td className="p-2.5 font-bold text-[#072421]">
-                  Amount Paid in this Transaction (இப்போது செலுத்திய தொகை)
-                </td>
-                <td className="p-2.5 font-semibold text-emerald-800">
-                  {bill.financials.paymentMode} • {bill.financials.paymentStage}
-                </td>
-                <td className="p-2.5 text-right font-mono font-bold text-emerald-700 text-sm">
-                  {formatINR(bill.financials.amountPaidNow)}
-                </td>
-              </tr>
-
-              <tr>
-                <td className="p-2.5 text-slate-700">
-                  Cumulative Payments to Date (இதுவரை செலுத்திய மொத்தத் தொகை)
-                </td>
-                <td className="p-2.5 text-slate-600">Cumulative Ledger</td>
-                <td className="p-2.5 text-right font-mono font-semibold text-slate-800">
-                  {formatINR(bill.financials.totalPaidToDate)}
-                </td>
-              </tr>
+              {paymentHistory.map((payment, index) => (
+                <tr key={payment.id || `${payment.date}-${index}`} className={index % 2 === 0 ? 'bg-emerald-50/60' : ''}>
+                  <td className="p-2.5 font-medium text-slate-800">
+                    Payment {index + 1}
+                    <span className="block text-[10px] text-slate-500 font-normal">
+                      Date: {formatDateDisplay(payment.date) || 'Not recorded'}
+                    </span>
+                  </td>
+                  <td className="p-2.5 text-slate-600">
+                    {payment.method} • {payment.label}
+                  </td>
+                  <td className="p-2.5 text-right font-mono font-semibold text-slate-800">
+                    {formatINR(payment.amount)}
+                  </td>
+                </tr>
+              ))}
 
               <tr className="bg-amber-50/80 font-bold">
                 <td className="p-2.5 text-[#9A7B38]">

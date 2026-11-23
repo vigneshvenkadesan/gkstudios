@@ -10,6 +10,7 @@ import {
   Phone,
   PhoneCall,
   Plus,
+  RefreshCw,
   Search,
   Send,
   UserPlus,
@@ -162,8 +163,16 @@ function getStatusBadge(status: BookingStatus) {
 }
 
 export function AdminBookingModule() {
-  const { bookings, packages, events, services, submitBooking, processBookingAction, updateBookingStatus } =
-    useStudio();
+  const {
+    bookings,
+    packages,
+    events,
+    services,
+    submitBooking,
+    processBookingAction,
+    updateBookingStatus,
+    refreshStudio,
+  } = useStudio();
 
   const activeEvents = useMemo(() => {
     return (events || [])
@@ -202,6 +211,7 @@ export function AdminBookingModule() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeBooking, setActiveBooking] = useState<BookingRequest | null>(null);
   const [whatsAppModalBooking, setWhatsAppModalBooking] = useState<BookingRequest | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Manage modal editable state
   const [editPackageId, setEditPackageId] = useState('');
@@ -697,6 +707,20 @@ export function AdminBookingModule() {
     }
   };
 
+  const handleRefreshInquiries = async () => {
+    setIsRefreshing(true);
+    try {
+      const refreshed = await refreshStudio();
+      if (refreshed) {
+        toast.success('Leads and inquiries refreshed.');
+      } else {
+        toast.error('Could not refresh inquiries. Please try again.');
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Module Header & Action Toolbar */}
@@ -713,14 +737,26 @@ export function AdminBookingModule() {
           </p>
         </div>
 
-        <Button
-          type="button"
-          onClick={handleOpenAddLead}
-          className="shrink-0 bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
-        >
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add Direct Lead / Referral
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleRefreshInquiries}
+            disabled={isRefreshing}
+            className="border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B]"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+          <Button
+            type="button"
+            onClick={handleOpenAddLead}
+            className="shrink-0 bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Direct Lead / Referral
+          </Button>
+        </div>
       </div>
 
       {/* Filter & Search Toolbar */}
