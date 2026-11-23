@@ -369,9 +369,16 @@ export function ProposalPageClient() {
 
   // Order / Booking Drawer state
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isReturningToStudio, setIsReturningToStudio] = useState(false);
+  const hasAutoOpenedInquiry = useRef(false);
 
   useEffect(() => {
-    if (rawInquiryParam === '1' && !isLoading) {
+    if (
+      rawInquiryParam === '1' &&
+      !isLoading &&
+      !hasAutoOpenedInquiry.current
+    ) {
+      hasAutoOpenedInquiry.current = true;
       setIsOrderModalOpen(true);
     }
   }, [rawInquiryParam, isLoading]);
@@ -401,6 +408,27 @@ export function ProposalPageClient() {
   const [proposalLoadError, setProposalLoadError] = useState('');
   const [proposalHydrated, setProposalHydrated] = useState(!rawProposalToken);
   const skipNextAlbumDefault = useRef(false);
+
+  const closeOrderModal = () => {
+    if (isSubmitting) return;
+    setIsOrderModalOpen(false);
+    if (rawInquiryParam === '1') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('inquiry');
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+  const orderModalCloseButton = (
+    <button
+      type="button"
+      disabled={isSubmitting}
+      onClick={closeOrderModal}
+      className="mt-5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#C5B378]/40 bg-[#0E423E] text-white shadow-md transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] disabled:opacity-40 cursor-pointer"
+      aria-label="Close"
+    >
+      <X className="h-5 w-5" />
+    </button>
+  );
 
   useEffect(() => {
     if (!rawProposalToken) return;
@@ -1559,10 +1587,16 @@ export function ProposalPageClient() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
           <Link
             href="/#packages"
+            onClick={() => setIsReturningToStudio(true)}
+            aria-busy={isReturningToStudio}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#D8C78E] hover:text-white transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Studio Home</span>
+            {isReturningToStudio ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowLeft className="h-4 w-4" />
+            )}
+            <span>{isReturningToStudio ? 'Returning to studio...' : 'Studio Home'}</span>
           </Link>
 
           <div className="flex items-center gap-2">
@@ -2463,11 +2497,11 @@ export function ProposalPageClient() {
         {isOrderModalOpen && (
           <div
             onClick={(e) => {
-              if (e.target === e.currentTarget && !isSubmitting) {
-                setIsOrderModalOpen(false);
+              if (e.target === e.currentTarget) {
+                closeOrderModal();
               }
             }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/85 p-3 backdrop-blur-sm sm:items-center sm:p-4"
             role="dialog"
             aria-modal="true"
           >
@@ -2475,34 +2509,26 @@ export function ProposalPageClient() {
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
-              className="relative w-full max-w-xl overflow-hidden rounded-sm border border-[#C5B378]/35 bg-[#072421] text-[#E6ECEB] shadow-2xl p-6 space-y-5 my-8"
+              className="relative flex max-h-[calc(100svh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-sm border border-[#C5B378]/35 bg-[#072421] text-[#E6ECEB] shadow-2xl sm:max-h-[calc(100svh-2rem)]"
             >
-              <div className="h-1.5 absolute top-0 inset-x-0 bg-gradient-to-r from-[#C5B378] to-[#D8C78E]" />
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E]" />
 
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => {
-                  if (!isSubmitting) setIsOrderModalOpen(false);
-                }}
-                className="absolute top-4 right-4 text-white/70 hover:text-white disabled:opacity-40 cursor-pointer"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-
+              <div className="min-h-0 flex-1 overflow-y-auto p-6">
               {!isSubmitted ? (
                 <>
-                  <div className="space-y-1 pr-6 pt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]">
-                      Availability & Booking
-                    </span>
-                    <h3 className="font-serif text-2xl font-bold text-white">
-                      Package & Date Inquiry
-                    </h3>
-                    <p className="text-xs text-[#E6ECEB]/70">
-                      Send your selected package and event details to check availability with GK STUDIOS.
-                    </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1 pt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]">
+                        Availability & Booking
+                      </span>
+                      <h3 className="font-serif text-2xl font-bold text-white">
+                        Package & Date Inquiry
+                      </h3>
+                      <p className="text-xs text-[#E6ECEB]/70">
+                        Send your selected package and event details to check availability with GK STUDIOS.
+                      </p>
+                    </div>
+                    {orderModalCloseButton}
                   </div>
 
                   {/* Summary Bar */}
@@ -2737,6 +2763,9 @@ export function ProposalPageClient() {
                 </>
               ) : (
                 <div className="py-6 text-center space-y-4">
+                  <div className="flex justify-end">
+                    {orderModalCloseButton}
+                  </div>
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#D8C78E]/20 border border-[#D8C78E]">
                     <Check className="h-6 w-6 text-[#D8C78E]" />
                   </div>
@@ -2772,6 +2801,7 @@ export function ProposalPageClient() {
                   </div>
                 </div>
               )}
+              </div>
             </motion.div>
           </div>
         )}

@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   LayoutGrid,
+  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -113,6 +114,7 @@ export function FastIntakeWizard({
   const sessionPlan: SessionPlan = 'half';
   const [guestScale, setGuestScale] = useState<GuestScale>('classic');
   const [shootSetting, setShootSetting] = useState<ShootSetting | null>(null);
+  const [isBuildingProposal, setIsBuildingProposal] = useState(false);
 
   // Filter active events for current category
   const activeEvents = useMemo(() => {
@@ -148,6 +150,7 @@ export function FastIntakeWizard({
       return;
     }
 
+    setIsBuildingProposal(true);
     const eventId = selectedEventId || currentEvent?.id || 'wedding';
     const tierParam = recommendedTier;
     const params = new URLSearchParams({
@@ -429,10 +432,13 @@ export function FastIntakeWizard({
 
               <Button
                 type="button"
+                disabled={isBuildingProposal}
+                aria-busy={isBuildingProposal}
                 onClick={handleBuildProposal}
                 className="w-full sm:w-auto shrink-0 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold hover:brightness-105 shadow-[0_4px_16px_rgba(216,199,142,0.35)] px-7 py-3 text-sm"
               >
-                <span>See My Custom Plan →</span>
+                {isBuildingProposal && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>{isBuildingProposal ? 'Building your plan...' : 'See My Custom Plan →'}</span>
               </Button>
             </div>
           </motion.div>

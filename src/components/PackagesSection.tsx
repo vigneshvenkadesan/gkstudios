@@ -10,6 +10,7 @@ import {
   Film,
   LayoutGrid,
   Layers,
+  Loader2,
   MessageCircle,
   Phone,
   RefreshCw,
@@ -80,6 +81,7 @@ export function PackagesSection({
 
   // Mode: 'intake' (2-Question Intake) vs 'grid' (Classic All Packages Grid)
   const [viewMode, setViewMode] = useState<'intake' | 'grid'>('grid');
+  const [pendingPackageId, setPendingPackageId] = useState<string | null>(null);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('wedding');
   const [selectedEventId, setSelectedEventId] = useState<string>('wedding');
@@ -524,10 +526,24 @@ export function PackagesSection({
                                 : 'border border-[#C5B378]/50 text-white hover:bg-[#C5B378]/15 hover:border-[#D8C78E]'
                             }`}
                             variant={isSignature || isSelected ? 'default' : 'outline'}
-                            onClick={() => onSelectPackage(pkg, selectedEventId)}
+                            disabled={pendingPackageId !== null}
+                            aria-busy={pendingPackageId === pkg.id}
+                            onClick={() => {
+                              setPendingPackageId(pkg.id);
+                              onSelectPackage(pkg, selectedEventId);
+                            }}
                           >
-                            <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
-                            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                            {pendingPackageId === pkg.id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Opening plan...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
+                                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
