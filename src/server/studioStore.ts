@@ -44,6 +44,7 @@ import {
   DEFAULT_STUDIO_SERVICES,
   calculatePackageBasePrice,
   formatServiceLineItem,
+  hasValidPackageServiceDurationTiers,
   sanitizePackageDeliverables,
 } from '../lib/pricing';
 
@@ -1936,6 +1937,12 @@ export async function createPackageOnServer(
       : 'halfDay';
   const includedServices = Array.isArray(input.includedServices) ? input.includedServices : undefined;
   const availableAddons = Array.isArray(input.availableAddons) ? input.availableAddons : undefined;
+  if (
+    !hasValidPackageServiceDurationTiers(input.includedServices) ||
+    !hasValidPackageServiceDurationTiers(input.availableAddons)
+  ) {
+    throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
+  }
 
   const dynamicPrice = calculatePackageBasePrice(
     {
@@ -1956,7 +1963,7 @@ export async function createPackageOnServer(
     audience: input.audience?.trim() || 'For weddings and celebrations',
     price,
     currency: input.currency?.trim() || 'INR',
-    priceLabel: input.priceLabel?.trim() || formatINR(price),
+    priceLabel: formatINR(price),
     duration: normalizeDurationLabel(input.duration, durationTier),
     durationTier,
     includedServices,
@@ -2019,6 +2026,12 @@ export async function updatePackageOnServer(
         : 'halfDay';
   const includedServices = patch.includedServices !== undefined ? patch.includedServices : existing.includedServices;
   const availableAddons = patch.availableAddons !== undefined ? patch.availableAddons : existing.availableAddons;
+  if (
+    !hasValidPackageServiceDurationTiers(includedServices) ||
+    !hasValidPackageServiceDurationTiers(availableAddons)
+  ) {
+    throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
+  }
 
   const dynamicPrice = calculatePackageBasePrice(
     {
@@ -2043,9 +2056,7 @@ export async function updatePackageOnServer(
     eventId: patch.eventId !== undefined ? patch.eventId.trim() : existing.eventId || 'wedding',
     price,
     currency: patch.currency || existing.currency || 'INR',
-    priceLabel:
-      patch.priceLabel ||
-      formatINR(price),
+    priceLabel: formatINR(price),
     duration: nextDuration,
     durationTier,
     includedServices,

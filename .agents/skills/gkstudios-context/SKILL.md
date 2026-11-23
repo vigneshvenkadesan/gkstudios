@@ -54,7 +54,7 @@ src/components/
   PublicStudioPage.tsx             Public section orchestration
   PortfolioSection.tsx
   PackagesSection.tsx
-  BookingSection.tsx
+  BookingSection.tsx               Legacy inquiry component; not rendered in the public home flow
   packages/                        Proposal/intake/customizer components
   admin/                          Leads, calendar, timeline, gallery, packages, services
 src/context/StudioContext.tsx      Public/admin client state and mutations
@@ -291,8 +291,8 @@ Default/fallback services include traditional/candid photography and videography
 | `priceLabel` | string | Display label |
 | `duration` | string | Display text |
 | `durationTier` | `threeHours \| halfDay \| fullDay` | Defaults/inferred for legacy packages |
-| `includedServices` | `{ serviceSlug: string, quantity: number }[]` | Drives coverage display and base pricing |
-| `availableAddons` | `{ serviceSlug: string, defaultQuantity?: number, label?: string }[]` | Legacy field; no longer configured in the Package Manager |
+| `includedServices` | `{ serviceSlug: string, quantity: number, durationTier?: threeHours \| halfDay \| fullDay }[]` | Drives coverage display and base pricing; item tier falls back to package tier |
+| `availableAddons` | `{ serviceSlug: string, defaultQuantity?: number, label?: string, durationTier?: threeHours \| halfDay \| fullDay }[]` | Optional catalog add-ons, each with its own pricing tier |
 | `highlighted` | boolean | Most-popular flag |
 | `featured` | boolean | Featured flag |
 | `deliverables` | `Record<string, string>` | Custom text only: `Deliverables` plus custom categories; coverage/albums are derived from services |
@@ -319,11 +319,11 @@ Example:
   "duration": "Full Day",
   "durationTier": "fullDay",
   "includedServices": [
-    { "serviceSlug": "traditional-camera", "quantity": 1 },
-    { "serviceSlug": "candid-photography", "quantity": 1 }
+    { "serviceSlug": "traditional-camera", "quantity": 1, "durationTier": "fullDay" },
+    { "serviceSlug": "candid-photography", "quantity": 1, "durationTier": "halfDay" }
   ],
   "availableAddons": [
-    { "serviceSlug": "drone-aerial-coverage", "defaultQuantity": 1, "label": "Drone Aerial Coverage" }
+    { "serviceSlug": "drone-aerial-coverage", "defaultQuantity": 1, "durationTier": "threeHours", "label": "Drone Aerial Coverage (3 Hrs)" }
   ],
   "deliverables": {
     "Deliverables": "4K cinematic highlight film",
@@ -361,13 +361,13 @@ Example:
 1. `services` is the pricing master for all live package/customizer calculations.
 2. Tiered services use `pricing.threeHours`, `pricing.halfDay`, or `pricing.fullDay`.
 3. Per-unit services use `unitPrice * quantity`, with `minQuantity` applied.
-4. `calculatePackageBasePrice` in `src/lib/pricing.ts` sums package `includedServices`.
+4. `calculatePackageBasePrice` in `src/lib/pricing.ts` sums package `includedServices`, resolving each tiered item from its own `durationTier` first, then an explicitly supplied whole-event tier, the package tier, and finally `fullDay`. Per-unit services use their unit price and quantity regardless of tier.
 5. Legacy packages without `includedServices` use backward-compatible tier synthesis.
 6. Package updates recalculate `price`; they do not independently trust a submitted package price.
 7. `buildOptedServicesForPackage` and `calculateCustomizedEventPrice` create historical service snapshots.
 8. `getDynamicPackageDisplaySections` derives “Event Coverage & Crew” and “Albums” from active service items for public cards, proposal customizer, and admin views. These derived sections must never be persisted in `packages.deliverables`; legacy documents are sanitized on package reads and writes.
 9. `/api/packages/[id]` supports GET, PATCH/PUT, and DELETE by custom package `id`, with Mongo `_id` lookup as a fallback. Mutations require the `gk_admin_session=admin-session-v2` cookie; shared client requests include credentials.
-10. The Admin Package Manager configures base services through `includedServices` and base feature toggles; it does not expose custom proposal add-on/downgrade editing or package-image upload. Existing package image data remains available to package cards. Proposal upgrades are built from active `services` catalog entries not included in the base, with prices recalculated from the selected duration tier and service quantity. Legacy `availableAddons` data is preserved but is not used to build the proposal upgrade list.
+10. The Admin Package Manager configures `includedServices` and optional `availableAddons`; tiered rows have independent duration selectors, while newly added services default to the package tier. API routes validate per-item tiers, and the Mongo `Mixed` arrays preserve them. The manager does not expose base-feature toggles, legacy custom proposal add-on/downgrade editing, or package-image upload. Existing package image data remains available to package cards. Proposal upgrades are built from active `services` catalog entries not included in the base; configured addon tiers are honored, and per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
 
 ### Historical snapshot rule
 
@@ -380,15 +380,15 @@ Future service/package price edits must not rewrite old bookings or bills. Store
 
 Past snapshots remain authoritative. A bill is a snapshot at payment time, and future service edits must not alter it.
 
-Current implementation note: the public `/api/bookings` POST route declares and creates the booking but currently forwards no `durationTier`, `optedServices`, or `totalAmount` fields. Preserve these fields in route parsing/calls before making a public customizer snapshot implementation-dependent. `packageSnapshot` is forwarded.
+The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, `totalAmount`, and `packageSnapshot` into the booking record.
 
 ### Public flow
 
 1. `/` renders `PublicStudioPage`.
-2. Package section offers a fast two-question intake: milestone event, then guest count.
-3. Current guest categories are `<200`, `200-600`, and `>600`.
-4. Proposal customizer allows event, base plan, service selections, quantities/add-ons, and review.
-5. Booking submission creates `booking_requests` with Pending status by default.
+2. The homepage shows standard package cards by default; visitors can switch to the optional custom intake. Package cards and public availability/category actions route to `/packages/proposal`; package selection passes `event`, `tier`, exact `package` ID, and an inquiry-open flag in the query.
+3. Proposal page loads that package and opens its date-check and booking inquiry form. It is the only public inquiry form rendered from the homepage; `BookingSection.tsx` remains as an unused legacy component.
+4. The proposal summary omits duration. The public package intake and proposal intake ask guest count for regular events, but ask Indoor, Outdoor, or Indoor & Outdoor instead when the lowercased event name contains “outdoor” or “shoot”; the package intake passes this setting to the proposal, where it is required for inquiry submission and saved in booking notes. Premium is recommended for more than 600 guests or an Indoor & Outdoor shoot. Public duration controls offer Half Day and Full Day. A package's studio-configured 3-hour service tier remains honored but is not selectable by public users.
+5. Booking submission creates `booking_requests` with Pending status, resolved service-tier snapshots, and package snapshot data; the confirmation's Done button returns the user to `/`.
 6. Direct offline leads use the same booking model and historical snapshot helpers.
 
 ### Leads to calendar

@@ -12,7 +12,6 @@ import { PromiseTimeline } from "@/src/components/PromiseTimeline";
 import { PortfolioSection } from "@/src/components/PortfolioSection";
 import { PackagesSection } from "@/src/components/PackagesSection";
 import { StudioAboutSection } from "@/src/components/StudioAboutSection";
-import { BookingSection } from "@/src/components/BookingSection";
 import { Footer } from "@/src/components/Footer";
 import { TermsAndConditionsModal } from "@/src/components/TermsAndConditionsModal";
 import {
@@ -49,6 +48,20 @@ function PublicStudioContent() {
     useState<EventCategory | null>(null);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
 
+  const proposalHref = (eventId?: string, pkg?: StudioPackage) => {
+    const params = new URLSearchParams({
+      event: eventId || pkg?.eventId || "wedding",
+      plan: "half",
+      guests: "classic",
+      inquiry: "1",
+    });
+    if (pkg) {
+      params.set("package", pkg.id);
+      params.set("tier", String(pkg.sortOrder ?? 2));
+    }
+    return `/packages/proposal?${params.toString()}`;
+  };
+
   // Support legacy #/admin hash navigation seamlessly
   useEffect(() => {
     if (window.location.hash === "#/admin") {
@@ -80,6 +93,14 @@ function PublicStudioContent() {
   }, [router]);
 
   const jumpToSection = (sectionId: string) => {
+    if (sectionId === "availability") {
+      router.push(
+        proposalHref(
+          selectedEventId || (selectedCategory ? String(selectedCategory) : undefined),
+        ),
+      );
+      return;
+    }
     document.getElementById(sectionId)?.scrollIntoView({
       behavior: prefersReducedMotion ? "auto" : "smooth",
     });
@@ -95,7 +116,7 @@ function PublicStudioContent() {
     toast.success(
       t("packages.selectedToast", { name: getPackageCopy(pkg).name }),
     );
-    jumpToSection("availability");
+    router.push(proposalHref(eventId || pkg.eventId, pkg));
   };
 
   const handleBookCategory = (category: EventCategory) => {
@@ -105,7 +126,7 @@ function PublicStudioContent() {
         category: translateCategory(locale, category),
       }),
     );
-    jumpToSection("availability");
+    router.push(proposalHref(String(category)));
   };
 
   const handleFilterPortfolioFromFooter = (category: EventCategory) => {
@@ -140,11 +161,6 @@ function PublicStudioContent() {
             onSelectPackage={handleSelectPackage}
           />
           <StudioAboutSection onMeetStudio={() => jumpToSection("contact")} />
-          <BookingSection
-            preselectedPackageId={selectedPackageId}
-            preselectedEventId={selectedEventId}
-            preselectedCategory={selectedCategory}
-          />
         </main>
 
         <Footer

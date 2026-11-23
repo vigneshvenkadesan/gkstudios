@@ -213,7 +213,7 @@ export function BookingSection({
       let totalAmount = 0;
 
       if (selectedPackage) {
-        const resolved = buildOptedServicesForPackage(selectedPackage, services, 'halfDay');
+        const resolved = buildOptedServicesForPackage(selectedPackage, services);
         optedServices = resolved.optedServices;
         totalAmount = resolved.totalAmount;
       } else if (requestedServices.length > 0) {
@@ -243,7 +243,7 @@ export function BookingSection({
         packageId,
         packageName: selectedPackage?.name,
         quotedAmount: totalAmount > 0 ? totalAmount : selectedPackage?.price,
-        durationTier: 'halfDay',
+        durationTier: selectedPackage?.durationTier ?? 'halfDay',
         optedServices: optedServices.length > 0 ? optedServices : undefined,
         totalAmount: totalAmount > 0 ? totalAmount : selectedPackage?.price,
         requestedServices,

@@ -1,4 +1,11 @@
-import { DurationTier, OptedServiceSnapshot, StudioPackage, StudioService } from '../types/studio';
+import {
+  DurationTier,
+  OptedServiceSnapshot,
+  PackageAvailableAddon,
+  PackageIncludedService,
+  StudioPackage,
+  StudioService,
+} from '../types/studio';
 
 export const DURATION_TIER_LABELS: Record<DurationTier, { en: string; ta: string; duration: string }> = {
   threeHours: {
@@ -27,6 +34,23 @@ const DERIVED_DELIVERABLE_KEYS = new Set([
   'album',
   'photo albums',
 ]);
+
+const VALID_DURATION_TIERS = new Set<DurationTier>(['threeHours', 'halfDay', 'fullDay']);
+
+export function hasValidPackageServiceDurationTiers(items: unknown): boolean {
+  return (
+    items === undefined ||
+    (Array.isArray(items) &&
+      items.every(
+        (item) =>
+          item !== null &&
+          typeof item === 'object' &&
+          (!('durationTier' in item) ||
+            item.durationTier === undefined ||
+            VALID_DURATION_TIERS.has(item.durationTier as DurationTier))
+      ))
+  );
+}
 
 function isDerivedDeliverableKey(key: string): boolean {
   return DERIVED_DELIVERABLE_KEYS.has(key.trim().toLowerCase());
@@ -80,8 +104,9 @@ const COVERAGE_SERVICE_LABELS: Record<string, string> = {
 };
 
 export function getDynamicPackageDisplaySections(
-  activeServiceItems: Array<{ serviceSlug: string; quantity: number }> | undefined,
-  services: StudioService[]
+  activeServiceItems: PackageIncludedService[] | undefined,
+  services: StudioService[],
+  packageDurationTier?: DurationTier
 ): { coverage: string | null; albums: string | null } {
   const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
   const album = items.find((item) => item.serviceSlug === 'photo-album');
@@ -92,7 +117,11 @@ export function getDynamicPackageDisplaySections(
         COVERAGE_SERVICE_LABELS[item.serviceSlug] ||
         services.find((service) => service.slug === item.serviceSlug)?.name ||
         item.serviceSlug;
-      return `${item.quantity > 1 ? `${item.quantity} × ` : ''}${label}`;
+      const itemTierLabel =
+        item.durationTier && packageDurationTier && item.durationTier !== packageDurationTier
+          ? ` (${item.durationTier === 'threeHours' ? '3 Hours' : item.durationTier === 'halfDay' ? 'Half Day' : 'Full Day'})`
+          : '';
+      return `${item.quantity > 1 ? `${item.quantity} × ` : ''}${label}${itemTierLabel}`;
     });
 
   let coverage: string | null = null;
@@ -290,7 +319,7 @@ export function resolveServicePrice(
 
   // Tiered pricing
   const tierRates = service.pricing || { threeHours: 0, halfDay: 0, fullDay: 0 };
-  const unitPrice = tierRates[durationTier] ?? tierRates.halfDay ?? 0;
+  const unitPrice = tierRates[durationTier] ?? 0;
   return {
     unitPrice,
     total: unitPrice * safeQty,
@@ -305,14 +334,15 @@ export function calculatePackageBasePrice(
   services: StudioService[] = DEFAULT_STUDIO_SERVICES,
   overrideDurationTier?: DurationTier
 ): number {
-  const tier: DurationTier = overrideDurationTier || pkg.durationTier || (pkg.sortOrder === 3 ? 'fullDay' : pkg.sortOrder === 1 ? 'halfDay' : 'fullDay');
+  const tier: DurationTier = overrideDurationTier || pkg.durationTier || 'fullDay';
   
   if (Array.isArray(pkg.includedServices) && pkg.includedServices.length > 0) {
     let total = 0;
     for (const item of pkg.includedServices) {
       const svc = services.find((s) => s.slug === item.serviceSlug);
       if (svc) {
-        const { total: itemTotal } = resolveServicePrice(svc, tier, item.quantity);
+        const effectiveTier = item.durationTier ?? overrideDurationTier ?? pkg.durationTier ?? tier;
+        const { total: itemTotal } = resolveServicePrice(svc, effectiveTier, item.quantity);
         total += itemTotal;
       }
     }
@@ -358,11 +388,29 @@ export function calculatePackageBasePrice(
   return total > 0 ? total : (pkg.price || 45000);
 }
 
+export function calculatePackageAddonPrice(
+  addon: PackageAvailableAddon,
+  pkg: Partial<StudioPackage>,
+  services: StudioService[] = DEFAULT_STUDIO_SERVICES,
+  overrideDurationTier?: DurationTier
+): { unitPrice: number; total: number; durationTier: DurationTier } {
+  const service = services.find((entry) => entry.slug === addon.serviceSlug);
+  const durationTier =
+    addon.durationTier ?? overrideDurationTier ?? pkg.durationTier ?? 'fullDay';
+  if (!service) return { unitPrice: 0, total: 0, durationTier };
+  const { unitPrice, total } = resolveServicePrice(
+    service,
+    durationTier,
+    addon.defaultQuantity ?? 1
+  );
+  return { unitPrice, total, durationTier };
+}
+
 /**
  * Calculates customized event price and builds OptedServiceSnapshot items.
  */
 export function calculateCustomizedEventPrice(
-  items: Array<{ serviceSlug: string; quantity: number }>,
+  items: PackageIncludedService[],
   services: StudioService[] = DEFAULT_STUDIO_SERVICES,
   durationTier: DurationTier = 'halfDay'
 ): { total: number; snapshots: OptedServiceSnapshot[] } {
@@ -374,7 +422,8 @@ export function calculateCustomizedEventPrice(
     const svc = services.find((s) => s.slug === item.serviceSlug);
     if (!svc) continue;
 
-    const { unitPrice, total: itemTotal } = resolveServicePrice(svc, durationTier, item.quantity);
+    const effectiveTier = item.durationTier ?? durationTier;
+    const { unitPrice, total: itemTotal } = resolveServicePrice(svc, effectiveTier, item.quantity);
     total += itemTotal;
     snapshots.push({
       serviceSlug: svc.slug,
@@ -382,7 +431,7 @@ export function calculateCustomizedEventPrice(
       tamilName: svc.tamilName,
       category: svc.category,
       pricingType: svc.pricingType,
-      durationTier: svc.pricingType === 'tiered' ? durationTier : undefined,
+      durationTier: svc.pricingType === 'tiered' ? effectiveTier : undefined,
       unitLabel: svc.unitLabel,
       unitPrice,
       quantity: item.quantity,
@@ -412,13 +461,13 @@ export function formatServiceLineItem(snapshot: OptedServiceSnapshot): string {
 export function buildOptedServicesForPackage(
   pkg: Partial<StudioPackage>,
   services: StudioService[] = DEFAULT_STUDIO_SERVICES,
-  durationTier: DurationTier = 'halfDay',
+  durationTier?: DurationTier,
   customSelections?: {
     excludedSlugs?: string[];
     addedSlugs?: Array<{ serviceSlug: string; quantity: number }>;
   }
 ): { totalAmount: number; optedServices: OptedServiceSnapshot[] } {
-  const baseItems: Array<{ serviceSlug: string; quantity: number }> = [];
+  const baseItems: PackageIncludedService[] = [];
 
   if (Array.isArray(pkg.includedServices) && pkg.includedServices.length > 0) {
     baseItems.push(...pkg.includedServices);
@@ -467,7 +516,8 @@ export function buildOptedServicesForPackage(
     }
   }
 
-  const { total, snapshots } = calculateCustomizedEventPrice(activeItems, services, durationTier);
+  const fallbackTier = durationTier ?? pkg.durationTier ?? 'fullDay';
+  const { total, snapshots } = calculateCustomizedEventPrice(activeItems, services, fallbackTier);
   return { totalAmount: total, optedServices: snapshots };
 }
 

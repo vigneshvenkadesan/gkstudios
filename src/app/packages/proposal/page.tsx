@@ -4,9 +4,9 @@ import { ProposalPageClient } from './ProposalPageClient';
 import { Loader2 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Tailored Photography Proposal & Customizer | GK STUDIOS',
+  title: 'Package & Date Inquiry | GK STUDIOS',
   description:
-    'Interactive educational proposal and custom photography package builder for your wedding, temple ceremony, or milestone celebration with GK Studios.',
+    'Review your GK STUDIOS package, check event-date availability, and send a booking inquiry for your wedding, ceremony, or celebration.',
 };
 
 export const dynamic = 'force-dynamic';

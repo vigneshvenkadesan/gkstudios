@@ -31,7 +31,6 @@ import {
   RotateCcw,
   Search,
   Settings,
-  Sparkles,
   Star,
   Trash2,
   X,
@@ -45,6 +44,7 @@ import {
   EventCategory,
   PackageCustomizer,
   PackageDeliverables,
+  PackageAvailableAddon,
   PackageIncludedFeatures,
   PackageIncludedService,
   StudioEvent,
@@ -52,6 +52,7 @@ import {
 } from '@/src/types/studio';
 import {
   calculatePackageBasePrice,
+  calculatePackageAddonPrice,
   getDynamicPackageDisplaySections,
   resolveServicePrice,
   sanitizePackageDeliverables,
@@ -229,77 +230,6 @@ const DEFAULT_INCLUDED_FEATURES: PackageIncludedFeatures = {
   printedAlbum: true,
 };
 
-const INCLUDED_FEATURE_CONFIG: { key: keyof PackageIncludedFeatures; label: string }[] = [
-  { key: 'traditionalPhoto', label: 'Traditional Photo' },
-  { key: 'traditionalVideo', label: 'Traditional Video' },
-  { key: 'candidPhoto', label: 'Candid Photo' },
-  { key: 'candidVideo', label: 'Candid Cinema' },
-  { key: 'drone', label: 'Drone Aerial' },
-  { key: 'ledWall', label: 'Live LED Wall' },
-  { key: 'outdoorShoot', label: 'Outdoor Shoot' },
-  { key: 'printedAlbum', label: 'Printed Album' },
-];
-
-function PackageCustomizerSection({
-  included,
-  onChangeIncluded,
-}: {
-  included: PackageIncludedFeatures;
-  onChangeIncluded: (newInc: PackageIncludedFeatures) => void;
-}) {
-  const handleToggleIncluded = (key: keyof PackageIncludedFeatures) => {
-    onChangeIncluded({
-      ...included,
-      [key]: !included[key],
-    });
-  };
-
-  return (
-    <div className="space-y-4 border-t border-[#C5B378]/20 pt-4">
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-[#D8C78E]" />
-          Proposal Base Features
-        </h4>
-        <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
-          Select the base features included in this package.
-        </p>
-      </div>
-
-      {/* 1. Base Included Features */}
-      <div className="space-y-2 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[#D8C78E] block">
-          Base Included Features (Checkboxes)
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          {INCLUDED_FEATURE_CONFIG.map(({ key, label }) => {
-            const isChecked = Boolean(included[key]);
-            return (
-              <label
-                key={key}
-                className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
-                  isChecked
-                    ? 'border-[#D8C78E]/60 bg-[#0E423E] text-white font-medium'
-                    : 'border-[#C5B378]/15 bg-[#092E2B]/50 text-[#E6ECEB]/60 hover:border-[#C5B378]/30'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => handleToggleIncluded(key)}
-                  className="h-3.5 w-3.5 rounded border-[#C5B378]/40 bg-[#072421] text-[#C5B378] accent-[#C5B378]"
-                />
-                <span className="truncate">{label}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
 export function AdminPackagesModule() {
   const {
     packages,
@@ -365,6 +295,7 @@ export function AdminPackagesModule() {
     { serviceSlug: 'traditional-camera', quantity: 1 },
     { serviceSlug: 'traditional-video', quantity: 1 },
   ]);
+  const [newAvailableAddons, setNewAvailableAddons] = useState<PackageAvailableAddon[]>([]);
   const [newHighlighted, setNewHighlighted] = useState(true);
   const [newSortOrder, setNewSortOrder] = useState<number>(2);
   const [newStatus, setNewStatus] = useState<'active' | 'inactive'>('active');
@@ -390,6 +321,7 @@ export function AdminPackagesModule() {
   const [editDuration, setEditDuration] = useState('');
   const [editDurationTier, setEditDurationTier] = useState<DurationTier>('halfDay');
   const [editIncludedServices, setEditIncludedServices] = useState<PackageIncludedService[]>([]);
+  const [editAvailableAddons, setEditAvailableAddons] = useState<PackageAvailableAddon[]>([]);
   const [editHighlighted, setEditHighlighted] = useState(false);
   const [editSortOrder, setEditSortOrder] = useState<number>(2);
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
@@ -735,6 +667,7 @@ export function AdminPackagesModule() {
         duration: newDuration.trim(),
         durationTier: newDurationTier,
         includedServices: newIncludedServices,
+        availableAddons: newAvailableAddons,
         category: newEventId, // Matches eventId per schema requirement
         deliverables: sanitizePackageDeliverables(newDeliverables),
         customizer: {
@@ -759,6 +692,7 @@ export function AdminPackagesModule() {
         { serviceSlug: 'traditional-camera', quantity: 1 },
         { serviceSlug: 'traditional-video', quantity: 1 },
       ]);
+      setNewAvailableAddons([]);
       setNewTier('signature');
       setNewHighlighted(true);
       setNewSortOrder(2);
@@ -801,6 +735,11 @@ export function AdminPackagesModule() {
     setEditIncludedServices(
       pkg.includedServices && pkg.includedServices.length > 0
         ? JSON.parse(JSON.stringify(pkg.includedServices))
+        : []
+    );
+    setEditAvailableAddons(
+      pkg.availableAddons && pkg.availableAddons.length > 0
+        ? JSON.parse(JSON.stringify(pkg.availableAddons))
         : []
     );
     setEditHighlighted(Boolean(pkg.highlighted || pkg.featured));
@@ -857,6 +796,7 @@ export function AdminPackagesModule() {
         duration: editDuration.trim(),
         durationTier: editDurationTier,
         includedServices: editIncludedServices,
+        availableAddons: editAvailableAddons,
         category: editEventId, // Matches eventId per schema requirement
         deliverables: sanitizePackageDeliverables(editDeliverables),
         customizer: {
@@ -983,7 +923,11 @@ export function AdminPackagesModule() {
     const durationTier = getPackageDurationTier(pkg);
     const calculatedBasePrice = calculatePackageBasePrice(pkg, services, durationTier);
     const displayPrice = calculatedBasePrice > 0 ? calculatedBasePrice : pkg.price;
-    const dynamicSections = getDynamicPackageDisplaySections(pkg.includedServices, services);
+    const dynamicSections = getDynamicPackageDisplaySections(
+      pkg.includedServices,
+      services,
+      durationTier
+    );
     const displayDeliverables = [
       ...(dynamicSections.coverage
         ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
@@ -2061,7 +2005,8 @@ export function AdminPackagesModule() {
             const price = calculatePackageBasePrice(viewingPackage, services, durationTier);
             const dynamicSections = getDynamicPackageDisplaySections(
               viewingPackage.includedServices,
-              services
+              services,
+              durationTier
             );
             const deliverables = normalizePackageDeliverables(viewingPackage.deliverables);
             const displayDeliverables = [
@@ -2127,12 +2072,20 @@ export function AdminPackagesModule() {
                           if (!service) return null;
                           const { unitPrice, total } = resolveServicePrice(
                             service,
-                            durationTier,
+                            item.durationTier ?? durationTier,
                             item.quantity
                           );
+                          const itemTier = item.durationTier ?? durationTier;
                           return (
                             <div key={item.serviceSlug} className="flex items-center justify-between gap-3 py-2 text-sm">
-                              <span>{service.name} × {item.quantity}</span>
+                              <span className="flex flex-wrap items-center gap-2">
+                                {service.name} × {item.quantity}
+                                {service.pricingType === 'tiered' && (
+                                  <Badge className="border border-[#C5B378]/30 bg-[#072421] text-[10px] text-[#D8C78E]">
+                                    {DURATION_TIER_BADGE_LABELS[itemTier]}
+                                  </Badge>
+                                )}
+                              </span>
                               <span className="text-right font-mono text-[#D8C78E]">
                                 {service.pricingType === 'per_unit'
                                   ? `${formatINR(unitPrice)} / ${service.unitLabel} · ${formatINR(total)}`
@@ -2146,6 +2099,41 @@ export function AdminPackagesModule() {
                       <p className="text-sm text-[#E6ECEB]/55">No included services configured.</p>
                     )}
                   </section>
+
+                  {viewingPackage.availableAddons?.length ? (
+                    <section className="space-y-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                        Available add-ons
+                      </h3>
+                      <div className="divide-y divide-[#C5B378]/15 rounded-lg border border-[#C5B378]/20 bg-[#051C1A] px-3">
+                        {viewingPackage.availableAddons.map((addon) => {
+                          const service = services.find((entry) => entry.slug === addon.serviceSlug);
+                          if (!service) return null;
+                          const { unitPrice, total, durationTier: itemTier } = calculatePackageAddonPrice(
+                            addon,
+                            viewingPackage,
+                            services
+                          );
+                          return (
+                            <div key={addon.serviceSlug} className="flex items-center justify-between gap-3 py-2 text-sm">
+                              <span className="flex flex-wrap items-center gap-2">
+                                {addon.label || service.name} × {addon.defaultQuantity ?? 1}
+                                {service.pricingType === 'tiered' && (
+                                  <Badge className="border border-[#C5B378]/30 bg-[#072421] text-[10px] text-[#D8C78E]">
+                                    {DURATION_TIER_BADGE_LABELS[itemTier]}
+                                  </Badge>
+                                )}
+                              </span>
+                              <span className="text-right font-mono text-[#D8C78E]">
+                                +{formatINR(total)}
+                                {service.pricingType === 'per_unit' && ` · ${formatINR(unitPrice)} / ${service.unitLabel}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ) : null}
 
                   <section className="space-y-2">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
@@ -2298,6 +2286,8 @@ export function AdminPackagesModule() {
               onChangeDurationTier={handleEditDurationTierChange}
               includedServices={editIncludedServices}
               onChangeIncludedServices={setEditIncludedServices}
+              availableAddons={editAvailableAddons}
+              onChangeAvailableAddons={setEditAvailableAddons}
             />
 
             {/* Categorized Deliverables Builder */}
@@ -2413,12 +2403,6 @@ export function AdminPackagesModule() {
                 </div>
               </div>
             </div>
-
-            {/* Customizer: Included Features & Proposal Add-ons */}
-            <PackageCustomizerSection
-              included={editCustomizerIncluded}
-              onChangeIncluded={setEditCustomizerIncluded}
-            />
 
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
@@ -2593,6 +2577,8 @@ export function AdminPackagesModule() {
               onChangeDurationTier={handleNewDurationTierChange}
               includedServices={newIncludedServices}
               onChangeIncludedServices={setNewIncludedServices}
+              availableAddons={newAvailableAddons}
+              onChangeAvailableAddons={setNewAvailableAddons}
             />
 
             {/* Categorized Deliverables Builder */}
@@ -2708,12 +2694,6 @@ export function AdminPackagesModule() {
                 </div>
               </div>
             </div>
-
-            {/* Customizer: Included Features & Proposal Add-ons */}
-            <PackageCustomizerSection
-              included={newCustomizerIncluded}
-              onChangeIncluded={setNewCustomizerIncluded}
-            />
 
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">

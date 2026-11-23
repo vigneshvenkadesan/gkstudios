@@ -78,8 +78,11 @@ import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { PackageCardSkeleton } from '@/src/components/ui/skeleton';
 import {
   GUEST_SCALES,
+  isOutdoorShootEvent,
+  SHOOT_SETTING_OPTIONS,
   SessionPlan,
   GuestScale,
+  ShootSetting,
 } from '@/src/components/packages/FastIntakeWizard';
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -258,10 +261,15 @@ export function ProposalPageClient() {
   const rawPlanParam = searchParams.get('plan');
   const rawGuestsParam = searchParams.get('guests');
   const rawTierParam = searchParams.get('tier');
-  const hasQueryParams = Boolean(rawEventParam || rawPlanParam);
+  const rawPackageParam = searchParams.get('package');
+  const rawInquiryParam = searchParams.get('inquiry');
+  const rawShootSettingParam = searchParams.get('shootSetting');
+  const initialShootSetting =
+    SHOOT_SETTING_OPTIONS.find((option) => option.id === rawShootSettingParam)?.id ?? null;
+  const hasQueryParams = Boolean(rawEventParam || rawPlanParam || rawPackageParam);
 
   const parsePlanParam = (param: string | null): SessionPlan => {
-    if (param === 'single-3h' || param === 'single-4h' || param === 'single') return 'single-3h';
+    if (param === 'single-3h' || param === 'single-4h' || param === 'single') return 'half';
     if (param === 'full') return 'full';
     return 'half';
   };
@@ -272,15 +280,18 @@ export function ProposalPageClient() {
   const [activeGuests, setActiveGuests] = useState<GuestScale>(
     (rawGuestsParam as GuestScale) || 'classic'
   );
+  const [preferredPackageId, setPreferredPackageId] = useState<string | null>(rawPackageParam);
   const [isEditingIntake, setIsEditingIntake] = useState(!hasQueryParams);
   const [intakeCategory, setIntakeCategory] = useState<string>('wedding');
+  const [shootSetting, setShootSetting] = useState<ShootSetting | null>(initialShootSetting);
 
   // Sync state if query params change
   useEffect(() => {
     if (rawEventParam) setActiveEventId(rawEventParam);
     if (rawPlanParam) setActivePlan(parsePlanParam(rawPlanParam));
     if (rawGuestsParam) setActiveGuests(rawGuestsParam as GuestScale);
-  }, [rawEventParam, rawPlanParam, rawGuestsParam]);
+    if (rawPackageParam) setPreferredPackageId(rawPackageParam);
+  }, [rawEventParam, rawPlanParam, rawGuestsParam, rawPackageParam]);
 
   // Recommended tier based on intake plan and guests scale
   const intakeRecommendedTier = useMemo(() => {
@@ -297,10 +308,11 @@ export function ProposalPageClient() {
   // Sync state if query params change
   useEffect(() => {
     if (rawEventParam) setActiveEventId(rawEventParam);
-    if (rawPlanParam) setActivePlan(rawPlanParam as SessionPlan);
+    if (rawPlanParam) setActivePlan(parsePlanParam(rawPlanParam));
     if (rawGuestsParam) setActiveGuests(rawGuestsParam as GuestScale);
     if (rawTierParam) setSelectedTierOrder(parseInt(rawTierParam, 10));
-  }, [rawEventParam, rawPlanParam, rawGuestsParam, rawTierParam]);
+    if (rawPackageParam) setPreferredPackageId(rawPackageParam);
+  }, [rawEventParam, rawPlanParam, rawGuestsParam, rawTierParam, rawPackageParam]);
 
   // Helper to sync URL state smoothly
   const updateUrlParams = (
@@ -341,6 +353,7 @@ export function ProposalPageClient() {
     initialRemoved.map((k) => `inc-${k}`)
   );
   const [selectedUpgradeIds, setSelectedUpgradeIds] = useState<string[]>(initialAddons);
+  const [serviceDurationOverrides, setServiceDurationOverrides] = useState<Record<string, DurationTier>>({});
 
   // Album sheet customization state (synced with the selected package's catalog quantity)
   const [customAlbumSheets, setCustomAlbumSheets] = useState<number>(
@@ -359,6 +372,12 @@ export function ProposalPageClient() {
 
   // Order / Booking Drawer state
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (rawInquiryParam === '1' && !isLoading) {
+      setIsOrderModalOpen(true);
+    }
+  }, [rawInquiryParam, isLoading]);
 
   // Booking Form State
   const [clientName, setClientName] = useState('');
@@ -412,10 +431,16 @@ export function ProposalPageClient() {
   const currentEvent = useMemo(() => {
     return (
       activeEvents.find((e) => e.id === activeEventId) ||
+      activeEvents.find((e) => e.name.toLowerCase() === activeEventId.toLowerCase()) ||
+      activeEvents.find((e) => matchesCategory(e.category, activeEventId)) ||
       activeEvents.find((e) => e.id === 'wedding') ||
       activeEvents[0]
     );
   }, [activeEvents, activeEventId]);
+  const asksForShootSetting = isOutdoorShootEvent(currentEvent?.name);
+  const selectedShootSetting = SHOOT_SETTING_OPTIONS.find(
+    (option) => option.id === shootSetting
+  )?.label;
 
   // Packages for this event
   const eventPackages = useMemo(() => {
@@ -427,22 +452,15 @@ export function ProposalPageClient() {
 
   // Active duration tier mapped from intake plan
   const durationTier: DurationTier = useMemo(() => {
-    if (
-      activePlan === 'single-3h' ||
-      (activePlan as string) === 'single' ||
-      (activePlan as string) === 'single-4h'
-    ) {
-      return 'threeHours';
-    }
     if (activePlan === 'full') return 'fullDay';
     return 'halfDay';
   }, [activePlan]);
 
   const getServiceCost = useCallback(
-    (slug: string, qty: number = 1): number => {
+    (slug: string, qty: number = 1, itemTier: DurationTier = durationTier): number => {
       const svc = services.find((s) => s.slug === slug);
       if (!svc) return 0;
-      return resolveServicePrice(svc, durationTier, qty).total;
+      return resolveServicePrice(svc, itemTier, qty).total;
     },
     [services, durationTier]
   );
@@ -451,7 +469,12 @@ export function ProposalPageClient() {
   const basePackage = useMemo(() => {
     if (eventPackages.length === 0) return null;
 
-    let match = eventPackages.find((p) => (p.sortOrder ?? 2) === selectedTierOrder);
+    let match = preferredPackageId
+      ? eventPackages.find((p) => p.id === preferredPackageId)
+      : undefined;
+    if (!match) {
+      match = eventPackages.find((p) => (p.sortOrder ?? 2) === selectedTierOrder);
+    }
 
     if (!match) {
       if (selectedTierOrder === 3) {
@@ -466,13 +489,29 @@ export function ProposalPageClient() {
     if (!resolvedPkg) return null;
 
     // Dynamically resolve base price from services
-    const dynamicPrice = calculatePackageBasePrice(resolvedPkg, services, durationTier);
+    const packageItems = resolvedPkg.includedServices?.map((item) => ({
+      ...item,
+      durationTier:
+        serviceDurationOverrides[item.serviceSlug] ??
+        item.durationTier ??
+        resolvedPkg.durationTier ??
+        durationTier,
+    }));
+    const pricedPackage = { ...resolvedPkg, includedServices: packageItems };
+    const dynamicPrice = calculatePackageBasePrice(pricedPackage, services, durationTier);
     return {
-      ...resolvedPkg,
+      ...pricedPackage,
       price: dynamicPrice,
       priceLabel: formatINR(dynamicPrice),
     };
-  }, [eventPackages, selectedTierOrder, services, durationTier]);
+  }, [
+    eventPackages,
+    selectedTierOrder,
+    services,
+    durationTier,
+    serviceDurationOverrides,
+    preferredPackageId,
+  ]);
 
   const defaultSheetsForTier = useMemo(() => {
     const includedAlbum = basePackage?.includedServices?.find(
@@ -546,7 +585,12 @@ export function ProposalPageClient() {
             services.some((service) => service.slug === serviceSlug)
           ) ||
           '';
-        const dynamicCost = slug ? getServiceCost(slug, qty) : 0;
+        const effectiveTier =
+          serviceDurationOverrides[slug] ??
+          includedItem?.durationTier ??
+          basePackage.durationTier ??
+          durationTier;
+        const dynamicCost = slug ? getServiceCost(slug, qty, effectiveTier) : 0;
         let deduction = dynamicCost > 0 ? -dynamicCost : meta.defaultDeduction;
 
         if (k === 'printedAlbum' && basePackage.customizer?.addons) {
@@ -572,7 +616,7 @@ export function ProposalPageClient() {
     });
 
     return results;
-  }, [basePackage, getServiceCost, services]);
+  }, [basePackage, getServiceCost, services, serviceDurationOverrides, durationTier]);
 
   // ─── 2. Available catalog services not already in the base package ───
   const availableUpgrades = useMemo(() => {
@@ -589,14 +633,23 @@ export function ProposalPageClient() {
     return services
       .filter((service) => service.isActive && !includedSlugs.has(service.slug))
       .map((service) => {
-        const quantity =
+        const configuredAddon = basePackage.availableAddons?.find(
+          (addon) => addon.serviceSlug === service.slug
+        );
+        const defaultQuantity =
           service.pricingType === 'per_unit'
             ? Math.max(
                 service.minQuantity || 1,
                 service.slug === 'photo-album' ? defaultSheetsForTier : 1
               )
             : 1;
-        const priceDelta = resolveServicePrice(service, durationTier, quantity).total;
+        const quantity = configuredAddon?.defaultQuantity ?? defaultQuantity;
+        const itemTier =
+          serviceDurationOverrides[service.slug] ??
+          configuredAddon?.durationTier ??
+          basePackage.durationTier ??
+          durationTier;
+        const priceDelta = resolveServicePrice(service, itemTier, quantity).total;
         const quantityDescription =
           service.pricingType === 'per_unit'
             ? `Default quantity: ${quantity} ${service.unitLabel}. `
@@ -605,14 +658,22 @@ export function ProposalPageClient() {
           id: service.slug,
           serviceSlug: service.slug,
           quantity,
-          label: service.name,
+          durationTier: itemTier,
+          label: configuredAddon?.label || service.name,
           description: `${quantityDescription}${service.description || `Add ${service.name} to your package.`}`,
           isBaseIncluded: false,
           priceDelta,
           badge: `+${formatINR(priceDelta)}`,
         };
       });
-  }, [basePackage, baseIncludedElements, services, durationTier, defaultSheetsForTier]);
+  }, [
+    basePackage,
+    baseIncludedElements,
+    services,
+    durationTier,
+    defaultSheetsForTier,
+    serviceDurationOverrides,
+  ]);
 
   // ─── 3. Custom Plan Detection & Pricing Calculation ───
   const isCustomModified =
@@ -890,7 +951,7 @@ export function ProposalPageClient() {
         return FEATURE_SERVICE_SLUGS[feature] || [];
       })
     );
-    const activeItems = new Map<string, { serviceSlug: string; quantity: number }>();
+    const activeItems = new Map<string, { serviceSlug: string; quantity: number; durationTier?: DurationTier }>();
 
     if (basePackage.includedServices?.length) {
       basePackage.includedServices
@@ -898,6 +959,11 @@ export function ProposalPageClient() {
         .forEach((item) => {
           activeItems.set(item.serviceSlug, {
             ...item,
+            durationTier:
+              serviceDurationOverrides[item.serviceSlug] ??
+              item.durationTier ??
+              basePackage.durationTier ??
+              durationTier,
             quantity:
               item.serviceSlug === 'photo-album' && activeFeatures.printedAlbum
                 ? customAlbumSheets
@@ -915,6 +981,7 @@ export function ProposalPageClient() {
           activeItems.set(serviceSlug, {
             serviceSlug,
             quantity: feature === 'printedAlbum' ? customAlbumSheets : 1,
+            durationTier: serviceDurationOverrides[serviceSlug] ?? basePackage.durationTier ?? durationTier,
           });
         }
       );
@@ -925,6 +992,7 @@ export function ProposalPageClient() {
         activeItems.set(upgrade.serviceSlug, {
           serviceSlug: upgrade.serviceSlug,
           quantity: upgrade.quantity,
+          durationTier: serviceDurationOverrides[upgrade.serviceSlug] ?? upgrade.durationTier,
         });
       }
     });
@@ -938,13 +1006,16 @@ export function ProposalPageClient() {
     unselectedIncludedIds,
     availableUpgrades,
     selectedUpgradeIds,
+    serviceDurationOverrides,
+    durationTier,
   ]);
 
   const proposalDeliverables = useMemo(() => {
     if (!basePackage) return [];
     const dynamicSections = getDynamicPackageDisplaySections(
       customizedActiveServiceItems,
-      services
+      services,
+      basePackage.durationTier
     );
     return [
       ...(dynamicSections.coverage
@@ -960,8 +1031,10 @@ export function ProposalPageClient() {
   // Handlers for tier switching and toggles
   const handleSwitchTier = (tierOrder: number) => {
     setSelectedTierOrder(tierOrder);
+    setPreferredPackageId(null);
     setUnselectedIncludedIds([]);
     setSelectedUpgradeIds([]);
+    setServiceDurationOverrides({});
     updateUrlParams(
       activeEventId,
       activePlan,
@@ -970,6 +1043,9 @@ export function ProposalPageClient() {
       [],
       []
     );
+    const url = new URL(window.location.href);
+    url.searchParams.delete('package');
+    window.history.replaceState({}, '', url.toString());
     const tierName = tierOrder === 1 ? 'Essential' : tierOrder === 3 ? 'Premium' : 'Signature';
     toast.success(`Switched to ${tierName} tier preset.`);
   };
@@ -1038,12 +1114,7 @@ export function ProposalPageClient() {
   };
 
   // Human-readable labels
-  const planShortLabel =
-    activePlan === 'single-3h' || (activePlan as string) === 'single' || (activePlan as string) === 'single-4h'
-      ? 'Single Session (3h)'
-      : activePlan === 'full'
-      ? 'Full-Day (1.5–2d)'
-      : 'Half-Day (6h)';
+  const planShortLabel = activePlan === 'full' ? 'Full-Day (1.5–2d)' : 'Half-Day (6h)';
 
   const guestsShortLabel =
     activeGuests === 'intimate'
@@ -1061,7 +1132,9 @@ export function ProposalPageClient() {
       `✨ Event: ${currentEvent?.name || 'Celebration'}${
         currentEvent?.tamilName ? ` (${currentEvent.tamilName})` : ''
       }`,
-      `⏱️ Plan: ${planShortLabel} • ${guestsShortLabel}`,
+      `📋 ${asksForShootSetting ? 'Shoot setting' : 'Guest count'}: ${
+        asksForShootSetting ? selectedShootSetting : guestsShortLabel
+      }`,
       `📦 Base Plan: ${basePackage?.name || 'Custom Plan'} (${formatINR(basePackage?.price || 0)})`,
     ];
 
@@ -1098,6 +1171,10 @@ export function ProposalPageClient() {
   };
 
   const handleWhatsAppSend = () => {
+    if (asksForShootSetting && !shootSetting) {
+      toast.error('Please select Indoor, Outdoor, or Indoor & Outdoor.');
+      return;
+    }
     const message = buildWhatsAppMessage();
     const url = buildWhatsAppUrl(STUDIO_INFO.phone, message);
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -1105,6 +1182,10 @@ export function ProposalPageClient() {
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (asksForShootSetting && !shootSetting) {
+      toast.error('Please select Indoor, Outdoor, or Indoor & Outdoor.');
+      return;
+    }
     if (!clientName.trim() || !phone.trim() || !eventDate || !venue.trim()) {
       toast.error('Please fill in your name, phone, date, and venue.');
       return;
@@ -1119,7 +1200,10 @@ export function ProposalPageClient() {
           ? `End Date: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`
           : '';
       const combinedNotes = [
-        `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}, ${guestsShortLabel})`,
+        `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}${
+          asksForShootSetting ? '' : `, ${guestsShortLabel}`
+        })`,
+        asksForShootSetting ? `Shoot setting: ${selectedShootSetting}` : '',
         timingNote,
         multiDayNote,
         `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
@@ -1250,7 +1334,7 @@ export function ProposalPageClient() {
                     Interactive Proposal Selector
                   </span>
                   <h3 className="font-serif text-xl sm:text-2xl font-bold text-white">
-                    Customize Your 3 Celebration Questions
+                    Choose Your Event Details
                   </h3>
                 </div>
 
@@ -1323,37 +1407,69 @@ export function ProposalPageClient() {
                 </div>
               </div>
 
-              {/* Question 2: Guest Scale */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                  2. Expected Guest Count
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {GUEST_SCALES.map((scale) => {
-                    const isSelected = activeGuests === scale.id;
-                    return (
-                      <button
-                        key={scale.id}
-                        type="button"
-                        onClick={() => setActiveGuests(scale.id)}
-                        className={`flex items-center justify-between p-3 rounded border text-xs transition-all ${
-                          isSelected
-                            ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
-                            : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
-                        }`}
-                      >
-                        <span>{scale.label}</span>
-                        <span className="text-[10px] text-[#D8C78E] font-bold">{scale.badge}</span>
-                      </button>
-                    );
-                  })}
+              {/* Question 2: Guest count or shoot setting */}
+              {asksForShootSetting ? (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                    2. Where will the shoot take place?
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {SHOOT_SETTING_OPTIONS.map((option) => {
+                      const isSelected = shootSetting === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setShootSetting(option.id)}
+                          className={`p-3 rounded border text-xs text-left transition-all ${
+                            isSelected
+                              ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
+                              : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
+                    2. Expected Guest Count
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {GUEST_SCALES.map((scale) => {
+                      const isSelected = activeGuests === scale.id;
+                      return (
+                        <button
+                          key={scale.id}
+                          type="button"
+                          onClick={() => setActiveGuests(scale.id)}
+                          className={`flex items-center justify-between p-3 rounded border text-xs transition-all ${
+                            isSelected
+                              ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
+                              : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
+                          }`}
+                        >
+                          <span>{scale.label}</span>
+                          <span className="text-[10px] text-[#D8C78E] font-bold">{scale.badge}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2 flex justify-end">
                 <Button
                   type="button"
                   onClick={() => {
+                    if (asksForShootSetting && !shootSetting) {
+                      toast.error('Please select Indoor, Outdoor, or Indoor & Outdoor.');
+                      return;
+                    }
                     setIsEditingIntake(false);
                     const targetTier = activePlan === 'full' || activeGuests === 'grand' ? 3 : 2;
                     setSelectedTierOrder(targetTier);
@@ -1393,9 +1509,11 @@ export function ProposalPageClient() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#0E423E] border border-[#C5B378]/30 px-3 py-1 text-xs text-[#E6ECEB]/90 font-medium">
-              <span>{planShortLabel}</span>
-              <span className="text-[#C5B378]">•</span>
-              <span>{guestsShortLabel}</span>
+              <span>
+                {asksForShootSetting
+                  ? selectedShootSetting || 'Select Shoot Setting'
+                  : guestsShortLabel}
+              </span>
             </span>
 
             <button
@@ -1693,6 +1811,20 @@ export function ProposalPageClient() {
                     {/* A. Base Included Features (Default Checked) */}
                     {baseIncludedElements.map((el) => {
                       const isChecked = !unselectedIncludedIds.includes(el.id);
+                      const featureServiceSlug = FEATURE_SERVICE_SLUGS[
+                        el.featureKey as keyof PackageIncludedFeatures
+                      ].find((slug) => services.some((service) => service.slug === slug));
+                      const featureService = services.find(
+                        (service) => service.slug === featureServiceSlug
+                      );
+                      const featureItem = basePackage?.includedServices?.find(
+                        (item) => item.serviceSlug === featureServiceSlug
+                      );
+                      const featureDurationTier =
+                        serviceDurationOverrides[featureServiceSlug || ''] ??
+                        featureItem?.durationTier ??
+                        basePackage?.durationTier ??
+                        durationTier;
                       return (
                         <div
                           key={el.id}
@@ -1755,6 +1887,34 @@ export function ProposalPageClient() {
                               {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
                             </span>
                           </div>
+
+                          {isChecked && featureService?.pricingType === 'tiered' && featureServiceSlug && (
+                            <div className="flex items-center justify-between gap-2 border-t border-[#C5B378]/15 pt-2">
+                              <label
+                                htmlFor={`proposal-tier-${featureServiceSlug}`}
+                                className="text-[10px] text-[#D8C78E]"
+                              >
+                                {featureService.name} duration
+                              </label>
+                              <select
+                                id={`proposal-tier-${featureServiceSlug}`}
+                                value={featureDurationTier}
+                                onChange={(event) =>
+                                  setServiceDurationOverrides((current) => ({
+                                    ...current,
+                                    [featureServiceSlug]: event.target.value as DurationTier,
+                                  }))
+                                }
+                                className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-2 text-[10px] text-white"
+                              >
+                                {featureDurationTier === 'threeHours' && (
+                                  <option value="threeHours" disabled>3 Hours (Studio-set)</option>
+                                )}
+                                <option value="halfDay">Half Day</option>
+                                <option value="fullDay">Full Day</option>
+                              </select>
+                            </div>
+                          )}
 
                           {/* Interactive Album Sheet Stepper (when Album is included) */}
                           {el.featureKey === 'printedAlbum' && isChecked && (
@@ -1864,15 +2024,37 @@ export function ProposalPageClient() {
                             </div>
                           </button>
 
-                          <span
-                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                              isChecked
-                                ? 'bg-[#D8C78E] text-[#061E1C]'
-                                : 'text-[#D8C78E] bg-[#072421] border border-[#C5B378]/30'
-                            }`}
-                          >
-                            +{formatINR(el.priceDelta)}
-                          </span>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <span
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                isChecked
+                                  ? 'bg-[#D8C78E] text-[#061E1C]'
+                                  : 'text-[#D8C78E] bg-[#072421] border border-[#C5B378]/30'
+                              }`}
+                            >
+                              +{formatINR(el.priceDelta)}
+                            </span>
+                            {services.find((service) => service.slug === el.serviceSlug)?.pricingType === 'tiered' && (
+                              <select
+                                aria-label={`${el.label} upgrade duration tier`}
+                                value={serviceDurationOverrides[el.serviceSlug] ?? el.durationTier}
+                                onChange={(event) =>
+                                  setServiceDurationOverrides((current) => ({
+                                    ...current,
+                                    [el.serviceSlug]: event.target.value as DurationTier,
+                                  }))
+                                }
+                                onClick={(event) => event.stopPropagation()}
+                                className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1.5 text-[10px] text-white"
+                              >
+                                {el.durationTier === 'threeHours' && (
+                                  <option value="threeHours" disabled>3 Hours (Studio-set)</option>
+                                )}
+                                <option value="halfDay">Half Day</option>
+                                <option value="fullDay">Full Day</option>
+                              </select>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -2031,10 +2213,10 @@ export function ProposalPageClient() {
                       Availability & Booking
                     </span>
                     <h3 className="font-serif text-2xl font-bold text-white">
-                      Check Date & Lock Custom Plan
+                      Package & Date Inquiry
                     </h3>
                     <p className="text-xs text-[#E6ECEB]/70">
-                      Cross-checks your celebration with lead photographer G Krishna’s calendar.
+                      Send your selected package and event details to check availability with GK STUDIOS.
                     </p>
                   </div>
 
@@ -2042,7 +2224,11 @@ export function ProposalPageClient() {
                   <div className="rounded-sm bg-[#0E423E] border border-[#C5B378]/25 p-3 flex justify-between items-baseline text-xs">
                     <div>
                       <span className="font-bold text-white">{currentEvent?.name} · {basePackage?.name}</span>
-                      <p className="text-[11px] text-[#D8C78E]">{planShortLabel} • {guestsShortLabel}</p>
+                      <p className="text-[11px] text-[#D8C78E]">
+                        {asksForShootSetting
+                          ? selectedShootSetting || 'Select Shoot Setting'
+                          : guestsShortLabel}
+                      </p>
                     </div>
                     <span className="font-serif text-2xl font-bold text-white">{formatINR(finalPrice)}</span>
                   </div>
@@ -2183,6 +2369,34 @@ export function ProposalPageClient() {
                       </div>
                     )}
 
+                    {asksForShootSetting && (
+                      <fieldset className="space-y-1.5">
+                        <legend className="text-xs font-semibold text-white/90">
+                          Where will the shoot take place? *
+                        </legend>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {SHOOT_SETTING_OPTIONS.map((option) => {
+                            const isSelected = shootSetting === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                aria-pressed={isSelected}
+                                onClick={() => setShootSetting(option.id)}
+                                className={`rounded-sm border px-3 py-2 text-xs text-left transition-colors ${
+                                  isSelected
+                                    ? 'border-[#D8C78E] bg-[#114A45] text-white'
+                                    : 'border-[#C5B378]/25 bg-[#061E1C] text-[#E6ECEB]/80 hover:border-[#D8C78E]/60'
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
+                    )}
+
                     {/* Venue / City */}
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-white/90">Venue / City *</label>
@@ -2262,7 +2476,7 @@ export function ProposalPageClient() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setIsOrderModalOpen(false)}
+                      onClick={() => router.push('/')}
                       className="border-[#C5B378]/30 text-white text-xs"
                     >
                       Done

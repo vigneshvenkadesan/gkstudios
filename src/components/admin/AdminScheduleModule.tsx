@@ -26,6 +26,7 @@ import {
   BOOKING_SERVICE_OPTIONS,
   BookingServiceOption,
   CalendarDayEntry,
+  DurationTier,
   EventCategory,
   OptedServiceSnapshot,
 } from '@/src/types/studio';
@@ -51,6 +52,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
+
+const SCHEDULE_SERVICE_SLUGS: Record<BookingServiceOption, string> = {
+  'Traditional Camera': 'traditional-camera',
+  'Candid Camera': 'candid-photography',
+  'Candid Video': 'candid-cinematography',
+  'Traditional Video': 'traditional-video',
+  Drone: 'drone-aerial-coverage',
+  TV: 'led-tv',
+  'LED Wall': 'led-wall',
+};
 
 export function AdminScheduleModule() {
   const {
@@ -84,6 +95,7 @@ export function AdminScheduleModule() {
   const [assignedCrew, setAssignedCrew] = useState('G Krishna + Studio Unit');
   const [notes, setNotes] = useState('');
   const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>([]);
+  const [serviceDurationTiers, setServiceDurationTiers] = useState<Record<string, DurationTier>>({});
   const [linkedBookingId, setLinkedBookingId] = useState<string | undefined>();
   const [packageId, setPackageId] = useState<string>('');
   const [packageName, setPackageName] = useState<string>('');
@@ -167,8 +179,18 @@ export function AdminScheduleModule() {
     setPackageName(pkg.name);
     const tierInfo = getPackageTierInfo(pkg);
     setPackageTier(tierInfo.tier);
-    const dynamicPrice = calculatePackageBasePrice(pkg, services, 'halfDay');
+    const dynamicPrice = calculatePackageBasePrice(pkg, services);
     setTotalPackageAmount(dynamicPrice);
+    setServiceDurationTiers(
+      Object.fromEntries(
+        BOOKING_SERVICE_OPTIONS.map((service) => [
+          SCHEDULE_SERVICE_SLUGS[service],
+          pkg.includedServices?.find(
+            (item) => item.serviceSlug === SCHEDULE_SERVICE_SLUGS[service]
+          )?.durationTier ?? pkg.durationTier ?? 'halfDay',
+        ])
+      )
+    );
 
     // Auto-fill services based on package inclusions
     const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
@@ -243,6 +265,23 @@ export function AdminScheduleModule() {
       setTotalPackageAmount(
         entry.totalPackageAmount || matchedBooking?.quotedAmount || foundPkg?.price || 0
       );
+      const savedOptedServices = entry.optedServices || matchedBooking?.optedServices;
+      setServiceDurationTiers(
+        Object.fromEntries(
+          BOOKING_SERVICE_OPTIONS.map((service) => {
+            const slug = SCHEDULE_SERVICE_SLUGS[service];
+            return [
+              slug,
+              savedOptedServices?.find((item) => item.serviceSlug === slug)?.durationTier ??
+                foundPkg?.includedServices?.find((item) => item.serviceSlug === slug)?.durationTier ??
+                foundPkg?.durationTier ??
+                entry.durationTier ??
+                matchedBooking?.durationTier ??
+                'halfDay',
+            ];
+          })
+        )
+      );
     } else {
       setStatus('Booked');
       setTitle('');
@@ -266,6 +305,11 @@ export function AdminScheduleModule() {
         setTotalPackageAmount(0);
         setAssignedCrew('G Krishna + Studio Unit');
         setRequestedServices(['Traditional Camera', 'Candid Camera', 'Traditional Video']);
+        setServiceDurationTiers(
+          Object.fromEntries(
+            BOOKING_SERVICE_OPTIONS.map((service) => [SCHEDULE_SERVICE_SLUGS[service], 'halfDay'])
+          )
+        );
       }
     }
     setDialogOpen(true);
@@ -275,6 +319,26 @@ export function AdminScheduleModule() {
     setRequestedServices((prev) =>
       prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]
     );
+  };
+
+  const handleServiceDurationChange = (service: BookingServiceOption, tier: DurationTier) => {
+    const slug = SCHEDULE_SERVICE_SLUGS[service];
+    const nextTiers = { ...serviceDurationTiers, [slug]: tier };
+    setServiceDurationTiers(nextTiers);
+    const selectedPackage = packages.find((pkg) => pkg.id === packageId);
+    if (selectedPackage?.includedServices) {
+      const includedServices = selectedPackage.includedServices.map((item) => ({
+        ...item,
+        durationTier:
+          nextTiers[item.serviceSlug] ??
+          item.durationTier ??
+          selectedPackage.durationTier ??
+          'fullDay',
+      }));
+      setTotalPackageAmount(
+        calculatePackageBasePrice({ ...selectedPackage, includedServices }, services)
+      );
+    }
   };
 
   const handleSaveEntry = async (e: React.FormEvent) => {
@@ -289,17 +353,26 @@ export function AdminScheduleModule() {
       let resolvedOptedServices: OptedServiceSnapshot[] | undefined;
       const matchedPkg = packages.find((p) => p.id === packageId);
       if (matchedPkg) {
-        resolvedOptedServices = buildOptedServicesForPackage(matchedPkg, services, 'halfDay').optedServices;
+        const includedServices = matchedPkg.includedServices?.map((item) => ({
+          ...item,
+          durationTier:
+            serviceDurationTiers[item.serviceSlug] ??
+            item.durationTier ??
+            matchedPkg.durationTier ??
+            'fullDay',
+        }));
+        resolvedOptedServices = buildOptedServicesForPackage(
+          { ...matchedPkg, includedServices },
+          services
+        ).optedServices;
       } else if (requestedServices.length > 0) {
         const items = requestedServices.map((svcName) => {
-          let slug = 'traditional-camera';
-          if (svcName === 'Traditional Video') slug = 'traditional-video';
-          else if (svcName === 'Candid Camera') slug = 'candid-photography';
-          else if (svcName === 'Candid Video') slug = 'candid-cinematography';
-          else if (svcName === 'Drone') slug = 'drone-aerial-coverage';
-          else if (svcName === 'LED Wall') slug = 'led-wall';
-          else if (svcName === 'TV') slug = 'led-tv';
-          return { serviceSlug: slug, quantity: 1 };
+          const slug = SCHEDULE_SERVICE_SLUGS[svcName];
+          return {
+            serviceSlug: slug,
+            quantity: 1,
+            durationTier: serviceDurationTiers[slug] ?? 'halfDay',
+          };
         });
         resolvedOptedServices = calculateCustomizedEventPrice(items, services, 'halfDay').snapshots;
       }
@@ -318,7 +391,7 @@ export function AdminScheduleModule() {
         notes: notes.trim() || undefined,
         bookingId: linkedBookingId,
         requestedServices: requestedServices.length > 0 ? requestedServices : undefined,
-        durationTier: 'halfDay',
+        durationTier: matchedPkg?.durationTier ?? 'halfDay',
         optedServices: resolvedOptedServices,
         packageId: packageId || undefined,
         packageName: packageName || undefined,
@@ -1138,9 +1211,11 @@ export function AdminScheduleModule() {
               <div className="flex flex-wrap gap-2 pt-1">
                 {BOOKING_SERVICE_OPTIONS.map((service) => {
                   const isSelected = requestedServices.includes(service);
+                  const slug = SCHEDULE_SERVICE_SLUGS[service];
+                  const serviceInfo = services.find((item) => item.slug === slug);
                   return (
+                    <div key={service} className="flex items-center gap-1 rounded-md border border-[#C5B378]/20 bg-[#092E2B] px-1">
                     <button
-                      key={service}
                       type="button"
                       onClick={() => toggleService(service)}
                       className={cn(
@@ -1153,6 +1228,21 @@ export function AdminScheduleModule() {
                       <span className="font-bold">{isSelected ? '✓' : '+'}</span>
                       <span>{service}</span>
                     </button>
+                    {isSelected && serviceInfo?.pricingType === 'tiered' && (
+                      <select
+                        aria-label={`${service} duration tier`}
+                        value={serviceDurationTiers[slug] ?? 'halfDay'}
+                        onChange={(event) =>
+                          handleServiceDurationChange(service, event.target.value as DurationTier)
+                        }
+                        className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1 text-[10px] text-white"
+                      >
+                        <option value="threeHours">3h</option>
+                        <option value="halfDay">Half</option>
+                        <option value="fullDay">Full</option>
+                      </select>
+                    )}
+                    </div>
                   );
                 })}
               </div>

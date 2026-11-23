@@ -8,10 +8,12 @@ import {
 } from 'lucide-react';
 import {
   DurationTier,
+  PackageAvailableAddon,
   PackageIncludedService,
   StudioService,
 } from '@/src/types/studio';
 import {
+  calculatePackageAddonPrice,
   calculatePackageBasePrice,
   DURATION_TIER_LABELS,
   resolveServicePrice,
@@ -24,6 +26,8 @@ interface DynamicPackageServicesConfiguratorProps {
   onChangeDurationTier: (tier: DurationTier) => void;
   includedServices: PackageIncludedService[];
   onChangeIncludedServices: (items: PackageIncludedService[]) => void;
+  availableAddons: PackageAvailableAddon[];
+  onChangeAvailableAddons: (items: PackageAvailableAddon[]) => void;
   services: StudioService[];
 }
 
@@ -32,6 +36,8 @@ export function DynamicPackageServicesConfigurator({
   onChangeDurationTier,
   includedServices,
   onChangeIncludedServices,
+  availableAddons,
+  onChangeAvailableAddons,
   services,
 }: DynamicPackageServicesConfiguratorProps) {
   // Only use active services for configuration
@@ -70,7 +76,8 @@ export function DynamicPackageServicesConfigurator({
           category: 'Service',
         };
       }
-      const priceResult = resolveServicePrice(svc, durationTier, item.quantity);
+      const itemTier = item.durationTier ?? durationTier;
+      const priceResult = resolveServicePrice(svc, itemTier, item.quantity);
       return {
         slug: svc.slug,
         name: svc.name,
@@ -81,6 +88,7 @@ export function DynamicPackageServicesConfigurator({
         total: priceResult.total,
         category: svc.category,
         pricingType: svc.pricingType,
+        durationTier: itemTier,
       };
     });
   }, [includedServices, activeServices, durationTier]);
@@ -101,18 +109,63 @@ export function DynamicPackageServicesConfigurator({
 
       const nextIncluded = [
         ...includedServices,
-        { serviceSlug: svc.slug, quantity: defaultQty },
+        { serviceSlug: svc.slug, quantity: defaultQty, durationTier },
       ];
       onChangeIncludedServices(nextIncluded);
+      onChangeAvailableAddons(
+        availableAddons.filter((item) => item.serviceSlug !== svc.slug)
+      );
 
     }
   };
 
   // Update quantity of an included service
   const handleUpdateQuantity = (slug: string, newQty: number) => {
-    const qty = Math.max(1, newQty);
+    const service = activeServices.find((item) => item.slug === slug);
+    const minimum = service?.pricingType === 'per_unit' ? service.minQuantity || 1 : 1;
+    const qty = Math.max(minimum, newQty);
     onChangeIncludedServices(
       includedServices.map((i) => (i.serviceSlug === slug ? { ...i, quantity: qty } : i))
+    );
+  };
+
+  const handleToggleAddon = (svc: StudioService) => {
+    const existing = availableAddons.find((item) => item.serviceSlug === svc.slug);
+    onChangeAvailableAddons(
+      existing
+        ? availableAddons.filter((item) => item.serviceSlug !== svc.slug)
+        : [
+            ...availableAddons,
+            {
+              serviceSlug: svc.slug,
+              defaultQuantity:
+                svc.pricingType === 'per_unit'
+                  ? Math.max(svc.minQuantity || 1, svc.slug === 'photo-album' ? 30 : 1)
+                  : 1,
+              durationTier,
+              label: svc.name,
+            },
+          ]
+    );
+  };
+
+  const handleAddonQuantity = (slug: string, defaultQuantity: number) => {
+    const service = activeServices.find((item) => item.slug === slug);
+    const minimum = service?.pricingType === 'per_unit' ? service.minQuantity || 1 : 1;
+    onChangeAvailableAddons(
+      availableAddons.map((item) =>
+        item.serviceSlug === slug
+          ? { ...item, defaultQuantity: Math.max(minimum, defaultQuantity) }
+          : item
+      )
+    );
+  };
+
+  const handleAddonTier = (slug: string, itemTier: DurationTier) => {
+    onChangeAvailableAddons(
+      availableAddons.map((item) =>
+        item.serviceSlug === slug ? { ...item, durationTier: itemTier } : item
+      )
     );
   };
 
@@ -218,7 +271,8 @@ export function DynamicPackageServicesConfigurator({
             const isIncluded = includedSlugSet.has(svc.slug);
             const currentItem = includedServices.find((i) => i.serviceSlug === svc.slug);
             const qty = currentItem?.quantity || (svc.pricingType === 'per_unit' ? (svc.minQuantity || 30) : 1);
-            const linePrice = resolveServicePrice(svc, durationTier, qty);
+            const itemTier = currentItem?.durationTier ?? durationTier;
+            const linePrice = resolveServicePrice(svc, itemTier, qty);
 
             return (
               <div
@@ -298,15 +352,38 @@ export function DynamicPackageServicesConfigurator({
                       </button>
                     </div>
 
+                    {svc.pricingType === 'tiered' && (
+                      <select
+                        aria-label={`${svc.name} duration tier`}
+                        value={itemTier}
+                        onChange={(event) =>
+                          onChangeIncludedServices(
+                            includedServices.map((item) =>
+                              item.serviceSlug === svc.slug
+                                ? { ...item, durationTier: event.target.value as DurationTier }
+                                : item
+                            )
+                          )
+                        }
+                        className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1.5 text-[10px] text-white focus:border-[#D8C78E] focus:outline-none"
+                      >
+                        <option value="threeHours">3 Hours</option>
+                        <option value="halfDay">Half Day</option>
+                        <option value="fullDay">Full Day</option>
+                      </select>
+                    )}
+
                     {/* Calculated Line Cost */}
                     <div className="text-right min-w-[80px]">
                       <span className="font-mono text-xs font-bold text-white block">
-                        {formatINR(linePrice.total)}
+                        {svc.pricingType === 'tiered'
+                          ? `${formatINR(linePrice.unitPrice)} × ${qty} = ${formatINR(linePrice.total)}`
+                          : formatINR(linePrice.total)}
                       </span>
                       <span className="text-[9px] text-[#E6ECEB]/50 block">
                         {svc.pricingType === 'per_unit'
                           ? `₹${linePrice.unitPrice}/${svc.unitLabel}`
-                          : `${DURATION_TIER_LABELS[durationTier]?.en || durationTier}`}
+                          : `${DURATION_TIER_LABELS[itemTier]?.en || itemTier}`}
                       </span>
                     </div>
                   </div>
@@ -314,6 +391,94 @@ export function DynamicPackageServicesConfigurator({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="space-y-2.5 bg-[#051C1A] p-4 rounded-lg border border-[#C5B378]/20">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E] block">
+            Available Add-ons ({availableAddons.length} Selected)
+          </span>
+          <p className="text-[11px] text-[#E6ECEB]/60">
+            Optional services retain their own duration tier and live catalog price.
+          </p>
+        </div>
+        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          {activeServices
+            .filter((service) => !includedSlugSet.has(service.slug))
+            .map((service) => {
+              const addon = availableAddons.find((item) => item.serviceSlug === service.slug);
+              const quantity =
+                addon?.defaultQuantity ??
+                (service.pricingType === 'per_unit' ? Math.max(service.minQuantity || 1, 1) : 1);
+              const price = calculatePackageAddonPrice(
+                addon || { serviceSlug: service.slug, defaultQuantity: quantity, durationTier },
+                { durationTier },
+                activeServices,
+                durationTier
+              );
+              return (
+                <div
+                  key={service.slug}
+                  className={`flex flex-wrap items-center gap-2 rounded-md border p-2.5 ${
+                    addon
+                      ? 'border-[#D8C78E] bg-[#0E423E]'
+                      : 'border-[#C5B378]/20 bg-[#092E2B]/50'
+                  }`}
+                >
+                  <label className="flex min-w-[150px] flex-1 items-center gap-2 text-xs text-white">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(addon)}
+                      onChange={() => handleToggleAddon(service)}
+                      className="h-4 w-4 accent-[#C5B378]"
+                    />
+                    {service.name}
+                  </label>
+                  {addon && (
+                    <>
+                      <div className="flex items-center rounded border border-[#C5B378]/35 bg-[#072421]">
+                        <button
+                          type="button"
+                          aria-label={`Decrease ${service.name} add-on quantity`}
+                          onClick={() =>
+                            handleAddonQuantity(service.slug, quantity - (service.pricingType === 'per_unit' ? 5 : 1))
+                          }
+                          disabled={quantity <= (service.pricingType === 'per_unit' ? service.minQuantity || 1 : 1)}
+                          className="px-2 py-1 text-xs text-[#D8C78E] disabled:opacity-30"
+                        >−</button>
+                        <span className="border-x border-[#C5B378]/25 px-2 py-1 text-[10px] text-white">
+                          {quantity} {service.unitLabel}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Increase ${service.name} add-on quantity`}
+                          onClick={() =>
+                            handleAddonQuantity(service.slug, quantity + (service.pricingType === 'per_unit' ? 5 : 1))
+                          }
+                          className="px-2 py-1 text-xs text-[#D8C78E]"
+                        >+</button>
+                      </div>
+                      {service.pricingType === 'tiered' && (
+                        <select
+                          aria-label={`${service.name} add-on duration tier`}
+                          value={price.durationTier}
+                          onChange={(event) => handleAddonTier(service.slug, event.target.value as DurationTier)}
+                          className="h-8 rounded border border-[#C5B378]/35 bg-[#072421] px-2 text-[10px] text-white"
+                        >
+                          <option value="threeHours">3 Hours</option>
+                          <option value="halfDay">Half Day</option>
+                          <option value="fullDay">Full Day</option>
+                        </select>
+                      )}
+                      <span className="font-mono text-[11px] font-bold text-[#D8C78E]">
+                        +{formatINR(price.total)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
         </div>
       </div>
 

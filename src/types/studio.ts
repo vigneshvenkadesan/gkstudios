@@ -137,12 +137,14 @@ export interface StudioService {
 export interface PackageIncludedService {
   serviceSlug: string;
   quantity: number;
+  durationTier?: DurationTier;
 }
 
 export interface PackageAvailableAddon {
   serviceSlug: string;
   defaultQuantity?: number;
   label?: string;
+  durationTier?: DurationTier;
 }
 
 export interface OptedServiceSnapshot {

@@ -5,11 +5,14 @@ import {
   BookingServiceOption,
   BookingStatus,
   CUSTOM_PACKAGE_ID,
+  DurationTier,
   EventCategory,
+  OptedServiceSnapshot,
   PackageSnapshot,
 } from '@/src/types/studio';
 
 const bookingServiceSet = new Set<string>(BOOKING_SERVICE_OPTIONS);
+const durationTierSet = new Set<DurationTier>(['threeHours', 'halfDay', 'fullDay']);
 
 export async function POST(request: Request) {
   try {
@@ -24,6 +27,9 @@ export async function POST(request: Request) {
       packageId?: string;
       packageName?: string;
       quotedAmount?: number;
+      durationTier?: DurationTier;
+      optedServices?: OptedServiceSnapshot[];
+      totalAmount?: number;
       notes?: string;
       status?: BookingStatus;
       source?: string;
@@ -41,6 +47,12 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (body.durationTier !== undefined && !durationTierSet.has(body.durationTier)) {
+      return NextResponse.json(
+        { error: 'durationTier must be one of: threeHours, halfDay, fullDay.' },
+        { status: 400 }
+      );
+    }
 
     const created = await createBookingOnServer({
       clientName: body.clientName,
@@ -53,6 +65,9 @@ export async function POST(request: Request) {
       packageId: body.packageId || CUSTOM_PACKAGE_ID,
       packageName: body.packageName,
       quotedAmount: body.quotedAmount,
+      durationTier: body.durationTier,
+      optedServices: Array.isArray(body.optedServices) ? body.optedServices : undefined,
+      totalAmount: typeof body.totalAmount === 'number' ? body.totalAmount : undefined,
       requestedServices: Array.isArray(body.requestedServices)
         ? body.requestedServices.filter(
             (service): service is BookingServiceOption =>

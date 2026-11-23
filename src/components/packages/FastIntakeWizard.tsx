@@ -18,11 +18,24 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 import { EVENT_CATEGORY_GROUPS, StudioEvent, StudioPackage } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
 
 export type SessionPlan = 'single-3h' | 'half' | 'full';
 export type GuestScale = 'intimate' | 'classic' | 'grand';
+export type ShootSetting = 'indoor' | 'outdoor' | 'indoor-outdoor';
+
+export const SHOOT_SETTING_OPTIONS: { id: ShootSetting; label: string }[] = [
+  { id: 'indoor', label: 'Indoor' },
+  { id: 'outdoor', label: 'Outdoor' },
+  { id: 'indoor-outdoor', label: 'Indoor & Outdoor' },
+];
+
+export function isOutdoorShootEvent(eventName?: string): boolean {
+  const normalizedName = (eventName || '').toLowerCase();
+  return normalizedName.includes('outdoor') || normalizedName.includes('shoot');
+}
 
 interface FastIntakeWizardProps {
   events: StudioEvent[];
@@ -93,12 +106,13 @@ export function FastIntakeWizard({
 }: FastIntakeWizardProps) {
   const router = useRouter();
 
-  // Wizard step: 1 (Event), 2 (Guest Count)
+  // Wizard step: 1 (Event), 2 (Guest Count or Shoot Setting)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
   // Intake selections
   const sessionPlan: SessionPlan = 'half';
   const [guestScale, setGuestScale] = useState<GuestScale>('classic');
+  const [shootSetting, setShootSetting] = useState<ShootSetting | null>(null);
 
   // Filter active events for current category
   const activeEvents = useMemo(() => {
@@ -118,25 +132,35 @@ export function FastIntakeWizard({
       activeEvents[0]
     );
   }, [activeEvents, selectedEventId, filteredEvents]);
+  const asksForShootSetting = isOutdoorShootEvent(currentEvent?.name);
 
-  // Smart Recommendation Routing Logic
-  // Never show "budget" button upfront:
-  // - Grand guest scale => Recommend Premium (sortOrder: 3)
-  // - Otherwise => Default to Signature (sortOrder: 2)
+  // Smart recommendation routing: large guest counts and combined indoor/outdoor shoots use Premium.
   const recommendedTier = useMemo(() => {
-    if (guestScale === 'grand') {
+    if (guestScale === 'grand' || (asksForShootSetting && shootSetting === 'indoor-outdoor')) {
       return 3;
     }
     return 2;
-  }, [guestScale]);
+  }, [guestScale, asksForShootSetting, shootSetting]);
 
   const handleBuildProposal = () => {
-    const eventIdParam = encodeURIComponent(selectedEventId || currentEvent?.id || 'wedding');
-    const planParam = encodeURIComponent(sessionPlan);
-    const guestsParam = encodeURIComponent(guestScale);
-    const tierParam = recommendedTier;
+    if (asksForShootSetting && !shootSetting) {
+      toast.error('Please choose Indoor, Outdoor, or Indoor & Outdoor.');
+      return;
+    }
 
-    router.push(`/packages/proposal?event=${eventIdParam}&plan=${planParam}&guests=${guestsParam}&tier=${tierParam}`);
+    const eventId = selectedEventId || currentEvent?.id || 'wedding';
+    const tierParam = recommendedTier;
+    const params = new URLSearchParams({
+      event: eventId,
+      plan: sessionPlan,
+      guests: guestScale,
+      tier: String(tierParam),
+    });
+    if (asksForShootSetting && shootSetting) {
+      params.set('shootSetting', shootSetting);
+    }
+
+    router.push(`/packages/proposal?${params.toString()}`);
   };
 
   return (
@@ -155,7 +179,7 @@ export function FastIntakeWizard({
             </button>
           ) : (
             <span className="text-[11px] font-semibold tracking-widest text-[#D8C78E]/80 uppercase">
-              2-Question Intake
+              Quick Start
             </span>
           )}
 
@@ -163,7 +187,11 @@ export function FastIntakeWizard({
             <span className="font-mono text-[#D8C78E] font-medium">Question {currentStep} of 2</span>
             <span className="text-[#E6ECEB]/40">·</span>
             <span className="text-[#E6ECEB]/85 font-medium">
-              {currentStep === 1 ? 'Milestone Event' : 'Guest Scale'}
+              {currentStep === 1
+                ? 'Milestone Event'
+                : asksForShootSetting
+                  ? 'Shoot Setting'
+                  : 'Guest Scale'}
             </span>
           </div>
         </div>
@@ -196,10 +224,10 @@ export function FastIntakeWizard({
                 Question 1
               </span>
               <h3 className="font-serif text-2xl sm:text-3xl font-semibold text-white">
-                What milestone celebration are we capturing?
+                What are you celebrating?
               </h3>
               <p className="text-sm text-[#E6ECEB]/75 leading-relaxed max-w-2xl">
-                Select your event type. We pair custom camera crew, lens packages, and albums specifically calibrated to your rituals.
+                Choose your event.
               </p>
             </div>
 
@@ -281,13 +309,13 @@ export function FastIntakeWizard({
                 onClick={() => setCurrentStep(2)}
                 className="w-full sm:w-auto gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold hover:brightness-105 shadow px-6"
               >
-                <span>Next: Guest Count</span>
+                <span>{asksForShootSetting ? 'Next: Shoot Location' : 'Next: Guest Count'}</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </motion.div>
         )}
-        {/* ─── Question 2: How many guests are joining? ─── */}
+        {/* ─── Question 2: Guest scale or shoot setting ─── */}
         {currentStep === 2 && (
           <motion.div
             key="q2"
@@ -302,60 +330,91 @@ export function FastIntakeWizard({
                 Question 2
               </span>
               <h3 className="font-serif text-2xl sm:text-3xl font-semibold text-white">
-                How many guests are joining the celebration?
+                {asksForShootSetting
+                  ? 'Where will the shoot take place?'
+                  : 'How many guests are joining the celebration?'}
               </h3>
               <p className="text-sm text-[#E6ECEB]/75 leading-relaxed max-w-2xl">
-                We calibrate crew numbers so stage rites and guest emotions are documented concurrently without missing any candid interactions.
+                {asksForShootSetting
+                  ? 'Choose whether your shoot will be indoors, outdoors, or both.'
+                  : 'We calibrate crew numbers so stage rites and guest emotions are documented concurrently without missing any candid interactions.'}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
-              {GUEST_SCALES.map((scale) => {
-                const isSelected = guestScale === scale.id;
+            {asksForShootSetting ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+                {SHOOT_SETTING_OPTIONS.map((option) => {
+                  const isSelected = shootSetting === option.id;
 
-                return (
-                  <motion.button
-                    key={scale.id}
-                    type="button"
-                    onClick={() => setGuestScale(scale.id)}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
-                      isSelected
-                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
-                        : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
-                    }`}
-                  >
-                    <div className="flex sm:flex-col items-center sm:items-start gap-2.5 min-w-0">
-                      <div
-                        className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-sm shrink-0 transition-colors ${
-                          isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
-                        }`}
-                      >
-                        {scale.icon}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-semibold text-xs sm:text-sm text-white block truncate">
-                          {scale.label}
-                        </span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 hidden sm:block pt-0.5 line-clamp-2">
-                          {scale.description}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                  return (
+                    <motion.button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => setShootSetting(option.id)}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`flex items-center justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all ${
                         isSelected
-                          ? 'bg-[#061E1C]/40 text-[#F4E8C1]'
-                          : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
+                          ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                          : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                       }`}
                     >
-                      {scale.badge}
-                    </span>
-                  </motion.button>
-                );
-              })}
-            </div>
+                      <span className="font-semibold text-sm text-white">{option.label}</span>
+                      {isSelected && <CheckCircle2 className="h-4 w-4 text-[#D8C78E] shrink-0" />}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+                {GUEST_SCALES.map((scale) => {
+                  const isSelected = guestScale === scale.id;
+
+                  return (
+                    <motion.button
+                      key={scale.id}
+                      type="button"
+                      onClick={() => setGuestScale(scale.id)}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
+                        isSelected
+                          ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                          : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
+                      }`}
+                    >
+                      <div className="flex sm:flex-col items-center sm:items-start gap-2.5 min-w-0">
+                        <div
+                          className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-sm shrink-0 transition-colors ${
+                            isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
+                          }`}
+                        >
+                          {scale.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-xs sm:text-sm text-white block truncate">
+                            {scale.label}
+                          </span>
+                          <p className="text-[11px] text-[#E6ECEB]/70 hidden sm:block pt-0.5 line-clamp-2">
+                            {scale.description}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                          isSelected
+                            ? 'bg-[#061E1C]/40 text-[#F4E8C1]'
+                            : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
+                        }`}
+                      >
+                        {scale.badge}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Recommendation Preview Banner & Full-width CTA */}
             <div className="rounded-sm border border-[#D8C78E]/40 bg-gradient-to-r from-[#0E423E] to-[#092E2B] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -368,7 +427,7 @@ export function FastIntakeWizard({
                 </div>
                 <p className="text-xs text-[#E6ECEB]/80 max-w-xl">
                   {recommendedTier === 3
-                    ? 'Engineered for high-attendance celebrations with cinema operators & broad event coverage.'
+                    ? 'Recommended for events with over 600 guests or coverage across indoor and outdoor locations.'
                     : 'Our most loved configuration: dedicated candid storytelling, complete ritual coverage & a heirloom Karizma photo album.'}
                 </p>
               </div>
@@ -387,7 +446,7 @@ export function FastIntakeWizard({
 
       {/* Fallback View Toggle */}
       <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#C5B378]/15 text-xs text-[#E6ECEB]/70">
-        <span>No pricing walls — tailor your crew elements and deliverables interactively.</span>
+        <span>Build a custom package, or browse ready-made options.</span>
 
         <button
           type="button"
@@ -395,7 +454,7 @@ export function FastIntakeWizard({
           className="group inline-flex items-center gap-1.5 font-semibold text-[#D8C78E] hover:text-white underline underline-offset-4 transition-colors"
         >
           <LayoutGrid className="h-3.5 w-3.5" />
-          <span>Prefer to browse? View all standard packages</span>
+          <span>Browse standard packages</span>
         </button>
       </div>
     </div>

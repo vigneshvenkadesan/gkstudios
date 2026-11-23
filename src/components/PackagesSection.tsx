@@ -79,7 +79,7 @@ export function PackagesSection({
   const { events, activeEvents, isLoading: isEventsLoading, error: eventsError, refresh: refreshEvents } = useEvents();
 
   // Mode: 'intake' (2-Question Intake) vs 'grid' (Classic All Packages Grid)
-  const [viewMode, setViewMode] = useState<'intake' | 'grid'>('intake');
+  const [viewMode, setViewMode] = useState<'intake' | 'grid'>('grid');
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('wedding');
   const [selectedEventId, setSelectedEventId] = useState<string>('wedding');
@@ -153,12 +153,12 @@ export function PackagesSection({
             </p>
             <h2 className="font-serif text-3xl font-semibold tracking-[-0.015em] text-white leading-[1.06] sm:text-4xl lg:text-5xl">
               {viewMode === 'intake'
-                ? 'Build Your Event Package'
+                ? 'Customize Your Package'
                 : t('packages.heading')}
             </h2>
             <p className="text-sm leading-relaxed text-[#E6ECEB]/78 sm:text-base">
               {viewMode === 'intake'
-                ? 'Answer 3 quick questions'
+                ? 'Choose your event and a few details.'
                 : t('packages.included')}
             </p>
           </div>
@@ -175,7 +175,7 @@ export function PackagesSection({
               }`}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span>2-Question Proposal</span>
+              <span>Customize</span>
             </button>
 
             <button
@@ -188,7 +188,7 @@ export function PackagesSection({
               }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Browse All Tiers</span>
+              <span>Standard Packages</span>
             </button>
           </div>
         </motion.div>
@@ -234,7 +234,7 @@ export function PackagesSection({
               <div className="flex items-center gap-2 text-[#E6ECEB]/90">
                 <Sparkles className="h-4 w-4 text-[#D8C78E] shrink-0" />
                 <span>
-                  Looking for a custom proposal tailored to your guest count?
+                  Need a custom package?
                 </span>
               </div>
               <Button
@@ -242,7 +242,7 @@ export function PackagesSection({
                 onClick={() => setViewMode('intake')}
                 className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold text-xs"
               >
-                <span>Build My Guest Proposal ✨</span>
+                <span>Customize</span>
               </Button>
             </div>
 
@@ -331,7 +331,8 @@ export function PackagesSection({
                   const pkgImg = pkg.imageUrl || pkg.image;
                   const dynamicSections = getDynamicPackageDisplaySections(
                     pkg.includedServices,
-                    services
+                    services,
+                    pkg.durationTier
                   );
                   const parsedDeliverables = [
                     ...(dynamicSections.coverage

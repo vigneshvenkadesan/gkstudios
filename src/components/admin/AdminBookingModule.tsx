@@ -24,6 +24,7 @@ import {
   BookingStatus,
   CUSTOM_PACKAGE_ID,
   CUSTOM_PACKAGE_NAME,
+  DurationTier,
   EVENT_CATEGORIES,
   EventCategory,
   StudioEvent,
@@ -72,6 +73,16 @@ const LEAD_SOURCE_OPTIONS = [
   'Website Inquiry',
   'Other Offline',
 ] as const;
+
+const BOOKING_SERVICE_SLUGS: Record<BookingServiceOption, string> = {
+  'Traditional Camera': 'traditional-camera',
+  'Candid Camera': 'candid-photography',
+  'Candid Video': 'candid-cinematography',
+  'Traditional Video': 'traditional-video',
+  Drone: 'drone-aerial-coverage',
+  TV: 'led-tv',
+  'LED Wall': 'led-wall',
+};
 
 function extract24HourTime(timeStr: string): string {
   if (!timeStr) return '';
@@ -225,6 +236,7 @@ export function AdminBookingModule() {
     'Candid Camera',
     'Traditional Video',
   ]);
+  const [leadServiceTiers, setLeadServiceTiers] = useState<Record<string, DurationTier>>({});
   const [leadNotes, setLeadNotes] = useState('');
 
   const concurrentLeadCount = useMemo(
@@ -255,6 +267,16 @@ export function AdminBookingModule() {
     setLeadStatus('In Discussion');
     setLeadAssignedCrew('G Krishna + Studio Unit');
     setLeadRequestedServices(['Traditional Camera', 'Candid Camera', 'Traditional Video']);
+    setLeadServiceTiers(
+      Object.fromEntries(
+        BOOKING_SERVICE_OPTIONS.map((service) => [
+          BOOKING_SERVICE_SLUGS[service],
+          signaturePkg?.includedServices?.find(
+            (item) => item.serviceSlug === BOOKING_SERVICE_SLUGS[service]
+          )?.durationTier ?? signaturePkg?.durationTier ?? 'halfDay',
+        ])
+      )
+    );
     setLeadNotes('');
   };
 
@@ -305,6 +327,16 @@ export function AdminBookingModule() {
             newServices.push('LED Wall');
           }
           setLeadRequestedServices(newServices);
+          setLeadServiceTiers(
+            Object.fromEntries(
+              BOOKING_SERVICE_OPTIONS.map((service) => [
+                BOOKING_SERVICE_SLUGS[service],
+                matchingTierPkg.includedServices?.find(
+                  (item) => item.serviceSlug === BOOKING_SERVICE_SLUGS[service]
+                )?.durationTier ?? matchingTierPkg.durationTier ?? 'halfDay',
+              ])
+            )
+          );
         }
       }
     }
@@ -314,13 +346,26 @@ export function AdminBookingModule() {
     setLeadPackageId(pkgId);
     if (pkgId === CUSTOM_PACKAGE_ID) {
       setLeadQuotedAmount(0);
+      setLeadServiceTiers(
+        Object.fromEntries(BOOKING_SERVICE_OPTIONS.map((service) => [BOOKING_SERVICE_SLUGS[service], 'halfDay']))
+      );
       return;
     }
 
     const found = packages.find((p) => p.id === pkgId);
     if (found) {
-      const dynamicPrice = calculatePackageBasePrice(found, services, 'halfDay');
+      const dynamicPrice = calculatePackageBasePrice(found, services);
       setLeadQuotedAmount(dynamicPrice);
+      setLeadServiceTiers(
+        Object.fromEntries(
+          BOOKING_SERVICE_OPTIONS.map((service) => [
+            BOOKING_SERVICE_SLUGS[service],
+            found.includedServices?.find(
+              (item) => item.serviceSlug === BOOKING_SERVICE_SLUGS[service]
+            )?.durationTier ?? found.durationTier ?? 'halfDay',
+          ])
+        )
+      );
 
       // Two-way sync: If selected package belongs to an event, update ceremony & event type
       if (found.eventId) {
@@ -368,13 +413,48 @@ export function AdminBookingModule() {
           else if (svcName === 'Drone') slug = 'drone-aerial-coverage';
           else if (svcName === 'LED Wall') slug = 'led-wall';
           else if (svcName === 'TV') slug = 'led-tv';
-          return { serviceSlug: slug, quantity: 1 };
+          return {
+            serviceSlug: slug,
+            quantity: 1,
+            durationTier: leadServiceTiers[slug] ?? 'halfDay',
+          };
         });
         const { total } = calculateCustomizedEventPrice(items, services, 'halfDay');
         setLeadQuotedAmount(total);
       }
       return updated;
     });
+  };
+
+  const handleLeadServiceTierChange = (service: BookingServiceOption, tier: DurationTier) => {
+    const serviceSlug = BOOKING_SERVICE_SLUGS[service];
+    const nextTiers = { ...leadServiceTiers, [serviceSlug]: tier };
+    setLeadServiceTiers(nextTiers);
+
+    if (leadPackageId === CUSTOM_PACKAGE_ID) {
+      const items = leadRequestedServices.map((requestedService) => ({
+        serviceSlug: BOOKING_SERVICE_SLUGS[requestedService],
+        quantity: 1,
+        durationTier: nextTiers[BOOKING_SERVICE_SLUGS[requestedService]] ?? 'halfDay',
+      }));
+      setLeadQuotedAmount(calculateCustomizedEventPrice(items, services, 'halfDay').total);
+      return;
+    }
+
+    const selectedPkg = packages.find((pkg) => pkg.id === leadPackageId);
+    if (selectedPkg?.includedServices) {
+      const includedServices = selectedPkg.includedServices.map((item) => ({
+        ...item,
+        durationTier:
+          nextTiers[item.serviceSlug] ??
+          item.durationTier ??
+          selectedPkg.durationTier ??
+          'halfDay',
+      }));
+      setLeadQuotedAmount(
+        calculatePackageBasePrice({ ...selectedPkg, includedServices }, services)
+      );
+    }
   };
 
   const handleCreateDirectLead = async (e: React.FormEvent) => {
@@ -403,24 +483,33 @@ export function AdminBookingModule() {
         : selectedPkg?.name || CUSTOM_PACKAGE_NAME;
 
     // Dynamically build historical optedServices snapshot
-    const activeItems: Array<{ serviceSlug: string; quantity: number }> = [];
+    const activeItems: Array<{ serviceSlug: string; quantity: number; durationTier?: DurationTier }> = [];
     leadRequestedServices.forEach((s) => {
-      if (s === 'Traditional Camera') activeItems.push({ serviceSlug: 'traditional-camera', quantity: 1 });
-      else if (s === 'Traditional Video') activeItems.push({ serviceSlug: 'traditional-video', quantity: 1 });
-      else if (s === 'Candid Camera') activeItems.push({ serviceSlug: 'candid-photography', quantity: 1 });
-      else if (s === 'Candid Video') activeItems.push({ serviceSlug: 'candid-cinematography', quantity: 1 });
-      else if (s === 'Drone') activeItems.push({ serviceSlug: 'drone-aerial-coverage', quantity: 1 });
-      else if (s === 'LED Wall') activeItems.push({ serviceSlug: 'led-wall', quantity: 1 });
-      else if (s === 'TV') activeItems.push({ serviceSlug: 'led-tv', quantity: 1 });
+      const serviceSlug =
+        BOOKING_SERVICE_SLUGS[s];
+      const packageItem = selectedPkg?.includedServices?.find((item) => item.serviceSlug === serviceSlug);
+      activeItems.push({
+        serviceSlug,
+        quantity: 1,
+        durationTier:
+          leadServiceTiers[serviceSlug] ??
+          packageItem?.durationTier ??
+          selectedPkg?.durationTier ??
+          'halfDay',
+      });
     });
     if (selectedPkg?.includedServices?.some((i) => i.serviceSlug === 'photo-album')) {
       const album = selectedPkg.includedServices.find((i) => i.serviceSlug === 'photo-album');
-      activeItems.push({ serviceSlug: 'photo-album', quantity: album?.quantity || 30 });
+      activeItems.push({
+        serviceSlug: 'photo-album',
+        quantity: album?.quantity || 30,
+        durationTier: album?.durationTier ?? selectedPkg.durationTier,
+      });
     }
     const { snapshots: leadOptedServices, total: computedTotal } = calculateCustomizedEventPrice(
       activeItems,
       services,
-      'halfDay'
+      selectedPkg?.durationTier ?? 'halfDay'
     );
     const finalLeadAmount = Number(leadQuotedAmount) > 0 ? Number(leadQuotedAmount) : computedTotal;
 
@@ -438,7 +527,7 @@ export function AdminBookingModule() {
         packageName: resolvedPackageName,
         quotedAmount: finalLeadAmount,
         requestedServices: leadRequestedServices,
-        durationTier: 'halfDay',
+        durationTier: selectedPkg?.durationTier ?? 'halfDay',
         optedServices: leadOptedServices,
         totalAmount: finalLeadAmount,
         notes: leadNotes.trim(),
@@ -1130,9 +1219,11 @@ export function AdminBookingModule() {
               <div className="flex flex-wrap gap-1.5">
                 {BOOKING_SERVICE_OPTIONS.map((service) => {
                   const selected = leadRequestedServices.includes(service);
+                  const serviceSlug = BOOKING_SERVICE_SLUGS[service];
+                  const serviceInfo = services.find((item) => item.slug === serviceSlug);
                   return (
+                    <div key={service} className="flex items-center gap-1 rounded-md border border-[#C5B378]/20 bg-[#072421] px-1">
                     <button
-                      key={service}
                       type="button"
                       onClick={() => toggleLeadService(service)}
                       className={`text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
@@ -1144,6 +1235,21 @@ export function AdminBookingModule() {
                       {selected ? '✓ ' : '+ '}
                       {service}
                     </button>
+                    {selected && serviceInfo?.pricingType === 'tiered' && (
+                      <select
+                        aria-label={`${service} duration tier`}
+                        value={leadServiceTiers[serviceSlug] ?? 'halfDay'}
+                        onChange={(event) =>
+                          handleLeadServiceTierChange(service, event.target.value as DurationTier)
+                        }
+                        className="h-7 rounded border border-[#C5B378]/35 bg-[#092E2B] px-1 text-[10px] text-white"
+                      >
+                        <option value="threeHours">3h</option>
+                        <option value="halfDay">Half</option>
+                        <option value="fullDay">Full</option>
+                      </select>
+                    )}
+                    </div>
                   );
                 })}
               </div>

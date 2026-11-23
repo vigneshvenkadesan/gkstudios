@@ -6,6 +6,7 @@ import {
   updatePackageOnServer,
 } from '@/src/server/studioStore';
 import { StudioPackage } from '@/src/types/studio';
+import { hasValidPackageServiceDurationTiers } from '@/src/lib/pricing';
 
 const VALID_DURATION_TIERS = ['threeHours', 'halfDay', 'fullDay'] as const;
 
@@ -55,6 +56,15 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         { error: 'durationTier must be one of: threeHours, halfDay, fullDay.' },
+        { status: 400 }
+      );
+    }
+    if (
+      !hasValidPackageServiceDurationTiers(patch.includedServices) ||
+      !hasValidPackageServiceDurationTiers(patch.availableAddons)
+    ) {
+      return NextResponse.json(
+        { error: 'Service durationTier must be threeHours, halfDay, or fullDay.' },
         { status: 400 }
       );
     }
