@@ -15,6 +15,9 @@ interface StudioCalendarProps {
   allowSelectBooked?: boolean;
   size?: 'compact' | 'standard' | 'large';
   locale?: PublicLocale;
+  showNavigation?: boolean;
+  showLegend?: boolean;
+  showCellStatusLabels?: boolean;
 }
 
 export function StudioCalendar({
@@ -26,6 +29,9 @@ export function StudioCalendar({
   allowSelectBooked = false,
   size = 'standard',
   locale = 'en',
+  showNavigation = true,
+  showLegend = true,
+  showCellStatusLabels = true,
 }: StudioCalendarProps) {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -66,6 +72,7 @@ export function StudioCalendar({
     )
   );
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+  const isCompact = size === 'compact';
   const statusLabel = (status: AvailabilityStatus) =>
     t(
       status === 'Booked'
@@ -87,47 +94,49 @@ export function StudioCalendar({
           <h4
             className={cn(
               'font-serif font-semibold text-white tracking-tight',
-              isLarge ? 'text-2xl' : 'text-xl sm:text-2xl'
+              isLarge ? 'text-2xl' : isCompact ? 'text-base sm:text-lg' : 'text-xl sm:text-2xl'
             )}
           >
             {monthLabel}
           </h4>
         </div>
-        <div className="flex items-center gap-2">
-          {isLarge ? (
+        {showNavigation && (
+          <div className="flex items-center gap-2">
+            {isLarge ? (
+              <button
+                type="button"
+                onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+                className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
+              >
+                {t('calendar.currentMonth')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+                className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#072421] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
+              >
+                {t('calendar.today')}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
-              className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
+              onClick={handlePrev}
+              aria-label={t('calendar.previousMonth')}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
             >
-              {t('calendar.currentMonth')}
+              <ChevronLeft className="h-4 w-4" />
             </button>
-          ) : (
             <button
               type="button"
-              onClick={() => onMonthChange(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
-              className="h-9 rounded-sm border border-[#C5B378]/25 bg-[#072421] px-3 text-xs font-medium text-[#D8C78E] hover:border-[#D8C78E] hover:text-white transition-colors cursor-pointer"
+              onClick={handleNext}
+              aria-label={t('calendar.nextMonth')}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
             >
-              {t('calendar.today')}
+              <ChevronRight className="h-4 w-4" />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handlePrev}
-            aria-label={t('calendar.previousMonth')}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleNext}
-            aria-label={t('calendar.nextMonth')}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#C5B378]/25 bg-[#072421] text-[#E6ECEB] transition-colors hover:border-[#D8C78E] hover:bg-[#134E49] hover:text-white cursor-pointer"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center pt-4 pb-2">
@@ -212,10 +221,10 @@ export function StudioCalendar({
                         : 'text-emerald-300/80'
                     )}
                   >
-                    <span className="sm:hidden font-mono font-bold">
+                    <span className={cn('font-mono font-bold', !isCompact && 'sm:hidden')}>
                       {status === 'Available' ? 'O' : status === 'Limited' ? 'L' : 'B'}
                     </span>
-                    <span className="hidden sm:inline">{statusLabel(status)}</span>
+                    {!isCompact && <span className="hidden sm:inline">{statusLabel(status)}</span>}
                   </span>
                 </div>
 
@@ -308,7 +317,7 @@ export function StudioCalendar({
               <span className="font-mono tabular-nums text-xs sm:text-sm leading-none">
                 {cell.day}
               </span>
-              {!isPast && (
+              {!isPast && showCellStatusLabels && (
                 <span
                   className={cn(
                     'mt-0.5 sm:mt-1 text-[8px] sm:text-[10px] leading-none font-medium tracking-[0.01em]',
@@ -332,25 +341,26 @@ export function StudioCalendar({
         })}
       </div>
 
-      {/* Explicit multi-modal availability legend */}
-      <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#C5B378]/15 pt-4 text-xs text-[#E6ECEB]/80">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded-[2px] border border-[#C5B378]/45 bg-[#072421]" />
-          <span>{t('calendar.openAvailable')}</span>
+      {showLegend && (
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#C5B378]/15 pt-4 text-xs text-[#E6ECEB]/80">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-[2px] border border-[#C5B378]/45 bg-[#072421]" />
+            <span>{t('calendar.openAvailable')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-[2px] border border-amber-400/60 bg-amber-500/20" />
+            <span>{t('calendar.limitedSlot')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-[2px] border border-rose-400/50 bg-rose-950/80" />
+            <span>{t('calendar.bookedUnavailable')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-[2px] border border-[#D8C78E] bg-[#C5B378]" />
+            <span>{t('calendar.selected')}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded-[2px] border border-amber-400/60 bg-amber-500/20" />
-          <span>{t('calendar.limitedSlot')}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded-[2px] border border-rose-400/50 bg-rose-950/80" />
-          <span>{t('calendar.bookedUnavailable')}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded-[2px] border border-[#D8C78E] bg-[#C5B378]" />
-          <span>{t('calendar.selected')}</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

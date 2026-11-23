@@ -64,6 +64,17 @@ const SCHEDULE_SERVICE_SLUGS: Record<BookingServiceOption, string> = {
   'LED Wall': 'led-wall',
 };
 
+type CalendarView = 'day' | 'week' | 'month' | '3-months' | '6-months' | 'year';
+
+const CALENDAR_VIEWS: Array<{ value: CalendarView; label: string }> = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: '3-months', label: 'Next 3 Months' },
+  { value: '6-months', label: 'Next 6 Months' },
+  { value: 'year', label: 'Yearly' },
+];
+
 export function AdminScheduleModule() {
   const {
     calendarEntries,
@@ -79,7 +90,7 @@ export function AdminScheduleModule() {
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string>(toISODate(new Date()));
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('month');
+  const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [editingEntryId, setEditingEntryId] = useState<string | undefined>();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -518,6 +529,36 @@ export function AdminScheduleModule() {
     });
   }, [selectedDate]);
 
+  const rangeMonthCount =
+    calendarView === '3-months' ? 3 : calendarView === '6-months' ? 6 : calendarView === 'year' ? 12 : 0;
+  const rangeCalendars = useMemo(() => {
+    if (!rangeMonthCount) return [];
+    return Array.from({ length: rangeMonthCount }, (_, index) => {
+      const monthDateInRange = new Date(
+        monthDate.getFullYear(),
+        monthDate.getMonth() + index,
+        1
+      );
+      const monthPrefix = `${monthDateInRange.getFullYear()}-${String(
+        monthDateInRange.getMonth() + 1
+      ).padStart(2, '0')}`;
+      return {
+        monthDate: monthDateInRange,
+        entries: enrichedCalendarEntries.filter((entry) => entry.date.startsWith(monthPrefix)),
+      };
+    });
+  }, [enrichedCalendarEntries, monthDate, rangeMonthCount]);
+
+  const selectCalendarView = (view: CalendarView) => {
+    setCalendarView(view);
+    if (view === 'year') {
+      setMonthDate(new Date(new Date().getFullYear(), 0, 1));
+    } else if (view === '3-months' || view === '6-months') {
+      const today = new Date();
+      setMonthDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    }
+  };
+
   const moveSelectedDate = (offset: number) => {
     const date = new Date(`${selectedDate}T12:00:00`);
     date.setDate(date.getDate() + offset);
@@ -548,25 +589,27 @@ export function AdminScheduleModule() {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              {(['day', 'week', 'month'] as const).map((view) => (
+            <div className="flex flex-wrap items-center gap-2">
+              {CALENDAR_VIEWS.map(({ value, label }) => (
                 <Button
-                  key={view}
+                  key={value}
                   type="button"
                   size="sm"
-                  variant={calendarView === view ? 'default' : 'outline'}
-                  onClick={() => setCalendarView(view)}
-                  className="capitalize"
+                  variant={calendarView === value ? 'default' : 'outline'}
+                  onClick={() => selectCalendarView(value)}
+                  className="shrink-0"
                 >
-                  {view === 'day' && <CalendarDays className="h-3.5 w-3.5 mr-1" />}
-                  {view === 'week' && <Grid2X2 className="h-3.5 w-3.5 mr-1" />}
-                  {view === 'month' && <CalendarPlus className="h-3.5 w-3.5 mr-1" />}
-                  {view}
+                  {value === 'day' && <CalendarDays className="h-3.5 w-3.5 mr-1" />}
+                  {value === 'week' && <Grid2X2 className="h-3.5 w-3.5 mr-1" />}
+                  {(value === 'month' || value === '3-months' || value === '6-months' || value === 'year') && (
+                    <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  {label}
                 </Button>
               ))}
             </div>
 
-            {calendarView !== 'month' && (
+            {(calendarView === 'day' || calendarView === 'week') && (
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -584,6 +627,60 @@ export function AdminScheduleModule() {
                   size="sm"
                   variant="outline"
                   onClick={() => moveSelectedDate(calendarView === 'week' ? 7 : 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {rangeMonthCount > 0 && (
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="Previous calendar range"
+                  onClick={() =>
+                    setMonthDate(
+                      new Date(
+                        monthDate.getFullYear(),
+                        monthDate.getMonth() - rangeMonthCount,
+                        1
+                      )
+                    )
+                  }
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-36 text-center font-mono text-sm font-semibold text-white">
+                  {calendarView === 'year'
+                    ? monthDate.getFullYear()
+                    : `${monthDate.toLocaleDateString('en-IN', {
+                        month: 'short',
+                        year: 'numeric',
+                      })} – ${new Date(
+                        monthDate.getFullYear(),
+                        monthDate.getMonth() + rangeMonthCount - 1,
+                        1
+                      ).toLocaleDateString('en-IN', {
+                        month: 'short',
+                        year: 'numeric',
+                      })}`}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="Next calendar range"
+                  onClick={() =>
+                    setMonthDate(
+                      new Date(
+                        monthDate.getFullYear(),
+                        monthDate.getMonth() + rangeMonthCount,
+                        1
+                      )
+                    )
+                  }
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -791,6 +888,54 @@ export function AdminScheduleModule() {
               allowSelectBooked
               size="large"
             />
+          )}
+
+          {rangeMonthCount > 0 && (
+            <div>
+              {calendarView !== 'year' && (
+                <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[#E6ECEB]/75">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm border border-[#C5B378]/35 bg-[#072421]" />
+                    O · Open
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm border border-amber-400/50 bg-amber-500/20" />
+                    L · Limited
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm border border-rose-400/45 bg-rose-950/60" />
+                    B · Booked
+                  </span>
+                </div>
+              )}
+              <div
+                className={
+                  calendarView === 'year'
+                    ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+                    : 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'
+                }
+              >
+                {rangeCalendars.map(({ monthDate: rangeMonth, entries }) => (
+                  <div
+                    key={`${rangeMonth.getFullYear()}-${rangeMonth.getMonth()}`}
+                    className="min-w-0 rounded-lg border border-[#C5B378]/20 bg-[#072421]/60 p-3 sm:p-4"
+                  >
+                    <StudioCalendar
+                      monthDate={rangeMonth}
+                      onMonthChange={setMonthDate}
+                      entries={entries}
+                      selectedDate={selectedDate}
+                      onSelectDate={handleSelectDate}
+                      allowSelectBooked
+                      size="compact"
+                      showNavigation={false}
+                      showLegend={false}
+                      showCellStatusLabels={calendarView !== 'year'}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
