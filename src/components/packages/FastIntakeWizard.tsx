@@ -259,7 +259,7 @@ export function FastIntakeWizard({
               })}
             </div>
 
-            {/* Event Cards Grid - Compact Mobile 2-col, Icon + Name + Tamil Name */}
+            {/* Event Cards Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
               {filteredEvents.map((ev) => {
                 const isSelected = selectedEventId === ev.id;
@@ -286,11 +286,6 @@ export function FastIntakeWizard({
                         <h4 className="font-serif text-xs sm:text-sm font-semibold text-white leading-tight truncate">
                           {ev.name}
                         </h4>
-                        {ev.tamilName && (
-                          <p className="text-[10px] sm:text-[11px] text-[#D8C78E] font-medium tracking-wide truncate">
-                            {ev.tamilName}
-                          </p>
-                        )}
                       </div>
                     </div>
                     {isSelected && <CheckCircle2 className="h-4 w-4 text-[#D8C78E] shrink-0 ml-1" />}

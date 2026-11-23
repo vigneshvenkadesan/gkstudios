@@ -17,7 +17,6 @@ export interface EventSelectorProps {
   required?: boolean;
   disabled?: boolean;
   className?: string;
-  showTamilName?: boolean;
   error?: string;
 }
 
@@ -34,7 +33,6 @@ export function EventSelector({
   required = false,
   disabled = false,
   className = '',
-  showTamilName = true,
   error,
 }: EventSelectorProps) {
   const { events: hookEvents, isLoading } = useEvents({ all: includeInactive });
@@ -63,11 +61,11 @@ export function EventSelector({
   const categories = useMemo(() => {
     if (!groupByCategory) return [];
 
-    const groupMap = new Map<string, { label: string; tamilLabel?: string; events: StudioEvent[] }>();
+    const groupMap = new Map<string, { label: string; events: StudioEvent[] }>();
 
     // Initialize with known category groups
     EVENT_CATEGORY_GROUPS.forEach((g) => {
-      groupMap.set(g.id, { label: g.label, tamilLabel: g.tamilLabel, events: [] });
+      groupMap.set(g.id, { label: g.label, events: [] });
     });
 
     // Populate events
@@ -120,13 +118,12 @@ export function EventSelector({
           categories.map((cat) => (
             <optgroup
               key={cat.id}
-              label={`${cat.label}${showTamilName && cat.tamilLabel ? ` (${cat.tamilLabel})` : ''}`}
+              label={cat.label}
               className="bg-[#051B19] text-[#D8C78E] font-semibold"
             >
               {cat.events.map((ev) => (
                 <option key={ev.id} value={ev.id} className="bg-[#072421] text-white font-normal">
                   {ev.name}
-                  {showTamilName && ev.tamilName ? ` — ${ev.tamilName}` : ''}
                   {includeInactive && ev.status === 'inactive' ? ' (Inactive)' : ''}
                 </option>
               ))}
@@ -136,7 +133,6 @@ export function EventSelector({
           filteredEvents.map((ev) => (
             <option key={ev.id} value={ev.id} className="bg-[#072421] text-white">
               {ev.name}
-              {showTamilName && ev.tamilName ? ` — ${ev.tamilName}` : ''}
               {includeInactive && ev.status === 'inactive' ? ' (Inactive)' : ''}
             </option>
           ))

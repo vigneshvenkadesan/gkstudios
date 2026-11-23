@@ -9,6 +9,7 @@ import {
   getBillPaymentHistory,
 } from '@/src/lib/utils';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 
 interface BillTermItem {
   en: string;
@@ -150,12 +151,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
             Event & Ceremony / நிகழ்வு விவரம்
           </h4>
           <p style="margin: 0; font-size: 13px; font-weight: 700; color: #0f172a;">
-            ${bill.eventDetails.eventName}
-            ${
-              bill.eventDetails.tamilEventName
-                ? `<span style="font-size: 11px; font-weight: 600; color: #072421; background: #e2e8f0; padding: 1px 6px; border-radius: 3px; margin-left: 6px;">${bill.eventDetails.tamilEventName}</span>`
-                : ''
-            }
+            ${englishOnlyName(bill.eventDetails.eventName)}
           </p>
           <p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;">
             <strong>Date & Slot:</strong> ${bill.eventDetails.eventDate} ${bill.eventDetails.eventTime ? `(${bill.eventDetails.eventTime})` : ''}
@@ -195,8 +191,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
                         <div style="display: flex; align-items: flex-start; gap: 4px;">
                           <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
                           <div>
-                            <span style="font-weight: 700; color: #1e293b;">${svc.name}</span>
-                            ${svc.tamilName ? `<span style="display: block; font-size: 8.5px; color: #64748b; font-family: 'Noto Sans Tamil', 'Latha', sans-serif;">${svc.tamilName}</span>` : ''}
+                            <span style="font-weight: 700; color: #1e293b;">${englishOnlyName(svc.name)}</span>
                             <span style="display: block; font-size: 8.5px; color: #64748b;">
                               ${svc.quantity} ${svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹${svc.unitPrice.toLocaleString('en-IN')}
                               ${svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}
@@ -495,9 +490,7 @@ export async function shareBillPdfWhatsApp(bill: StudioBill): Promise<void> {
     `Here is your official payment receipt from GK STUDIOS:`,
     ``,
     `🧾 Bill Number: ${bill.billNumber}`,
-    `✨ Event: ${bill.eventDetails.eventName}${
-      bill.eventDetails.tamilEventName ? ` (${bill.eventDetails.tamilEventName})` : ''
-    }`,
+    `✨ Event: ${englishOnlyName(bill.eventDetails.eventName)}`,
     `📅 Event Date & Timing: ${bill.eventDetails.eventDate} at ${bill.eventDetails.eventTime || '06:00 AM'}`,
     `📍 Venue: ${bill.eventDetails.venue || 'To be updated'}`,
     `📦 Package: ${bill.packageDetails.basePackageName}`,

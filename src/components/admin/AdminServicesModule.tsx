@@ -66,7 +66,6 @@ export function AdminServicesModule() {
   // Form Fields
   const [formName, setFormName] = useState('');
   const [formSlug, setFormSlug] = useState('');
-  const [formTamilName, setFormTamilName] = useState('');
   const [formCategory, setFormCategory] = useState('Photography');
   const [formCustomCategory, setFormCustomCategory] = useState('');
   const [formDescription, setFormDescription] = useState('');
@@ -105,7 +104,6 @@ export function AdminServicesModule() {
     setEditingService(null);
     setFormName('');
     setFormSlug('');
-    setFormTamilName('');
     setFormCategory('Photography');
     setFormCustomCategory('');
     setFormDescription('');
@@ -126,7 +124,6 @@ export function AdminServicesModule() {
     setEditingService(svc);
     setFormName(svc.name);
     setFormSlug(svc.slug);
-    setFormTamilName(svc.tamilName || '');
     if (['Photography', 'Videography', 'Aerial & Gear', 'Deliverables'].includes(svc.category)) {
       setFormCategory(svc.category);
       setFormCustomCategory('');
@@ -182,7 +179,6 @@ export function AdminServicesModule() {
     const payload: Partial<StudioService> = {
       name: formName.trim(),
       slug: formSlug.trim(),
-      tamilName: formTamilName.trim() || undefined,
       category: resolvedCategory,
       description: formDescription.trim(),
       pricingType: formPricingType,
@@ -269,7 +265,6 @@ export function AdminServicesModule() {
         return (
           s.name.toLowerCase().includes(q) ||
           s.slug.toLowerCase().includes(q) ||
-          (s.tamilName && s.tamilName.toLowerCase().includes(q)) ||
           s.category.toLowerCase().includes(q)
         );
       })
@@ -408,16 +403,11 @@ export function AdminServicesModule() {
                         {svc.displayOrder ?? '—'}
                       </TableCell>
 
-                      {/* Name & Tamil Name */}
+                      {/* Service name */}
                       <TableCell>
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-white text-sm">{svc.name}</span>
-                            {svc.tamilName && (
-                              <span className="text-[11px] text-[#D8C78E]/80 font-medium">
-                                ({svc.tamilName})
-                              </span>
-                            )}
                           </div>
                           <div className="flex items-center gap-1.5 text-[11px] text-[#E6ECEB]/50 font-mono">
                             <span>slug: {svc.slug}</span>
@@ -548,7 +538,7 @@ export function AdminServicesModule() {
         <DialogContent
           onPointerDownOutside={(e) => isSubmitting && e.preventDefault()}
           onEscapeKeyDown={(e) => isSubmitting && e.preventDefault()}
-          className="max-h-[90vh] w-[95vw] max-w-xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -561,30 +551,16 @@ export function AdminServicesModule() {
           </DialogHeader>
 
           <form onSubmit={handleSaveService} className="space-y-4 pt-2">
-            {/* Name & Tamil Name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#D8C78E]">Service Name (English) *</label>
-                <input
-                  type="text"
-                  required
-                  value={formName}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="e.g. Traditional Camera"
-                  className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#D8C78E]">Tamil Name (Optional)</label>
-                <input
-                  type="text"
-                  value={formTamilName}
-                  onChange={(e) => setFormTamilName(e.target.value)}
-                  placeholder="e.g. பாரம்பரியப் புகைப்படம்"
-                  className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#D8C78E]">Service Name *</label>
+              <input
+                type="text"
+                required
+                value={formName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="e.g. Traditional Camera"
+                className="h-9 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+              />
             </div>
 
             {/* Slug & Category */}
@@ -858,7 +834,7 @@ export function AdminServicesModule() {
 
       {/* ─── Delete Service Confirmation Dialog ─── */}
       <Dialog open={!!deletingService} onOpenChange={(open) => !open && !isDeleting && setDeletingService(null)}>
-        <DialogContent className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6">
+        <DialogContent className="w-[95vw] max-h-[92dvh] border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-lg p-6">
           <DialogHeader>
             <DialogTitle className="font-serif text-lg font-bold text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-rose-400" />

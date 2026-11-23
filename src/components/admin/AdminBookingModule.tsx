@@ -37,6 +37,7 @@ import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
 import { calculateCustomizedEventPrice, calculatePackageBasePrice } from '@/src/lib/pricing';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
@@ -118,11 +119,35 @@ function formatTimeTo12Hour(time24: string): string {
 }
 
 const COMMON_EVENT_TIME_SLOTS = [
-  { label: '06:00 AM (Muhurtham)', value: '06:00 AM (Morning Muhurtham)', time24: '06:00' },
-  { label: '09:00 AM (Morning)', value: '09:00 AM (Morning Session)', time24: '09:00' },
-  { label: '06:00 PM (Reception)', value: '06:00 PM (Evening Reception)', time24: '18:00' },
-  { label: 'Full-Day Session', value: 'Full-Day / Multi-Session', time24: '06:00' },
+  { label: '06:00 AM', value: '06:00 AM', time24: '06:00' },
+  { label: '09:00 AM', value: '09:00 AM', time24: '09:00' },
+  { label: '06:00 PM', value: '06:00 PM', time24: '18:00' },
+  { label: 'Full Day', value: 'Full Day', time24: '06:00' },
 ] as const;
+const TIME_PICKER_OPTIONS = Array.from({ length: 48 }, (_, index) =>
+  formatTimeTo12Hour(
+    `${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 === 0 ? '00' : '30'}`
+  )
+);
+
+function formatCompactEventTime(value?: string): string {
+  if (!value) return '';
+  const match = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return value;
+  return `${Number(match[1])}:${match[2]} ${match[3].toUpperCase()}`;
+}
+
+function getVisibleClientNotes(notes: string): string {
+  const trimmedNotes = notes.trim();
+  if (!/^Proposal for\b/i.test(trimmedNotes)) return trimmedNotes;
+  return trimmedNotes.match(/(?:^|\s\|\s)Client Notes:\s*(.*)$/i)?.[1]?.trim() || '';
+}
+
+function getProposalAdditionPrice(notes: string, label: string): string | undefined {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = notes.match(new RegExp(`${escapedLabel}\\s*\\((\\+?₹[\\d,]+)\\)`, 'i'));
+  return match?.[1]?.replace(/^\+/, '');
+}
 
 function getStatusBadge(status: BookingStatus) {
   switch (status) {
@@ -569,7 +594,12 @@ export function AdminBookingModule() {
     setProposalLinks(null);
     setProposalLinkError('');
     setEditPackageId(booking.proposalDraft?.packageId || booking.packageId);
-    setEditQuote(booking.proposalDraft?.quotedAmount ?? booking.quotedAmount);
+    setEditQuote(
+      booking.proposalDraft?.totalAmount ??
+        booking.proposalDraft?.quotedAmount ??
+        booking.totalAmount ??
+        booking.quotedAmount
+    );
     setEditCrew(booking.assignedCrew || 'G Krishna + Studio Unit');
     setEditEventTime(booking.eventTime || '');
     setEditNote(
@@ -701,7 +731,9 @@ export function AdminBookingModule() {
       if (receivedProposalDraft && latestBooking.proposalDraft) {
         const draftPackageId = latestBooking.proposalDraft.packageId;
         setEditPackageId(draftPackageId);
-        setEditQuote(latestBooking.proposalDraft.quotedAmount);
+        setEditQuote(
+          latestBooking.proposalDraft.totalAmount ?? latestBooking.proposalDraft.quotedAmount
+        );
         setProposalLinks(null);
         void handleCreateProposalLink(latestBooking, draftPackageId, false);
       }
@@ -713,23 +745,67 @@ export function AdminBookingModule() {
     if (!activeBooking) return '';
     const pkgName = selectedPkg?.name || activeBooking.packageName;
     const resolvedTime = editEventTime.trim() || activeBooking.eventTime;
+    const optedServices =
+      activeBooking.proposalDraft?.optedServices ?? activeBooking.optedServices;
+    const requestedServices =
+      activeBooking.proposalDraft?.requestedServices ?? activeBooking.requestedServices;
+    const serviceNames = optedServices?.length
+      ? optedServices.map((service) => service.name).join(', ')
+      : requestedServices?.join(', ');
     return [
       `Vanakkam ${activeBooking.clientName}!`,
       `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
-      `Regarding your ${activeBooking.eventType} (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}:`,
+      `Regarding your ${englishOnlyName(activeBooking.eventType)} (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}:`,
       resolvedTime ? `Event time: ${resolvedTime}` : '',
-      activeBooking.requestedServices?.length
-        ? `Requested services: ${activeBooking.requestedServices.join(', ')}`
-        : '',
-      `Package: ${pkgName} | Quote: ${
-        editPackageId === CUSTOM_PACKAGE_ID ? 'Custom quote under discussion' : formatINR(editQuote)
-      }`,
+      `Package: ${pkgName} | Quote: ${formatINR(editQuote)}`,
+      serviceNames ? `Opted services: ${serviceNames}` : '',
       editNote ? `Note: ${editNote}` : '',
       `Reply to lock the date or schedule a call. Contact: 7418543123.`,
     ]
       .filter(Boolean)
       .join('\n');
   }, [activeBooking, selectedPkg, editQuote, editNote, editEventTime]);
+
+  const visibleClientNotes = activeBooking ? getVisibleClientNotes(activeBooking.notes) : '';
+  const planSnapshot = activeBooking?.packageSnapshot;
+  const planCustomizations = planSnapshot?.customizerState;
+  const inquiredPackage = activeBooking
+    ? packages.find((pkg) => pkg.id === activeBooking.packageId)
+    : undefined;
+  const inquiredBaseName =
+    planSnapshot?.basePackageName ||
+    inquiredPackage?.name ||
+    activeBooking?.packageName.replace(/\s*\(Total:.*\)$/i, '') ||
+    'Selected Plan';
+  const inquiredBasePrice =
+    planSnapshot?.basePrice ?? inquiredPackage?.price ?? activeBooking?.quotedAmount ?? 0;
+  const inquiredAdditions = (planCustomizations?.additions || []).map((label) => ({
+    label: englishOnlyName(label),
+    price: activeBooking ? getProposalAdditionPrice(activeBooking.notes, label) : undefined,
+  }));
+  const planDurationTag =
+    planCustomizations?.plan === 'full'
+      ? 'Full Day'
+      : planCustomizations?.plan === 'half'
+        ? 'Half Day'
+        : activeBooking?.durationTier === 'fullDay'
+          ? 'Full Day'
+          : activeBooking?.durationTier === 'halfDay'
+            ? 'Half Day'
+            : activeBooking?.durationTier === 'threeHours'
+            ? '3 Hours'
+            : '';
+  const planTags = [
+    planDurationTag,
+    planCustomizations?.guests === 'intimate'
+      ? '<200 Guests'
+      : planCustomizations?.guests === 'moderate'
+        ? '200-600 Guests'
+        : planCustomizations?.guests === 'grand'
+          ? '>600 Guests'
+          : '',
+    planCustomizations?.shootSetting || '',
+  ].filter(Boolean);
 
   const handleCopyMessage = async () => {
     try {
@@ -979,19 +1055,7 @@ export function AdminBookingModule() {
                   </TableCell>
                   <TableCell className="px-5 py-5">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-base font-medium text-white">{booking.eventType}</span>
-                      {(() => {
-                        const ev = activeEvents.find(
-                          (e) =>
-                            e.name.toLowerCase() === booking.eventType.toLowerCase() ||
-                            e.id.toLowerCase() === booking.eventType.toLowerCase()
-                        );
-                        return ev?.tamilName ? (
-                          <span className="text-[11px] text-[#D8C78E] font-medium bg-[#C5B378]/15 px-1.5 py-0.5 rounded border border-[#C5B378]/25">
-                            {ev.tamilName}
-                          </span>
-                        ) : null;
-                      })()}
+                      <span className="text-base font-medium text-white">{englishOnlyName(booking.eventType)}</span>
                     </div>
                     <p className="mt-1 text-sm text-[#E6ECEB]/75 min-w-[180px] max-w-[320px]">
                       {booking.venue}
@@ -1118,7 +1182,7 @@ export function AdminBookingModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isCreatingLead) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isCreatingLead) e.preventDefault(); }}
-          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+          className="w-[95vw] max-w-3xl max-h-[92dvh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
         >
           <DialogHeader>
             <div className="flex items-center gap-2">
@@ -1132,7 +1196,7 @@ export function AdminBookingModule() {
 
           <form onSubmit={handleCreateDirectLead} className="space-y-4 pt-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-2">
                 <label className="block text-xs font-medium text-[#D8C78E]">
                   Client Full Name *
                 </label>
@@ -1168,7 +1232,6 @@ export function AdminBookingModule() {
                   label="Ceremony / Event Type"
                   value={leadEventType}
                   onChange={handleLeadEventTypeChange}
-                  showTamilName={true}
                   required
                 />
               </div>
@@ -1455,157 +1518,86 @@ export function AdminBookingModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isProcessingAction) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isProcessingAction) e.preventDefault(); }}
-          className="max-w-2xl bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+          className="w-[calc(100vw-1rem)] max-w-6xl max-h-[92dvh] overflow-y-auto p-4 sm:p-6 bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
         >
           {activeBooking && (
             <>
               <DialogHeader>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 pr-8">
                   <p className="font-mono text-xs text-[#D8C78E] tabular-nums">
                     {activeBooking.referenceCode} · {formatDateDisplay(activeBooking.preferredDate)}
-                    {activeBooking.eventTime ? ` · ${activeBooking.eventTime}` : ''}
+                    {activeBooking.eventTime
+                      ? ` · ${formatCompactEventTime(activeBooking.eventTime)}`
+                      : ''}
                   </p>
-                  {activeBooking.source && (
-                    <span className="text-[11px] px-2 py-0.2 rounded border border-[#C5B378]/30 bg-[#C5B378]/10 text-[#D8C78E]">
-                      {activeBooking.source}
-                    </span>
-                  )}
                   {getStatusBadge(activeBooking.status)}
                 </div>
                 <DialogTitle className="text-xl text-white">
-                  {activeBooking.clientName} — {activeBooking.eventType}
+                  {activeBooking.clientName} — {englishOnlyName(activeBooking.eventType)}
                 </DialogTitle>
                 <DialogDescription className="text-[#E6ECEB]/80">
-                  Venue: {activeBooking.venue} · Phone: {activeBooking.phone}
+                  {activeBooking.venue} · {activeBooking.phone}
                 </DialogDescription>
+                {activeBooking.termsAccepted ? (
+                  <span
+                    className="inline-flex w-fit items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300"
+                    title={
+                      activeBooking.termsAcceptedAt
+                        ? `Accepted ${new Date(activeBooking.termsAcceptedAt).toLocaleString('en-IN', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}`
+                        : 'Terms and conditions accepted'
+                    }
+                  >
+                    T&amp;C v{activeBooking.termsVersion || '1.0'} ✓
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex w-fit items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300"
+                    title="Terms and conditions acceptance was not recorded for this inquiry"
+                  >
+                    T&amp;C not recorded
+                  </span>
+                )}
               </DialogHeader>
 
-              {activeBooking.termsAccepted ? (
-                <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                  <div>
-                    <span className="font-semibold text-emerald-300">Terms & Conditions Accepted</span>
-                    {activeBooking.termsVersion && (
-                      <span className="ml-1 text-emerald-400/80">· v{activeBooking.termsVersion}</span>
-                    )}
-                    {activeBooking.termsAcceptedAt && (
-                      <span className="ml-1 text-emerald-400/80">
-                        on {new Date(activeBooking.termsAcceptedAt).toLocaleString('en-IN', {
-                          dateStyle: 'medium',
-                          timeStyle: 'short',
-                        })}
-                      </span>
-                    )}
-                  </div>
+              {visibleClientNotes && (
+                <div className="rounded-lg border border-[#C5B378]/20 bg-[#072421] p-3 text-xs text-[#E6ECEB]/85">
+                  <span className="font-semibold text-[#D8C78E]">Client Notes: </span>
+                  {visibleClientNotes}
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-300">
-                  <Clock className="h-4 w-4 shrink-0 text-amber-400" />
+              )}
+
+              <div className="rounded-lg border border-[#C5B378]/30 bg-[#072421] px-3 py-2.5 text-xs">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[#E6ECEB]/85">
+                  <span className="font-semibold text-[#D8C78E]">Inquired Plan:</span>
                   <span>
-                    Terms & Conditions: Unrecorded / Direct inquiry (requires verbal or written guidelines agreement)
+                    Base: <strong>{inquiredBaseName}</strong> ({formatINR(inquiredBasePrice)})
                   </span>
-                </div>
-              )}
-
-              {activeBooking.notes && (
-                <div className="rounded-lg border border-[#C5B378]/20 bg-[#072421] p-3 text-xs text-[#E6ECEB]/85">
-                  <span className="font-semibold text-[#D8C78E]">Client Notes / Discussion: </span>
-                  {activeBooking.notes}
-                </div>
-              )}
-
-              {activeBooking.requestedServices?.length ? (
-                <div className="rounded-lg border border-[#C5B378]/20 bg-[#072421] p-3 text-xs text-[#E6ECEB]/85">
-                  <span className="font-semibold text-[#D8C78E]">Requested services: </span>
-                  {activeBooking.requestedServices.join(', ')}
-                </div>
-              ) : null}
-
-              {/* Inquired Plan Breakdown (from Live Proposal Intake) */}
-              <div className="rounded-xl border border-[#C5B378]/35 bg-[#072421] p-3.5 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                      Inquiry Plan &amp; Live Customizer Breakdown
+                  {inquiredAdditions.map((addition, index) => (
+                    <span key={`${addition.label}-${index}`} className="text-emerald-300">
+                      · +{addition.label}{addition.price ? ` (${addition.price})` : ''}
                     </span>
-                    {activeBooking.packageSnapshot?.selectedTier && (
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
-                          getPackageTierInfo(activeBooking.packageSnapshot.selectedTier).badgeClass
-                        }`}
-                      >
-                        {getPackageTierInfo(activeBooking.packageSnapshot.selectedTier).tier}
-                      </span>
-                    )}
-                  </div>
-                  {activeBooking.eventTime && (
-                    <span className="font-mono text-xs text-[#D8C78E] bg-[#092E2B] px-2 py-0.5 rounded border border-[#C5B378]/25">
-                      Time: {activeBooking.eventTime}
+                  ))}
+                  {planCustomizations?.exclusions?.map((exclusion, index) => (
+                    <span key={`${exclusion}-${index}`} className="text-amber-300">
+                      · −{englishOnlyName(exclusion)}
                     </span>
-                  )}
+                  ))}
+                  <strong className="text-[#D8C78E]">
+                    · Total: {formatINR(editQuote)}
+                  </strong>
+                  {planTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-[#C5B378]/25 bg-[#092E2B] px-2 py-0.5 text-[10px] text-[#D8C78E]"
+                    >
+                      {tag}
+                    </span>
+                  ))}
                 </div>
 
-                {activeBooking.packageSnapshot ? (
-                  <div className="space-y-1.5 text-xs text-[#E6ECEB]/85">
-                    <div className="flex items-center justify-between">
-                      <span>
-                        Base Plan:{' '}
-                        <strong>
-                          {activeBooking.packageSnapshot.basePackageName || activeBooking.packageName}
-                        </strong>
-                      </span>
-                      <span className="font-mono text-[#D8C78E] font-bold">
-                        {formatINR(activeBooking.packageSnapshot.basePrice || activeBooking.quotedAmount)}
-                      </span>
-                    </div>
-
-                    {activeBooking.packageSnapshot.customizerState?.additions?.length ? (
-                      <div className="text-[11px] text-emerald-300 flex flex-wrap gap-1 items-center">
-                        <span className="font-semibold text-emerald-400">Added Upgrades:</span>
-                        {activeBooking.packageSnapshot.customizerState.additions.map((add, i) => (
-                          <span
-                            key={i}
-                            className="bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded"
-                          >
-                            +{add}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {activeBooking.packageSnapshot.customizerState?.exclusions?.length ? (
-                      <div className="text-[11px] text-amber-300 flex flex-wrap gap-1 items-center">
-                        <span className="font-semibold text-amber-400">Excluded Deductions:</span>
-                        {activeBooking.packageSnapshot.customizerState.exclusions.map((ex, i) => (
-                          <span
-                            key={i}
-                            className="bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded"
-                          >
-                            -{ex}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <div className="flex items-center justify-between pt-1 border-t border-white/10 font-bold">
-                      <span className="text-[#D8C78E]">Inquired Live Total Rate:</span>
-                      <span className="font-mono text-sm text-emerald-400 font-extrabold">
-                        {formatINR(activeBooking.quotedAmount)}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between text-xs">
-                    <span>
-                      Inquired Package: <strong>{activeBooking.packageName}</strong>
-                    </span>
-                    <span className="font-mono text-sm text-[#D8C78E] font-bold">
-                      {formatINR(activeBooking.quotedAmount)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Opted Services in Manage Modal */}
                 {activeBooking.requestedServices && activeBooking.requestedServices.length > 0 && (
                   <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 text-xs">
                     <span className="text-[#D8C78E] font-semibold text-[11px]">Opted Services:</span>
@@ -1623,12 +1615,7 @@ export function AdminBookingModule() {
 
               {/* Instant 3-Tier Switcher Bar (Live MongoDB Rates) */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-medium text-[#D8C78E]">
-                    Switch Base Tier for {activeBooking.eventType} (Live MongoDB Rates)
-                  </label>
-                  <span className="text-[10px] text-[#E6ECEB]/60">Click tier to update quote instantly</span>
-                </div>
+                <label className="block text-xs font-medium text-[#D8C78E]">Base Tier</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {getPackagesForEvent(activeBooking.eventType)
                     .filter((p) => (p.sortOrder ?? 2) >= 1 && (p.sortOrder ?? 2) <= 3)
@@ -1669,63 +1656,25 @@ export function AdminBookingModule() {
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#D8C78E]">Proposal revision</p>
-                    <p className="text-[11px] text-[#E6ECEB]/65">
-                      A private link is prepared for this inquiry. Edit the plan, save it here, then share it for client review.
-                    </p>
-                    {activeBooking.proposalDraft && (
-                      <p className="mt-1 text-[10px] font-medium text-amber-200">
-                        Client resubmitted a proposal for review.
-                      </p>
-                    )}
-                  </div>
-                  {proposalLinks ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 px-3 py-2">
+                <span className="mr-1 text-xs font-semibold text-[#D8C78E]">Proposal:</span>
+                {activeBooking.proposalDraft && (
+                  <span className="text-[10px] font-medium text-amber-200">
+                    Client resubmitted for review
+                  </span>
+                )}
+                {proposalLinks ? (
+                  <>
                     <a
                       href={proposalLinks.editor}
-                      className="inline-flex h-8 shrink-0 items-center rounded-md bg-[#C5B378] px-3 text-xs font-semibold text-[#072421] hover:bg-[#D8C78E]"
+                      className="inline-flex h-8 items-center rounded-md bg-[#C5B378] px-3 text-xs font-semibold text-[#072421] hover:bg-[#D8C78E]"
                     >
                       <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                      Open Proposal Editor
+                      Edit Plan
                     </a>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={isProcessingAction || isCreatingProposalLink || activeBooking.status === 'Confirmed' || activeBooking.status === 'Declined'}
-                      onClick={() => void handleCreateProposalLink()}
-                      className="shrink-0 border-[#C5B378]/40 text-[#E6ECEB]"
-                    >
-                      {isCreatingProposalLink ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                      )}
-                      {isCreatingProposalLink
-                        ? 'Preparing Link...'
-                        : activeBooking.status === 'Confirmed' || activeBooking.status === 'Declined'
-                          ? 'Inquiry Closed'
-                          : 'Retry Proposal Link'}
-                    </Button>
-                  )}
-                </div>
-                {proposalLinkError && (
-                  <p role="alert" className="text-[11px] text-rose-300">
-                    Could not prepare the proposal link: {proposalLinkError}
-                  </p>
-                )}
-                {proposalLinks && (
-                  <div className="space-y-2 border-t border-[#C5B378]/15 pt-2">
-                    <p className="break-all font-mono text-[10px] text-[#E6ECEB]/60">
-                      {proposalLinks.client}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={handleCopyProposalLink}>
                       <Copy className="mr-1.5 h-3.5 w-3.5" />
-                      Copy Client Link
+                      Copy Link
                     </Button>
                     <Button
                       type="button"
@@ -1735,46 +1684,40 @@ export function AdminBookingModule() {
                       className="border-[#25D366]/40 text-emerald-300"
                     >
                       <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
-                      Share on WhatsApp
+                      WhatsApp
                     </Button>
-                    </div>
-                  </div>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isProcessingAction || isCreatingProposalLink || activeBooking.status === 'Confirmed' || activeBooking.status === 'Declined'}
+                    onClick={() => void handleCreateProposalLink()}
+                    className="border-[#C5B378]/40 text-[#E6ECEB]"
+                  >
+                    {isCreatingProposalLink ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {isCreatingProposalLink
+                      ? 'Preparing…'
+                      : activeBooking.status === 'Confirmed' || activeBooking.status === 'Declined'
+                        ? 'Closed'
+                        : 'Retry'}
+                  </Button>
+                )}
+                {proposalLinkError && (
+                  <p role="alert" className="w-full text-[11px] text-rose-300">
+                    Could not prepare the proposal link: {proposalLinkError}
+                  </p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-[#D8C78E]">
-                    Assigned Package Dropdown
-                  </label>
-                  <select
-                    disabled={isProcessingAction}
-                    value={editPackageId}
-                    onChange={(e) => {
-                      const nextId = e.target.value;
-                      setEditPackageId(nextId);
-                      const found = packages.find((p) => p.id === nextId);
-                      setEditQuote(found?.price ?? 0);
-                      void handleCreateProposalLink(activeBooking, nextId, false);
-                    }}
-                    className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
-                  >
-                    {getPackagesForEvent(activeBooking.eventType).map((p) => {
-                      const tier = getPackageTierInfo(p);
-                      return (
-                        <option key={p.id} value={p.id}>
-                          [{tier.tier}] {p.name} ({formatINR(p.price)})
-                        </option>
-                      );
-                    })}
-                    <option value={CUSTOM_PACKAGE_ID}>{CUSTOM_PACKAGE_NAME}</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-[#D8C78E]">
-                    Studio Quote (INR)
-                  </label>
+                  <label className="block text-xs font-medium text-[#D8C78E]">Quote (₹)</label>
                   <input
                     type="number"
                     disabled={isProcessingAction}
@@ -1785,11 +1728,11 @@ export function AdminBookingModule() {
                 </div>
               </div>
 
-              {/* Interactive Time Picker & Quick Slots for Manage Dialog */}
+              {/* Event Time and Quick Slots */}
               <div className="space-y-1.5 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-medium text-[#D8C78E]">
-                    Ceremony Time / Slot (Interactive Time Picker)
+                    Event Time
                   </label>
                   {editEventTime && (
                     <button
@@ -1802,30 +1745,43 @@ export function AdminBookingModule() {
                     </button>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative sm:w-44">
-                    <input
-                      type="time"
-                      disabled={isProcessingAction}
-                      value={extract24HourTime(editEventTime)}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEditEventTime(val ? formatTimeTo12Hour(val) : '');
-                      }}
-                      className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60 cursor-pointer"
-                    />
-                  </div>
+                <div className="flex gap-2">
                   <input
                     type="text"
                     disabled={isProcessingAction}
                     value={editEventTime}
                     onChange={(e) => setEditEventTime(e.target.value)}
-                    placeholder="e.g., 06:00 AM (Muhurtham) or Full-Day Session"
-                    className="h-10 flex-1 rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
+                    placeholder="e.g. 06:00 AM or Full Day"
+                    className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                   />
                 </div>
+                <details className="rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium text-[#D8C78E]">
+                    Choose time ▾
+                  </summary>
+                  <div className="mt-2 grid max-h-40 grid-cols-3 gap-1 overflow-y-auto pr-1 sm:grid-cols-6">
+                    {TIME_PICKER_OPTIONS.map((time) => (
+                      <button
+                        key={time}
+                        type="button"
+                        disabled={isProcessingAction}
+                        onClick={(event) => {
+                          setEditEventTime(time);
+                          const picker = event.currentTarget.closest('details');
+                          if (picker) picker.open = false;
+                        }}
+                        className={`rounded border px-1.5 py-1 text-[10px] ${
+                          extract24HourTime(editEventTime) === extract24HourTime(time)
+                            ? 'border-[#D8C78E] bg-[#C5B378]/25 text-[#D8C78E]'
+                            : 'border-[#C5B378]/15 bg-[#072421] text-[#E6ECEB]/80'
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    ))}
+                  </div>
+                </details>
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[10px] text-[#C5B378]/70">Quick Slots:</span>
                   {COMMON_EVENT_TIME_SLOTS.map((slot) => {
                     const isSelected =
                       editEventTime.toLowerCase().includes(slot.time24.toLowerCase()) ||
@@ -1867,7 +1823,7 @@ export function AdminBookingModule() {
 
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-[#D8C78E]">
-                    Acknowledgement / Discussion Note
+                    Reply Note
                   </label>
                   <input
                     type="text"
@@ -1879,13 +1835,17 @@ export function AdminBookingModule() {
                 </div>
               </div>
 
-              {/* Pre-filled WhatsApp / SMS Template */}
-              <div className="space-y-2 rounded-xl border border-[#C5B378]/25 bg-[#072421] p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#D8C78E]">
-                    Client Follow-Up WhatsApp / SMS Draft
-                  </span>
-                  <div className="flex items-center gap-2">
+              <div className="rounded-xl border border-[#C5B378]/25 bg-[#072421] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <details className="min-w-0 flex-1">
+                    <summary className="cursor-pointer text-xs font-semibold text-[#D8C78E]">
+                      Preview Draft ▾
+                    </summary>
+                    <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#E6ECEB]/90">
+                      {generatedMessage}
+                    </pre>
+                  </details>
+                  <div className="flex shrink-0 flex-nowrap items-center gap-1.5">
                     <Button
                       type="button"
                       size="sm"
@@ -1894,7 +1854,7 @@ export function AdminBookingModule() {
                       onClick={handleCopyMessage}
                     >
                       <Copy className="h-3.5 w-3.5" />
-                      Copy Text
+                      Copy
                     </Button>
                     <Button
                       type="button"
@@ -1905,13 +1865,10 @@ export function AdminBookingModule() {
                       className="cursor-pointer border-[#C5B378]/30 text-[#E6ECEB] hover:text-[#25D366] hover:border-[#25D366]/50"
                     >
                       <MessageCircle className="h-3.5 w-3.5 mr-1.5 text-[#25D366]" />
-                      Send via WhatsApp
+                      WhatsApp
                     </Button>
                   </div>
                 </div>
-                <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#E6ECEB]/90">
-                  {generatedMessage}
-                </pre>
               </div>
 
               <DialogFooter className="flex-wrap gap-2 sm:justify-between">

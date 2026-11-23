@@ -35,6 +35,7 @@ import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { BilingualBillModal } from './BilingualBillModal';
 import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
 import { Badge } from '@/src/components/ui/badge';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import {
@@ -403,7 +404,7 @@ export function AdminEventsTimelineModule() {
                       </Badge>
                     </div>
                     <CardTitle className="text-lg text-white pt-1">
-                      {project.clientName} — {project.eventType}
+                      {project.clientName} — {englishOnlyName(project.eventType)}
                     </CardTitle>
                     <CardDescription>
                       {formatDateDisplay(project.eventDate)}
@@ -470,7 +471,7 @@ export function AdminEventsTimelineModule() {
           onEscapeKeyDown={(e) => {
             if (isRecordingPayment || isSavingFinancials || isBillModalOpen) e.preventDefault();
           }}
-          className="max-w-4xl bg-[#092E2B] border-[#C5B378]/35"
+          className="w-[95vw] max-w-5xl max-h-[92dvh] bg-[#092E2B] border-[#C5B378]/35"
         >
           {activeProject && (
             <>
@@ -480,7 +481,7 @@ export function AdminEventsTimelineModule() {
                   {activeProject.phone}
                 </p>
                 <DialogTitle className="text-xl text-white">
-                  {activeProject.clientName} — {activeProject.eventType}
+                  {activeProject.clientName} — {englishOnlyName(activeProject.eventType)}
                 </DialogTitle>
                 <DialogDescription className="text-[#E6ECEB]/80">
                   {activeProject.venue} · {activeProject.packageName}
@@ -492,7 +493,7 @@ export function AdminEventsTimelineModule() {
                         key={idx}
                         className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#C5B378]/35 bg-[#C5B378]/15 text-[#D8C78E]"
                       >
-                        ✓ {svc.name} ({svc.quantity} {svc.unitLabel}{svc.quantity > 1 ? 's' : ''})
+                        ✓ {englishOnlyName(svc.name)} ({svc.quantity} {svc.unitLabel}{svc.quantity > 1 ? 's' : ''})
                       </span>
                     ))}
                   </div>
@@ -875,7 +876,7 @@ export function AdminEventsTimelineModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isCreatingProject) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isCreatingProject) e.preventDefault(); }}
-          className="max-w-lg bg-[#092E2B] border-[#C5B378]/35"
+          className="w-[95vw] max-w-xl max-h-[92dvh] bg-[#092E2B] border-[#C5B378]/35"
         >
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
@@ -916,7 +917,6 @@ export function AdminEventsTimelineModule() {
                   onChange={(selectedId, selectedEv) => {
                     setNewEventType((selectedEv?.name || selectedId) as EventCategory);
                   }}
-                  showTamilName={true}
                   required
                 />
               </div>

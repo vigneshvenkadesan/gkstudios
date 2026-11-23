@@ -134,11 +134,6 @@ export function EventCategoryTabs({
 
                 <div className="flex flex-col text-left leading-tight">
                   <span className="font-semibold tracking-wide">{group.label}</span>
-                  {group.tamilLabel && (
-                    <span className="text-[10px] text-[#E6ECEB]/50 font-normal">
-                      {group.tamilLabel}
-                    </span>
-                  )}
                 </div>
 
                 {/* Event count badge */}
@@ -193,16 +188,6 @@ export function EventCategoryTabs({
                   }`}
                 >
                   <span className="leading-snug">{ev.name}</span>
-
-                  {ev.tamilName && (
-                    <span
-                      className={`text-[10px] transition-colors ${
-                        isSelected ? 'text-[#061E1C]/75 font-normal' : 'text-[#D8C78E]/70 font-normal'
-                      }`}
-                    >
-                      • {ev.tamilName}
-                    </span>
-                  )}
 
                   {count > 0 && (
                     <span

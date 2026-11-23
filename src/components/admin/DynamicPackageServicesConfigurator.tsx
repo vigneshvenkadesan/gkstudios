@@ -19,6 +19,7 @@ import {
   resolveServicePrice,
 } from '@/src/lib/pricing';
 import { formatINR } from '@/src/lib/utils';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { Badge } from '@/src/components/ui/badge';
 
 interface DynamicPackageServicesConfiguratorProps {
@@ -294,13 +295,8 @@ export function DynamicPackageServicesConfigurator({
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`text-xs font-semibold ${isIncluded ? 'text-white' : 'text-[#E6ECEB]/85'}`}>
-                        {svc.name}
+                        {englishOnlyName(svc.name)}
                       </span>
-                      {svc.tamilName && (
-                        <span className="text-[10px] text-[#D8C78E]/80 hidden md:inline">
-                          ({svc.tamilName})
-                        </span>
-                      )}
                       <Badge
                         variant="neutral"
                         className="border-[#C5B378]/20 bg-[#061E1C] text-[9px] text-[#D8C78E] py-0 px-1"
@@ -354,7 +350,7 @@ export function DynamicPackageServicesConfigurator({
 
                     {svc.pricingType === 'tiered' && (
                       <select
-                        aria-label={`${svc.name} duration tier`}
+                        aria-label={`${englishOnlyName(svc.name)} duration tier`}
                         value={itemTier}
                         onChange={(event) =>
                           onChangeIncludedServices(
@@ -433,14 +429,14 @@ export function DynamicPackageServicesConfigurator({
                       onChange={() => handleToggleAddon(service)}
                       className="h-4 w-4 accent-[#C5B378]"
                     />
-                    {service.name}
+                    {englishOnlyName(service.name)}
                   </label>
                   {addon && (
                     <>
                       <div className="flex items-center rounded border border-[#C5B378]/35 bg-[#072421]">
                         <button
                           type="button"
-                          aria-label={`Decrease ${service.name} add-on quantity`}
+                          aria-label={`Decrease ${englishOnlyName(service.name)} add-on quantity`}
                           onClick={() =>
                             handleAddonQuantity(service.slug, quantity - (service.pricingType === 'per_unit' ? 5 : 1))
                           }
@@ -452,7 +448,7 @@ export function DynamicPackageServicesConfigurator({
                         </span>
                         <button
                           type="button"
-                          aria-label={`Increase ${service.name} add-on quantity`}
+                          aria-label={`Increase ${englishOnlyName(service.name)} add-on quantity`}
                           onClick={() =>
                             handleAddonQuantity(service.slug, quantity + (service.pricingType === 'per_unit' ? 5 : 1))
                           }
@@ -461,7 +457,7 @@ export function DynamicPackageServicesConfigurator({
                       </div>
                       {service.pricingType === 'tiered' && (
                         <select
-                          aria-label={`${service.name} add-on duration tier`}
+                          aria-label={`${englishOnlyName(service.name)} add-on duration tier`}
                           value={price.durationTier}
                           onChange={(event) => handleAddonTier(service.slug, event.target.value as DurationTier)}
                           className="h-8 rounded border border-[#C5B378]/35 bg-[#072421] px-2 text-[10px] text-white"

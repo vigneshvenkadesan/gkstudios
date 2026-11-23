@@ -200,11 +200,6 @@ export function AdvisorEventSelector({
                   )}
                 </div>
 
-                {event.tamilName && (
-                  <p className="text-xs text-[#D8C78E] font-medium tracking-wide">
-                    {event.tamilName}
-                  </p>
-                )}
               </div>
 
               <div className="mt-4 pt-3 border-t border-[#C5B378]/15 flex items-center justify-between text-xs">
@@ -237,9 +232,6 @@ export function AdvisorEventSelector({
           <strong className="text-white font-medium">
             {selectedEvent?.name || 'Wedding'}
           </strong>
-          {selectedEvent?.tamilName && (
-            <span className="text-[#D8C78E] ml-1">({selectedEvent.tamilName})</span>
-          )}
         </div>
 
         <Button

@@ -25,6 +25,7 @@ import {
 } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf } from '@/src/lib/generateBillPdfBlob';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
 import { toast } from 'sonner';
 
@@ -104,9 +105,7 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
       `Here is your official payment receipt from GK STUDIOS:`,
       ``,
       `🧾 Bill Number: ${bill.billNumber}`,
-      `✨ Event: ${bill.eventDetails.eventName}${
-        bill.eventDetails.tamilEventName ? ` (${bill.eventDetails.tamilEventName})` : ''
-      }`,
+      `✨ Event: $      {englishOnlyName(bill.eventDetails.eventName)}`,
       `📅 Event Date & Timing: ${bill.eventDetails.eventDate} at ${bill.eventDetails.eventTime || '06:00 AM'}`,
       `📍 Venue: ${bill.eventDetails.venue}`,
       `📦 Package: ${bill.packageDetails.basePackageName}`,
@@ -262,11 +261,6 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
             <div className="space-y-1 text-slate-800">
               <p className="text-sm font-bold text-[#072421]">
                 {bill.eventDetails.eventName}{' '}
-                {bill.eventDetails.tamilEventName && (
-                  <span className="text-xs text-[#9A7B38] font-normal">
-                    ({bill.eventDetails.tamilEventName})
-                  </span>
-                )}
               </p>
               <p className="flex items-center gap-1.5 text-xs text-slate-700">
                 <Calendar className="h-3 w-3 text-[#9A7B38]" />
@@ -311,10 +305,7 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                     <div className="flex items-start gap-1.5">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-semibold text-slate-900 block">{svc.name}</span>
-                        {svc.tamilName && (
-                          <span className="text-[10px] text-slate-500 font-tamil block">{svc.tamilName}</span>
-                        )}
+                        <span className="font-semibold text-slate-900 block">{englishOnlyName(svc.name)}</span>
                         <span className="text-[10px] text-slate-500">
                           {svc.quantity} {svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹{svc.unitPrice.toLocaleString('en-IN')}
                           {svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}

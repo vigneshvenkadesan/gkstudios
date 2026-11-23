@@ -206,14 +206,11 @@ export function CameraDemoShowcaseSection({
 
                 {/* Natural Flow Content Row (Zero Overlaps, Zero Clipping) */}
                 <div className="flex items-start justify-between gap-3 min-h-[48px]">
-                  {/* Left Info: English Title, Tamil Subtitle & Storytelling Tagline */}
+                  {/* English title and storytelling tagline */}
                   <div className="min-w-0 flex-1 space-y-1">
                     <h4 className="font-serif text-base sm:text-lg font-bold text-white leading-snug break-words">
                       {item.enTitle}
                     </h4>
-                    <p className="text-xs sm:text-sm text-[#D8C78E] font-medium leading-relaxed break-words">
-                      {item.taSubtitle}
-                    </p>
                     <p className="text-xs text-[#E6ECEB]/75 leading-relaxed break-words pt-0.5">
                       {item.shortTagline}
                     </p>
@@ -485,10 +482,6 @@ function CameraMediaLightboxModal({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]">
                   {crewItem.enTitle}
-                </span>
-                <span className="text-[10px] text-[#E6ECEB]/60">•</span>
-                <span className="text-[10px] text-[#D8C78E] font-medium leading-relaxed break-words">
-                  {crewItem.taSubtitle}
                 </span>
               </div>
               <h4 className="font-serif text-sm sm:text-base font-bold text-white break-words">

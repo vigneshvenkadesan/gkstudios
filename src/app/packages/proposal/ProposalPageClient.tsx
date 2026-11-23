@@ -112,7 +112,6 @@ function matchesCategory(eventCategory?: string, groupId?: string): boolean {
 interface FeatureMeta {
   key: keyof PackageIncludedFeatures;
   label: string;
-  tamilLabel?: string;
   defaultDeduction: number;
   description: string;
   downgradeLabel: string;
@@ -122,7 +121,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   traditionalPhoto: {
     key: 'traditionalPhoto',
     label: 'Traditional Photography',
-    tamilLabel: 'பாரம்பரியப் புகைப்படம்',
     defaultDeduction: -5000,
     description: 'Stage group photos, sacred rituals & complete attendance archive.',
     downgradeLabel: 'Opt-out of Traditional Photo',
@@ -130,7 +128,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   traditionalVideo: {
     key: 'traditionalVideo',
     label: 'Traditional Video (Full Ceremony)',
-    tamilLabel: 'பாரம்பரிய வீடியோ பதிவு',
     defaultDeduction: -6000,
     description: 'Full-length Full HD recording of all rituals, mantras & speeches.',
     downgradeLabel: 'Opt-out of Traditional Video',
@@ -138,7 +135,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   candidPhoto: {
     key: 'candidPhoto',
     label: 'Candid Photography',
-    tamilLabel: 'கேன்டிட் புகைப்படம்',
     defaultDeduction: -8000,
     description: 'Unposed emotions, magazine portraits & soft background blur.',
     downgradeLabel: 'Opt-out of Candid Photo',
@@ -146,7 +142,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   candidVideo: {
     key: 'candidVideo',
     label: 'Candid Cinematography & Reels',
-    tamilLabel: 'சினிமாடிக் வீடியோ & ரீல்ஸ்',
     defaultDeduction: -10000,
     description: '3–5 min emotional highlight movie on gimbal + 60s Instagram reels.',
     downgradeLabel: 'Opt-out of Candid Cinema',
@@ -154,7 +149,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   printedAlbum: {
     key: 'printedAlbum',
     label: 'Printed Heirloom Album & Presentation Box',
-    tamilLabel: 'அச்சு ஆல்பம் & பெட்டி',
     defaultDeduction: -4000,
     description: 'Layflat Karizma album with presentation keepsake box.',
     downgradeLabel: 'Digital-Only (Remove Printed Album)',
@@ -162,7 +156,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   drone: {
     key: 'drone',
     label: 'Drone Aerial Coverage',
-    tamilLabel: 'ட்ரோன் வான்வழிப் படப்பிடிப்பு',
     defaultDeduction: -8000,
     description: '4K aerial flyovers of venue, grand entries & crowd scale.',
     downgradeLabel: 'Opt-out of Drone Aerial',
@@ -170,7 +163,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   ledWall: {
     key: 'ledWall',
     label: 'Live LED Wall Screen',
-    tamilLabel: 'நேரடி எல்.ஈ.டி திரை',
     defaultDeduction: -10000,
     description: 'Live stage broadcast across the hall for all guests.',
     downgradeLabel: 'Opt-out of Live LED Wall',
@@ -178,7 +170,6 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   outdoorShoot: {
     key: 'outdoorShoot',
     label: 'Outdoor Couple Shoot',
-    tamilLabel: 'அவுட்டோர் ஜோடி படப்பிடிப்பு',
     defaultDeduction: -5000,
     description: 'Pre/post celebration couple portrait session.',
     downgradeLabel: 'Opt-out of Outdoor Shoot',
@@ -727,7 +718,6 @@ export function ProposalPageClient() {
       id: string;
       featureKey: string;
       label: string;
-      tamilLabel?: string;
       description: string;
       isBaseIncluded: boolean;
       priceDelta: number;
@@ -787,7 +777,6 @@ export function ProposalPageClient() {
           id: `inc-${k}`,
           featureKey: k,
           label: meta.label,
-          tamilLabel: meta.tamilLabel,
           description: meta.description,
           isBaseIncluded: true,
           priceDelta: deduction,
@@ -1310,9 +1299,7 @@ export function ProposalPageClient() {
       `Vanakkam GK Studios! 📸`,
       `Here is our tailored proposal for our celebration:`,
       ``,
-      `✨ Event: ${currentEvent?.name || 'Celebration'}${
-        currentEvent?.tamilName ? ` (${currentEvent.tamilName})` : ''
-      }`,
+      `✨ Event: ${currentEvent?.name || 'Celebration'}`,
       `📋 ${asksForShootSetting ? 'Shoot setting' : 'Guest count'}: ${
         asksForShootSetting ? selectedShootSetting : guestsShortLabel
       }`,
@@ -1792,11 +1779,6 @@ export function ProposalPageClient() {
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
               {currentEvent?.name || 'Milestone'} Proposal
             </h1>
-            {currentEvent?.tamilName && (
-              <span className="text-sm font-sans text-[#D8C78E] font-medium">
-                ({currentEvent.tamilName})
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -2157,11 +2139,6 @@ export function ProposalPageClient() {
                                   >
                                     {el.label}
                                   </span>
-                                  {el.tamilLabel && (
-                                    <span className="text-[10px] text-[#D8C78E]/80 hidden sm:inline">
-                                      ({el.tamilLabel})
-                                    </span>
-                                  )}
                                 </div>
                                 <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
                                   {el.description}

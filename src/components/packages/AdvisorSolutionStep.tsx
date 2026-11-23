@@ -24,6 +24,7 @@ import {
   ScaleOption,
 } from '@/src/data/packageAdvisorConfig';
 import { formatINR } from '@/src/lib/utils';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { Button } from '@/src/components/ui/button';
 
 interface CategorizedDeliverable {
@@ -340,15 +341,9 @@ export function AdvisorSolutionStep({
                               : 'text-white group-hover:text-[#F4E8C1]'
                           }`}
                         >
-                          {addon.name}
+                          {englishOnlyName(addon.name)}
                         </span>
                       </div>
-
-                      {addon.tamilName && (
-                        <p className="text-[11px] text-[#D8C78E]/90 font-medium">
-                          {addon.tamilName}
-                        </p>
-                      )}
 
                       <p className="text-[11px] text-[#E6ECEB]/70 leading-relaxed">
                         {addon.description}

@@ -42,11 +42,11 @@ export interface StudioEvent {
 }
 
 export const EVENT_CATEGORY_GROUPS = [
-  { id: 'wedding', label: 'Wedding', tamilLabel: 'திருமணம்', icon: 'Heart' },
-  { id: 'baby-maternity', label: 'Baby & Maternity', tamilLabel: 'தாய்மை & குழந்தை', icon: 'Baby' },
-  { id: 'birthday-kids', label: 'Birthday & Kids', tamilLabel: 'பிறந்தநாள் & குழந்தைகள்', icon: 'Cake' },
-  { id: 'family-traditional', label: 'Family & Traditional', tamilLabel: 'குடும்பம் & பாரம்பரியம்', icon: 'Flame' },
-  { id: 'corporate-business', label: 'Corporate & Business', tamilLabel: 'வணிகம் & நிறுவனம்', icon: 'Briefcase' },
+  { id: 'wedding', label: 'Wedding', icon: 'Heart' },
+  { id: 'baby-maternity', label: 'Baby & Maternity', icon: 'Baby' },
+  { id: 'birthday-kids', label: 'Birthday & Kids', icon: 'Cake' },
+  { id: 'family-traditional', label: 'Family & Traditional', icon: 'Flame' },
+  { id: 'corporate-business', label: 'Corporate & Business', icon: 'Briefcase' },
 ] as const;
 
 export type EventCategoryGroupId = (typeof EVENT_CATEGORY_GROUPS)[number]['id'];

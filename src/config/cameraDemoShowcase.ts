@@ -21,7 +21,6 @@ export interface ShowcaseMediaItem {
 export interface CameraCrewDemoItem {
   id: string;
   enTitle: string;
-  taSubtitle: string;
   shortTagline: string; // 3–5 word collapsed preview
   description: string; // Collapsed by default; expands on tap
   badge?: string; // e.g. "Essential Base" | "Signature Style" | "Cinema 4K"
@@ -33,7 +32,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'traditional-photo',
     enTitle: 'Traditional Photography',
-    taSubtitle: 'பாரம்பரியப் புகைப்படம்',
     shortTagline: 'Every Sacred Ritual & Every Family Guest',
     description:
       'Ensures every sacred blessing, holy thali tying, and family stage portrait is captured with crisp, balanced lighting and direct eye contact—so no elder, relative, or arriving guest is missed in your keepsake album.',
@@ -84,7 +82,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'candid-photo',
     enTitle: 'Candid Photography',
-    taSubtitle: 'கேன்டிட் புகைப்படம்',
     shortTagline: 'Unscripted Emotions & Magazine Portraits',
     description:
       'Captures spontaneous tears of joy, stolen glances, playful laughter, and elegant couple portraits with soft dreamy backgrounds without interrupting sacred ceremonies.',
@@ -135,7 +132,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'traditional-video',
     enTitle: 'Traditional Video (Full Ceremony)',
-    taSubtitle: 'பாரம்பரிய வீடியோ',
     shortTagline: 'Complete Chronological Ceremony Archive',
     description:
       'Continuous, uninterrupted Full HD recording of the entire ceremony with crystal-clear audio so family members abroad and future generations can re-live every mantra, speech, and greeting on their living room TV.',
@@ -195,7 +191,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'candid-cinema',
     enTitle: 'Candid Cinematography & Reels',
-    taSubtitle: 'சினிமாடிக் வீடியோ & ரீல்ஸ்',
     shortTagline: 'Emotional Movie Trailer & Instagram Reels',
     description:
       'Silky-smooth cinematic gliding shots and dramatic slow motion, color-graded into an emotional 3–5 minute music film trailer plus 60-second vertical reels for Instagram & WhatsApp.',
@@ -255,7 +250,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'drone-aerial',
     enTitle: 'Drone Aerial Coverage',
-    taSubtitle: 'ட்ரோன் வான்வழிப் படப்பிடிப்பு',
     shortTagline: 'Grand Venue Architecture & Celebration Scale',
     description:
       "Sweeping bird's-eye views revealing majestic Dravidian temple gopurams, grand arrival processions, illuminated wedding halls, and the breathtaking scale of your gathering.",
@@ -315,7 +309,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'printed-albums',
     enTitle: 'Printed Albums & Spreads',
-    taSubtitle: 'புகைப்பட ஆல்பம் & கவர்',
     shortTagline: 'Heirloom Velvet, Acrylic & Lay-Flat Spreads',
     description:
       'Handcrafted panoramic seamless lay-flat photo books on tear-proof archival photographic paper, paired with personalized royal velvet or crystal acrylic glass covers and wooden keepsake boxes.',
@@ -372,7 +365,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'led-wall',
     enTitle: 'Live LED Wall',
-    taSubtitle: 'நேரடி எல்.ஈ.டி திரை',
     shortTagline: 'Everyone Sees Every Sacred Ritual Live',
     description:
       'Ultra-bright stage broadcast across dining and hall seating rows, ensuring elderly relatives witness the thali tying with razor-sharp clarity without stage crowding.',
@@ -426,7 +418,6 @@ export const CAMERA_CREW_DEMO_ITEMS: CameraCrewDemoItem[] = [
   {
     id: 'outdoor-shoot',
     enTitle: 'Outdoor Couple Shoot',
-    taSubtitle: 'வெளிப்புற ஜோடி படப்பிடிப்பு',
     shortTagline: 'Pre/Post-Wedding Romance & Sunset Frames',
     description:
       'Scenic location photography at beach shores, temple lakes, and royal heritage pillars capturing timeless romantic chemistry before or after your wedding day.',

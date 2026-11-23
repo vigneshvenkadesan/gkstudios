@@ -59,6 +59,7 @@ import {
 } from '@/src/lib/pricing';
 import { DynamicPackageServicesConfigurator } from './DynamicPackageServicesConfigurator';
 import { formatINR } from '@/src/lib/utils';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { useEvents } from '@/src/hooks/useEvents';
 import { EventSelector } from '@/src/components/common/EventSelector';
 import { Button } from '@/src/components/ui/button';
@@ -261,7 +262,6 @@ export function AdminPackagesModule() {
   // New Event Modal State
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
   const [newEventName, setNewEventName] = useState('');
-  const [newEventTamilName, setNewEventTamilName] = useState('');
   const [newEventCategory, setNewEventCategory] = useState<string>('wedding');
   const [newEventCustomId, setNewEventCustomId] = useState('');
   const [newEventSortOrder, setNewEventSortOrder] = useState<number | ''>(10);
@@ -271,7 +271,6 @@ export function AdminPackagesModule() {
   // Edit Event Modal State
   const [editingEvent, setEditingEvent] = useState<StudioEvent | null>(null);
   const [editEventName, setEditEventName] = useState('');
-  const [editEventTamilName, setEditEventTamilName] = useState('');
   const [editEventCategory, setEditEventCategory] = useState<string>('wedding');
   const [editEventSortOrder, setEditEventSortOrder] = useState<number | ''>(10);
   const [editEventStatus, setEditEventStatus] = useState<'active' | 'inactive'>('active');
@@ -392,17 +391,15 @@ export function AdminPackagesModule() {
     return sortedPackages.filter((pkg) => {
       const linkedEvent = dynamicEvents.find((e) => e.id === (pkg.eventId || 'wedding'));
       const eventName = linkedEvent?.name || '';
-      const eventTamil = linkedEvent?.tamilName || '';
       const pkgCategory = linkedEvent?.category || pkg.category || '';
 
-      // 1. Search Query (searches name, id, audience, event name/tamil, and deliverable categories + values)
+      // 1. Search Query (searches name, id, audience, event name, and deliverables)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = pkg.name.toLowerCase().includes(q);
         const matchId = pkg.id.toLowerCase().includes(q);
         const matchAudience = (pkg.audience || '').toLowerCase().includes(q);
-        const matchEvent =
-          eventName.toLowerCase().includes(q) || eventTamil.toLowerCase().includes(q);
+        const matchEvent = eventName.toLowerCase().includes(q);
         const delivObj = normalizePackageDeliverables(pkg.deliverables);
         const matchDeliverables = Object.entries(delivObj).some(
           ([cat, detail]) => cat.toLowerCase().includes(q) || (detail || '').toLowerCase().includes(q)
@@ -553,7 +550,6 @@ export function AdminPackagesModule() {
       const created = await createEvent({
         id: generatedSlug,
         name: newEventName.trim(),
-        tamilName: newEventTamilName.trim() || undefined,
         category: newEventCategory,
         status: newEventStatus,
         sortOrder: typeof newEventSortOrder === 'number' ? newEventSortOrder : 10,
@@ -565,7 +561,6 @@ export function AdminPackagesModule() {
 
       // Reset fields
       setNewEventName('');
-      setNewEventTamilName('');
       setNewEventCategory('wedding');
       setNewEventCustomId('');
       setNewEventSortOrder(10);
@@ -580,7 +575,6 @@ export function AdminPackagesModule() {
   const handleOpenEditEvent = (ev: StudioEvent) => {
     setEditingEvent(ev);
     setEditEventName(ev.name);
-    setEditEventTamilName(ev.tamilName || '');
     setEditEventCategory(ev.category || 'wedding');
     setEditEventSortOrder(ev.sortOrder ?? 10);
     setEditEventStatus(ev.status === 'inactive' ? 'inactive' : 'active');
@@ -594,7 +588,6 @@ export function AdminPackagesModule() {
     try {
       await updateEvent(editingEvent.id, {
         name: editEventName.trim(),
-        tamilName: editEventTamilName.trim() || undefined,
         category: editEventCategory,
         status: editEventStatus,
         sortOrder: typeof editEventSortOrder === 'number' ? editEventSortOrder : 10,
@@ -1398,7 +1391,7 @@ export function AdminPackagesModule() {
               <option value="all">All Categories</option>
               {EVENT_CATEGORY_GROUPS.map((cat) => (
                 <option key={cat.id} value={cat.id}>
-                  {cat.label} ({cat.tamilLabel})
+                  {cat.label}
                 </option>
               ))}
             </select>
@@ -1424,7 +1417,7 @@ export function AdminPackagesModule() {
                 ).length;
                 return (
                   <option key={ev.id} value={ev.id}>
-                    {ev.name} {ev.tamilName ? `(${ev.tamilName})` : ''} · {count}
+                    {ev.name} · {count}
                   </option>
                 );
               })}
@@ -1594,11 +1587,6 @@ export function AdminPackagesModule() {
                         <h3 className="text-base font-serif font-bold text-white leading-tight">
                           {ceremony.name}
                         </h3>
-                        {ceremony.tamilName && (
-                          <span className="text-xs text-[#D8C78E]/90 font-medium">
-                            ({ceremony.tamilName})
-                          </span>
-                        )}
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${
                             isCeremonyActive
@@ -1700,7 +1688,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isCreatingEvent) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isCreatingEvent) e.preventDefault(); }}
-          className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -1734,17 +1722,6 @@ export function AdminPackagesModule() {
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[#D8C78E]">Tamil Name (விருப்பத்தேர்வு)</label>
-              <input
-                type="text"
-                value={newEventTamilName}
-                onChange={(e) => setNewEventTamilName(e.target.value)}
-                placeholder="எ.கா. ஹல்தி & சங்கீத் விழா"
-                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-              />
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Event Category *</label>
@@ -1755,7 +1732,7 @@ export function AdminPackagesModule() {
                 >
                   {EVENT_CATEGORY_GROUPS.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.label} ({cat.tamilLabel})
+                      {cat.label}
                     </option>
                   ))}
                 </select>
@@ -1826,7 +1803,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
-          className="max-h-[90vh] w-[95vw] max-w-lg overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -1834,7 +1811,7 @@ export function AdminPackagesModule() {
               Edit Ceremony: {editingEvent?.name}
             </DialogTitle>
             <DialogDescription className="text-xs text-[#E6ECEB]/70">
-              Update ceremony title, Tamil name, category, or status.
+              Update ceremony title, category, or status.
             </DialogDescription>
           </DialogHeader>
 
@@ -1850,16 +1827,6 @@ export function AdminPackagesModule() {
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[#D8C78E]">Tamil Name</label>
-              <input
-                type="text"
-                value={editEventTamilName}
-                onChange={(e) => setEditEventTamilName(e.target.value)}
-                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-              />
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Category</label>
@@ -1870,7 +1837,7 @@ export function AdminPackagesModule() {
                 >
                   {EVENT_CATEGORY_GROUPS.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.label} ({cat.tamilLabel})
+                      {cat.label}
                     </option>
                   ))}
                 </select>
@@ -1956,7 +1923,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isDeletingEvent) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isDeletingEvent) e.preventDefault(); }}
-          className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6"
+          className="w-[95vw] max-h-[92dvh] border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-lg p-6"
         >
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">
@@ -1999,7 +1966,7 @@ export function AdminPackagesModule() {
         open={Boolean(viewingPackage)}
         onOpenChange={(open) => { if (!open) setViewingPackage(null); }}
       >
-        <DialogContent className="max-h-[90dvh] w-[95vw] max-w-3xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6">
+        <DialogContent className="max-h-[92dvh] w-[95vw] max-w-4xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6">
           {viewingPackage && (() => {
             const durationTier = getPackageDurationTier(viewingPackage);
             const price = calculatePackageBasePrice(viewingPackage, services, durationTier);
@@ -2079,7 +2046,7 @@ export function AdminPackagesModule() {
                           return (
                             <div key={item.serviceSlug} className="flex items-center justify-between gap-3 py-2 text-sm">
                               <span className="flex flex-wrap items-center gap-2">
-                                {service.name} × {item.quantity}
+                                {englishOnlyName(service.name)} × {item.quantity}
                                 {service.pricingType === 'tiered' && (
                                   <Badge className="border border-[#C5B378]/30 bg-[#072421] text-[10px] text-[#D8C78E]">
                                     {DURATION_TIER_BADGE_LABELS[itemTier]}
@@ -2117,7 +2084,7 @@ export function AdminPackagesModule() {
                           return (
                             <div key={addon.serviceSlug} className="flex items-center justify-between gap-3 py-2 text-sm">
                               <span className="flex flex-wrap items-center gap-2">
-                                {addon.label || service.name} × {addon.defaultQuantity ?? 1}
+                                {englishOnlyName(addon.label || service.name)} × {addon.defaultQuantity ?? 1}
                                 {service.pricingType === 'tiered' && (
                                   <Badge className="border border-[#C5B378]/30 bg-[#072421] text-[10px] text-[#D8C78E]">
                                     {DURATION_TIER_BADGE_LABELS[itemTier]}
@@ -2164,7 +2131,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
-          className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-3xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -2249,7 +2216,6 @@ export function AdminPackagesModule() {
                   label="Linked Ceremony / Event"
                   value={editEventId}
                   onChange={(selectedId) => setEditEventId(selectedId)}
-                  showTamilName={true}
                   includeInactive={true}
                 />
               </div>
@@ -2454,7 +2420,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
-          className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-3xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -2540,7 +2506,6 @@ export function AdminPackagesModule() {
                   label="Linked Ceremony / Event"
                   value={newEventId}
                   onChange={(selectedId) => setNewEventId(selectedId)}
-                  showTamilName={true}
                   includeInactive={true}
                 />
               </div>
@@ -2745,7 +2710,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
-          className="border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-md p-6"
+          className="w-[95vw] max-h-[92dvh] border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-lg p-6"
         >
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">

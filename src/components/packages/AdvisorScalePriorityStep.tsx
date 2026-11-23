@@ -52,8 +52,9 @@ export function AdvisorScalePriorityStep({
           Tell us a bit about the celebration
         </h3>
         <p className="text-sm text-[#E6ECEB]/75 leading-relaxed max-w-2xl">
-          For <strong className="text-white font-medium">{event?.name || 'your event'}</strong>
-          {event?.tamilName ? ` (${event.tamilName})` : ''}, we calibrate the ideal photographer-to-guest ratio so every touching moment is preserved without cluttering the venue.
+          For <strong className="text-white font-medium">{event?.name || 'your event'}</strong>, we
+          calibrate the ideal photographer-to-guest ratio so every touching moment is preserved without
+          cluttering the venue.
         </p>
       </div>
 

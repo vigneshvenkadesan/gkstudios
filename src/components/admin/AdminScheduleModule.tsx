@@ -36,6 +36,7 @@ import {
   buildOptedServicesForPackage,
 } from '@/src/lib/pricing';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
 import { useEvents } from '@/src/hooks/useEvents';
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
@@ -686,7 +687,7 @@ export function AdminScheduleModule() {
                       )}
 
                       <p className="mt-2 text-xs sm:text-sm text-[#E6ECEB]/80 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        {entry.eventType && <span>Category: {entry.eventType}</span>}
+                        {entry.eventType && <span>Category: {englishOnlyName(entry.eventType)}</span>}
                         {entry.venue && <span>· Venue: {entry.venue}</span>}
                         {entry.clientName && <span>· Client: {entry.clientName}</span>}
                         {entry.phone && <span className="font-mono">· Phone: {entry.phone}</span>}
@@ -902,7 +903,7 @@ export function AdminScheduleModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isSaving) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isSaving) e.preventDefault(); }}
-          className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+          className="w-[95vw] max-w-3xl max-h-[92dvh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
         >
           <DialogHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1101,13 +1102,13 @@ export function AdminScheduleModule() {
                     eventType !== 'Muhurtham Rush' &&
                     eventType !== 'Studio Maintenance' && (
                       <option value={eventType} className="bg-[#072421] text-white">
-                        {eventType}
+                        {englishOnlyName(eventType)}
                       </option>
                     )}
                   <optgroup label="Ceremonies & Events" className="bg-[#051B19] text-[#D8C78E]">
                     {activeEvents.map((ev) => (
                       <option key={ev.id} value={ev.name} className="bg-[#072421] text-white">
-                        {ev.name} {ev.tamilName ? `— ${ev.tamilName}` : ''}
+                        {ev.name}
                       </option>
                     ))}
                   </optgroup>

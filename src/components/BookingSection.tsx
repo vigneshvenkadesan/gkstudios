@@ -201,9 +201,7 @@ export function BookingSection({
   };
 
   const selectedEvent = dynamicEvents.find((e) => e.id === eventId);
-  const eventDisplayName = selectedEvent
-    ? (locale === 'ta' && selectedEvent.tamilName ? selectedEvent.tamilName : selectedEvent.name)
-    : eventId;
+  const eventDisplayName = selectedEvent?.name || eventId;
 
   const handleAcceptAndConfirmBooking = async () => {
     setIsSubmitting(true);
@@ -443,7 +441,6 @@ export function BookingSection({
                         setPackageId(matching[0].id);
                       }
                     }}
-                    showTamilName={true}
                   />
                 </div>
 

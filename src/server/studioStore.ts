@@ -49,6 +49,7 @@ import {
   hasValidPackageServiceDurationTiers,
   sanitizePackageDeliverables,
 } from '../lib/pricing';
+import { englishOnlyName } from '../lib/englishOnlyName';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 const DURATION_TIER_LABELS: Record<DurationTier, string> = {
@@ -215,7 +216,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   // Wedding Category
   {
     id: 'wedding',
-    name: 'Wedding & Muhurtham',
+    name: 'Wedding',
     tamilName: 'திருமணம் & முகூர்த்தம்',
     category: 'wedding',
     status: 'active',
@@ -223,7 +224,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'engagement',
-    name: 'Engagement (Nitchayathartham)',
+    name: 'Engagement',
     tamilName: 'நிச்சயதார்த்தம்',
     category: 'wedding',
     status: 'active',
@@ -249,7 +250,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   // Baby & Maternity Category
   {
     id: 'valai-kaapu',
-    name: 'Valai Kaapu / Seemantham',
+    name: 'Maternity Ceremony',
     tamilName: 'வளைகாப்பு / சீமந்தம்',
     category: 'baby-maternity',
     status: 'active',
@@ -291,7 +292,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'first-birthday',
-    name: 'First Year Celebration / Ayush Homam',
+    name: 'First Birthday Celebration',
     tamilName: 'முதல் பிறந்தநாள் / ஆயுஷ் ஹோமம்',
     category: 'birthday-kids',
     status: 'active',
@@ -299,7 +300,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'naming-ceremony',
-    name: 'Naming Ceremony (Thottil)',
+    name: 'Naming Ceremony',
     tamilName: 'பெயர் சூட்டு விழா (தொட்டில்)',
     category: 'birthday-kids',
     status: 'active',
@@ -307,7 +308,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'kaathu-kuthi',
-    name: 'Ear Piercing (Kaathu Kuthi)',
+    name: 'Ear Piercing',
     tamilName: 'காது குத்து விழா',
     category: 'birthday-kids',
     status: 'active',
@@ -317,7 +318,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   // Family & Traditional Category
   {
     id: 'puberty-ceremony',
-    name: 'Puberty Ceremony (Manjal Neerattu)',
+    name: 'Puberty Ceremony',
     tamilName: 'மஞ்சள் நீராட்டு விழா',
     category: 'family-traditional',
     status: 'active',
@@ -325,7 +326,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'housewarming',
-    name: 'Housewarming (Griha Pravesam)',
+    name: 'Housewarming Ceremony',
     tamilName: 'கிரகப்பிரவேசம் (புதுமனை புகுவிழா)',
     category: 'family-traditional',
     status: 'active',
@@ -333,7 +334,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'upanayanam',
-    name: 'Upanayanam / Sacred Thread',
+    name: 'Sacred Thread Ceremony',
     tamilName: 'உபநயனம் / பூணூல் விழா',
     category: 'family-traditional',
     status: 'active',
@@ -341,7 +342,7 @@ export const DEFAULT_EVENTS: StudioEvent[] = [
   },
   {
     id: 'sashtiapthapoorthi',
-    name: 'Sashtiapthapoorthi (60th / 80th)',
+    name: 'Milestone Ceremony',
     tamilName: 'சஷ்டியப்தபூர்த்தி (மணிவிழா / சதாபிஷேகம்)',
     category: 'family-traditional',
     status: 'active',
@@ -374,7 +375,7 @@ export function toPlainEvent(doc: unknown): StudioEvent {
 
   return {
     id: String(e.id || e._id || ''),
-    name: String(e.name || ''),
+    name: englishOnlyName(String(e.name || '')),
     tamilName: e.tamilName ? String(e.tamilName) : undefined,
     category: String(e.category || 'wedding'),
     status: e.status === 'inactive' ? 'inactive' : 'active',
@@ -430,7 +431,7 @@ export function toPlainService(doc: unknown): StudioService {
 
   return {
     id: String(s.slug || s.id || s._id || ''),
-    name: String(s.name || ''),
+    name: englishOnlyName(String(s.name || '')),
     slug: String(s.slug || ''),
     tamilName: s.tamilName ? String(s.tamilName) : undefined,
     category: String(s.category || 'Photography'),
@@ -1163,6 +1164,7 @@ export async function processBookingOnServer(input: {
           packageId: pkg ? pkg.id : b.packageId,
           packageName: resolvedPkgName,
           quotedAmount: input.quotedAmount,
+          totalAmount: input.quotedAmount,
           assignedCrew: resolvedCrew,
           acknowledgementNote: input.acknowledgementNote.trim(),
           status: input.nextStatus,
@@ -1210,7 +1212,7 @@ export async function processBookingOnServer(input: {
           ? (pkg.sortOrder === 3 ? 'Premium' : pkg.sortOrder === 1 ? 'Essential' : 'Signature')
           : undefined,
         totalPackageAmount: input.quotedAmount,
-        totalAmount: targetBooking.totalAmount ?? input.quotedAmount,
+        totalAmount: input.quotedAmount,
       };
       const existingIdx = targetBooking.id
         ? updatedCalendar.findIndex(

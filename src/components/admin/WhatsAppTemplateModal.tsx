@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import { CUSTOM_PACKAGE_ID, PackageDeliverables, PortfolioItem, StudioPackage } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR } from '@/src/lib/utils';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/src/components/ui/dialog';
 import { Button } from '@/src/components/ui/button';
 
@@ -273,7 +274,7 @@ export function WhatsAppTemplateModal({
 
     return [
       `Vanakkam ${resolvedClientName}!`,
-      `${booking?.eventType || 'Event'} (Ref: ${booking?.referenceCode || 'Inquiry'}) · ${
+      `${englishOnlyName(booking?.eventType) || 'Event'} (Ref: ${booking?.referenceCode || 'Inquiry'}) · ${
         booking?.preferredDate ? formatDateDisplay(booking.preferredDate) : 'upcoming date'
       } · ${booking?.venue || 'Venue'}`,
       booking?.eventTime ? `Time: ${booking.eventTime}` : '',
@@ -457,7 +458,7 @@ export function WhatsAppTemplateModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-4xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] shadow-2xl flex flex-col">
+        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] shadow-2xl flex flex-col">
           {/* Header */}
           <div className="border-b border-[#C5B378]/20 bg-[#092E2B]/90 px-4 pt-3 pb-3 sm:px-6 sm:pt-5 sm:pb-4">
             <DialogHeader className="pr-10">
@@ -483,7 +484,7 @@ export function WhatsAppTemplateModal({
                 <span className="font-semibold text-white">{resolvedPhone}</span>
               </div>
               <div>
-                <span>{booking.eventType || 'Event'}</span>
+                <span>{englishOnlyName(booking.eventType) || 'Event'}</span>
                 {booking.preferredDate && (
                   <span className="ml-1 text-[#E6ECEB]/70">· {formatDateDisplay(booking.preferredDate)}</span>
                 )}
@@ -745,7 +746,7 @@ export function WhatsAppTemplateModal({
 
       {/* Gallery Image Picker Modal */}
       <Dialog open={isGalleryPickerOpen} onOpenChange={setIsGalleryPickerOpen}>
-        <DialogContent className="max-h-[85vh] w-[90vw] max-w-3xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] flex flex-col">
+        <DialogContent className="max-h-[92dvh] w-[95vw] max-w-4xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] flex flex-col">
           <div className="border-b border-[#C5B378]/20 bg-[#092E2B] px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
             <div>
               <DialogTitle className="text-lg font-semibold text-white">
@@ -808,7 +809,7 @@ export function WhatsAppTemplateModal({
 
       {/* Image Full-Size Lightbox Modal */}
       <Dialog open={isPreviewImageModalOpen} onOpenChange={setIsPreviewImageModalOpen}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-hidden p-0 border-[#C5B378]/40 bg-[#041513] flex flex-col">
+        <DialogContent className="max-h-[92dvh] w-[95vw] max-w-3xl overflow-hidden p-0 border-[#C5B378]/40 bg-[#041513] flex flex-col">
           <div className="p-4 flex items-center justify-between border-b border-white/10 bg-[#072421]">
             <DialogTitle className="text-sm font-semibold text-white">Attachment Preview</DialogTitle>
             <div className="flex items-center gap-2">
@@ -828,7 +829,7 @@ export function WhatsAppTemplateModal({
             <img
               src={previewImageUrl}
               alt="Attachment Full View"
-              className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+              className="max-h-[80vh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
             />
           </div>
         </DialogContent>

@@ -25,6 +25,7 @@ import { Button } from '@/src/components/ui/button';
 import { formatDateDisplay, formatINR, getBillPaymentHistory } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
 import { toast } from 'sonner';
 
@@ -152,7 +153,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
             Official GK Studios Bilingual Invoice and Payment Receipt for {bill.clientName}
           </DialogPrimitive.Description>
 
-          <div className="relative w-full max-w-4xl rounded-sm border border-[#C5B378]/35 bg-[#072421] text-[#E6ECEB] shadow-2xl my-auto flex flex-col max-h-[90vh] overflow-hidden print:max-h-none print:border-none print:shadow-none print:bg-white print:text-black print:my-0">
+          <div className="relative w-full max-w-5xl print:max-w-4xl rounded-sm border border-[#C5B378]/35 bg-[#072421] text-[#E6ECEB] shadow-2xl my-auto flex flex-col max-h-[92dvh] overflow-hidden print:max-h-none print:border-none print:shadow-none print:bg-white print:text-black print:my-0">
             {/* Top Control Bar (Hidden during Print) */}
             <div className="flex flex-wrap items-center justify-between p-4 border-b border-[#C5B378]/25 bg-[#092E2B] print:hidden gap-3 shrink-0">
               <div className="flex items-center gap-2">
@@ -232,7 +233,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                 fontFamily:
                   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif',
               }}
-              className="flex-1 min-h-0 overflow-y-auto max-h-[calc(90vh-72px)] p-6 sm:p-8 space-y-6 text-xs bg-white text-slate-800 font-sans print:p-0 print:overflow-visible print:max-h-none print:text-[10px]"
+              className="flex-1 min-h-0 overflow-y-auto max-h-[calc(92dvh-72px)] p-6 sm:p-8 space-y-6 text-xs bg-white text-slate-800 font-sans print:p-0 print:overflow-visible print:max-h-none print:text-[10px]"
             >
               {/* ─── Header: Luxury Studio Identity ─── */}
               <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-[#092E2B] pb-5 gap-4">
@@ -299,13 +300,8 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                   </h4>
                   <div className="flex items-center gap-2">
                     <span className="font-serif text-sm font-bold text-slate-900">
-                      {bill.eventDetails.eventName}
+                      {englishOnlyName(bill.eventDetails.eventName)}
                     </span>
-                    {bill.eventDetails.tamilEventName && (
-                      <span className="text-xs font-semibold text-[#092E2B] bg-[#C5B378]/25 px-1.5 py-0.2 rounded">
-                        {bill.eventDetails.tamilEventName}
-                      </span>
-                    )}
                   </div>
                   <p className="text-xs text-slate-700 flex items-center gap-1">
                     <Clock className="h-3 w-3 text-slate-400" />
@@ -350,10 +346,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                           <div className="flex items-start gap-1.5">
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
                             <div>
-                              <span className="font-semibold text-slate-900 block">{svc.name}</span>
-                              {svc.tamilName && (
-                                <span className="text-[10px] text-slate-500 font-tamil block">{svc.tamilName}</span>
-                              )}
+                              <span className="font-semibold text-slate-900 block">{englishOnlyName(svc.name)}</span>
                               <span className="text-[10px] text-slate-500">
                                 {svc.quantity} {svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹{svc.unitPrice.toLocaleString('en-IN')}
                                 {svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}

@@ -271,11 +271,6 @@ export function PackagesSection({
                   <h4 className="font-serif text-2xl font-semibold text-white">
                     Bespoke Collections for {currentEvent?.name || 'This Ceremony'}
                   </h4>
-                  {currentEvent?.tamilName && (
-                    <p className="text-sm text-[#D8C78E] font-medium">
-                      {currentEvent.tamilName}
-                    </p>
-                  )}
                   <p className="text-sm text-[#E6ECEB]/70 max-w-lg mx-auto leading-relaxed">
                     Every {currentEvent?.name || 'ceremony'} is unique. We provide tailored photography and 4K cinematic video services designed around your exact venue and schedule.
                   </p>

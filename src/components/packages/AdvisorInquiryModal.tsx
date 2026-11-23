@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { StudioEvent, StudioPackage } from '@/src/types/studio';
 import { PackageAddon } from '@/src/data/packageAdvisorConfig';
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
+import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
@@ -63,9 +64,7 @@ export function AdvisorInquiryModal({
       `Vanakkam GK Studios! 📸`,
       `I would like to inquire about photography for our upcoming celebration:`,
       ``,
-      `✨ Event: ${event?.name || 'Milestone Celebration'}${
-        event?.tamilName ? ` (${event.tamilName})` : ''
-      }`,
+      `✨ Event: ${event?.name || 'Milestone Celebration'}`,
       `📦 Base Package: ${pkg.name}`,
       `💰 Estimated Total: ${formatINR(finalEstimatedPrice)}`,
     ];
@@ -74,7 +73,7 @@ export function AdvisorInquiryModal({
       lines.push(``);
       lines.push(`🛠️ Selected Customizations:`);
       activeAddons.forEach((a) => {
-        lines.push(`  • ${a.name} (${a.badge})`);
+        lines.push(`  • ${englishOnlyName(a.name)} (${a.badge})`);
       });
     }
 
@@ -216,9 +215,6 @@ export function AdvisorInquiryModal({
                     <h4 className="font-serif text-lg sm:text-xl font-bold text-white">
                       {event?.name || 'Celebration'} · {pkg.name}
                     </h4>
-                    {event?.tamilName && (
-                      <p className="text-xs text-[#D8C78E] font-medium">{event.tamilName}</p>
-                    )}
                   </div>
 
                   <div className="text-right">
@@ -245,7 +241,7 @@ export function AdvisorInquiryModal({
                       </span>
                       {activeAddons.map((addon) => (
                         <div key={addon.id} className="flex justify-between text-[#E6ECEB]/90 pl-2">
-                          <span>• {addon.name}</span>
+                          <span>• {englishOnlyName(addon.name)}</span>
                           <span className="font-semibold text-[#D8C78E]">{addon.badge}</span>
                         </div>
                       ))}

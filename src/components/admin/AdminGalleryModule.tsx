@@ -375,7 +375,7 @@ export function AdminGalleryModule() {
 
       {/* Edit Caption Dialog */}
       <Dialog open={Boolean(editingItem)} onOpenChange={(open) => !open && setEditingItem(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] max-w-xl max-h-[92dvh]">
           <DialogHeader>
             <DialogTitle>Edit Portfolio Details</DialogTitle>
             <DialogDescription>
