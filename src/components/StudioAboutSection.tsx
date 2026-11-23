@@ -56,6 +56,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
                   alt={t('about.photoAlt')}
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
+                  quality={90}
                   placeholder="blur"
                   blurDataURL={SHIMMER_BLUR_DATA_URL}
                   decoding="async"

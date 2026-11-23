@@ -178,6 +178,7 @@ export function CameraDemoShowcaseSection({
                     alt={item.enTitle}
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
+                    quality={90}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     decoding="async"
@@ -310,6 +311,7 @@ export function CameraDemoShowcaseSection({
                                 alt={media.title}
                                 fill
                                 sizes="(max-width: 640px) 100vw, 33vw"
+                                quality={90}
                                 placeholder="blur"
                                 blurDataURL={SHIMMER_BLUR_DATA_URL}
                                 decoding="async"
@@ -583,6 +585,7 @@ function CameraMediaLightboxModal({
                   fill
                   priority
                   sizes="(max-width: 1024px) 100vw, 800px"
+                  quality={90}
                   placeholder="blur"
                   blurDataURL={SHIMMER_BLUR_DATA_URL}
                   className="h-full w-full object-cover"
@@ -617,6 +620,7 @@ function CameraMediaLightboxModal({
                     fill
                     priority
                     sizes="320px"
+                    quality={90}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover"
@@ -654,6 +658,7 @@ function CameraMediaLightboxModal({
                     fill
                     priority
                     sizes="(max-width: 1024px) 100vw, 800px"
+                    quality={90}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover"
@@ -718,6 +723,7 @@ function CameraMediaLightboxModal({
                 fill
                 priority
                 sizes="(max-width: 1200px) 100vw, 1200px"
+                quality={90}
                 placeholder="blur"
                 blurDataURL={SHIMMER_BLUR_DATA_URL}
                 className="h-full w-full object-contain rounded border border-[#C5B378]/30 shadow-2xl"
@@ -777,6 +783,7 @@ function CameraMediaLightboxModal({
                     alt={m.title}
                     fill
                     sizes="96px"
+                    quality={90}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover"

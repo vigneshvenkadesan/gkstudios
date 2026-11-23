@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { Menu, Moon, Sun, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { GKCameraMark } from '@/src/components/MandalaAccents';
-import { Button } from '@/src/components/ui/button';
 import { useOptionalPublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { PublicLocale, TranslationKey, translate } from '@/src/i18n/translations';
 
@@ -155,14 +154,7 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
           })}
         </nav>
 
-        <div className={`flex items-center shrink-0 ${activeView === 'public' ? 'gap-2' : 'gap-3'}`}>
-          <Button
-            size="sm"
-            onClick={() => handleLink('availability')}
-            className={activeView === 'public' ? 'hidden xl:inline-flex' : 'hidden sm:inline-flex'}
-          >
-            {activeView === 'public' ? t('nav.checkAvailability') : 'Check Availability'}
-          </Button>
+        <div className="flex items-center gap-2 shrink-0">
           {activeView === 'public' && preferences && (
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
@@ -242,11 +234,6 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
               })}
             </nav>
 
-            <div className="mt-4 pt-4 border-t border-[#C5B378]/15">
-              <Button className="w-full" size="lg" onClick={() => handleLink('availability')}>
-                {activeView === 'public' ? t('nav.checkAvailability') : 'Check Availability'}
-              </Button>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

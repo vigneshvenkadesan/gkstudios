@@ -384,6 +384,7 @@ export function PackagesSection({
                             loading={idx < 2 ? 'eager' : 'lazy'}
                             priority={idx < 2}
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                            quality={90}
                             placeholder="blur"
                             blurDataURL={SHIMMER_BLUR_DATA_URL}
                             className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
@@ -468,6 +469,17 @@ export function PackagesSection({
                             const isDigital =
                               item.category.toLowerCase().includes('digital') ||
                               item.category.toLowerCase().includes('video');
+                            const isDeliverables = item.category
+                              .toLowerCase()
+                              .includes('deliverable');
+                            const deliverablesText = item.text.replace(/\s*\+\s*/g, ', ');
+                            const listItems = isCrew
+                              ? item.text.split(/\s*(?:\+|,|&)\s*/).filter(Boolean)
+                              : isAlbum
+                                ? [item.text]
+                                : isDeliverables
+                                  ? deliverablesText.split(/\s*,\s*/).filter(Boolean)
+                                  : null;
 
                             return (
                               <div key={dIdx} className="space-y-1">
@@ -483,9 +495,20 @@ export function PackagesSection({
                                   )}
                                   <span>{item.category}</span>
                                 </div>
-                                <p className="text-xs sm:text-[13px] text-[#E6ECEB]/88 leading-relaxed pl-5">
-                                  {item.text}
-                                </p>
+                                {listItems ? (
+                                  <ul className="space-y-1 pl-5 text-xs leading-relaxed text-[#E6ECEB]/88 sm:text-[13px]">
+                                    {listItems.map((listItem, listIndex) => (
+                                      <li key={`${listIndex}-${listItem}`} className="flex gap-1.5">
+                                        <span aria-hidden="true" className="text-[#D8C78E]">•</span>
+                                        <span>{listItem}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="pl-5 text-xs leading-relaxed text-[#E6ECEB]/88 sm:text-[13px]">
+                                    {item.text}
+                                  </p>
+                                )}
                               </div>
                             );
                           })}

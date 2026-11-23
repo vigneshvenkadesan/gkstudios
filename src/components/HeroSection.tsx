@@ -106,6 +106,7 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
                 fill
                 priority
                 sizes="100vw"
+                quality={90}
                 placeholder="blur"
                 blurDataURL={SHIMMER_BLUR_DATA_URL}
                 onError={() =>

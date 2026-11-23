@@ -110,6 +110,7 @@ export function CameraTeamEducationGuide() {
                   alt="Traditional Stage Group Photo"
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
+                  quality={90}
                   placeholder="blur"
                   blurDataURL={SHIMMER_BLUR_DATA_URL}
                   decoding="async"
@@ -166,6 +167,7 @@ export function CameraTeamEducationGuide() {
                   alt="Candid Emotional Bride Portrait"
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
+                  quality={90}
                   placeholder="blur"
                   blurDataURL={SHIMMER_BLUR_DATA_URL}
                   decoding="async"
@@ -289,6 +291,7 @@ export function CameraTeamEducationGuide() {
                 alt="Video Simulation Preview"
                 fill
                 sizes="(max-width: 1024px) 100vw, 700px"
+                quality={90}
                 placeholder="blur"
                 blurDataURL={SHIMMER_BLUR_DATA_URL}
                 decoding="async"
@@ -435,6 +438,7 @@ export function CameraTeamEducationGuide() {
                     alt={guide.title}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    quality={90}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     decoding="async"
@@ -537,6 +541,7 @@ export function CameraTeamEducationGuide() {
                     fill
                     priority
                     sizes="(max-width: 768px) 100vw, 600px"
+                    quality={90}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-cover"

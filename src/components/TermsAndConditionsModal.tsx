@@ -26,8 +26,8 @@ import {
 } from '@/src/components/ui/dialog';
 import { Button } from '@/src/components/ui/button';
 import { GKCameraMark } from '@/src/components/MandalaAccents';
-import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
-import { translate } from '@/src/i18n/translations';
+import { useOptionalPublicPreferences } from '@/src/context/PublicPreferencesContext';
+import { PublicLocale, translate } from '@/src/i18n/translations';
 
 export interface BookingSummaryProps {
   clientName: string;
@@ -55,15 +55,18 @@ export function TermsAndConditionsModal({
   isSubmitting = false,
 }: TermsAndConditionsModalProps) {
   const [hasAgreed, setHasAgreed] = useState(false);
-  const { locale } = usePublicPreferences();
-  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+  const [termsLanguage, setTermsLanguage] = useState<PublicLocale>('en');
+  const preferences = useOptionalPublicPreferences();
+  const locale = preferences?.locale ?? 'en';
+  const t = (key: Parameters<typeof translate>[1]) => translate(termsLanguage, key);
 
   // Reset agreement checkbox when modal opens
   useEffect(() => {
     if (isOpen) {
       setHasAgreed(false);
+      setTermsLanguage(locale);
     }
-  }, [isOpen]);
+  }, [isOpen, locale]);
 
   const handleAccept = () => {
     if (!hasAgreed || isSubmitting) return;
@@ -99,6 +102,30 @@ export function TermsAndConditionsModal({
             <DialogDescription className="text-xs sm:text-sm text-[#E6ECEB]/80 leading-relaxed pt-0.5">
               {t('terms.description')}
             </DialogDescription>
+            <div
+              role="group"
+              aria-label="Terms language"
+              className="flex items-center gap-2 pt-2"
+            >
+              {([
+                { value: 'en', label: 'English' },
+                { value: 'ta', label: 'தமிழ்' },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={termsLanguage === value}
+                  onClick={() => setTermsLanguage(value)}
+                  className={`rounded-md border px-3 py-1 text-xs font-semibold transition-colors ${
+                    termsLanguage === value
+                      ? 'border-[#D8C78E] bg-[#C5B378]/20 text-[#F4E8C1]'
+                      : 'border-[#C5B378]/25 text-[#E6ECEB]/70 hover:border-[#D8C78E]/60 hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </DialogHeader>
 
           {/* Optional booking summary banner when inside the booking flow */}

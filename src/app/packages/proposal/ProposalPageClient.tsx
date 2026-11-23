@@ -79,6 +79,7 @@ import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { PackageCardSkeleton } from '@/src/components/ui/skeleton';
+import { TermsAndConditionsModal } from '@/src/components/TermsAndConditionsModal';
 import {
   GUEST_SCALES,
   isOutdoorShootEvent,
@@ -394,6 +395,7 @@ export function ProposalPageClient() {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [proposalInquiry, setProposalInquiry] = useState<ProposalBookingView | null>(null);
   const [isProposalLoading, setIsProposalLoading] = useState(Boolean(rawProposalToken));
   const [proposalLoadError, setProposalLoadError] = useState('');
@@ -1348,7 +1350,7 @@ export function ProposalPageClient() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const buildProposalUpdate = (): BookingProposalUpdate => {
+  const buildProposalUpdate = (acceptedTerms = false): BookingProposalUpdate => {
     const customNotes = customizedModifications.map((mod) => `${mod.label} (${mod.badge})`).join(', ');
     const timingNote = effectiveEventTime ? `Timing: ${effectiveEventTime}` : '';
     const multiDayNote =
@@ -1433,9 +1435,13 @@ export function ProposalPageClient() {
       optedServices: optedServicesSnapshot,
       totalAmount: finalPrice,
       notes: combinedNotes,
-      termsAccepted: true,
-      termsAcceptedAt: new Date().toISOString(),
-      termsVersion: '1.0',
+      ...(acceptedTerms
+        ? {
+            termsAccepted: true,
+            termsAcceptedAt: new Date().toISOString(),
+            termsVersion: '1.0',
+          }
+        : {}),
       packageSnapshot: snapshot,
     };
   };
@@ -1447,7 +1453,10 @@ export function ProposalPageClient() {
     const response = await fetch(`/api/proposals/${encodeURIComponent(rawProposalToken)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor, proposal: buildProposalUpdate() }),
+      body: JSON.stringify({
+        actor,
+        proposal: buildProposalUpdate(actor === 'client'),
+      }),
     });
     const result = (await response.json()) as { booking?: ProposalBookingView; error?: string };
     if (!response.ok || !result.booking) {
@@ -1470,10 +1479,14 @@ export function ProposalPageClient() {
     return true;
   };
 
-  const handleBookingSubmit = async (e: React.FormEvent) => {
+  const handleBookingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateProposalDetails()) return;
 
+    setIsTermsModalOpen(true);
+  };
+
+  const handleAcceptAndSubmitProposal = async () => {
     setIsSubmitting(true);
     try {
       if (rawProposalToken) {
@@ -1482,12 +1495,13 @@ export function ProposalPageClient() {
         toast.success('Your updated proposal has been sent to the studio for review.');
       } else {
         await submitBooking({
-          ...buildProposalUpdate(),
+          ...buildProposalUpdate(true),
           status: 'Pending',
         });
         setIsSubmitted(true);
         toast.success('Inquiry submitted! We will check date availability shortly.');
       }
+      setIsTermsModalOpen(false);
     } catch (err) {
       console.error('Failed to submit proposal:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to submit online. Please try again.');
@@ -2762,6 +2776,20 @@ export function ProposalPageClient() {
           </div>
         )}
       </AnimatePresence>
+      <TermsAndConditionsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        isBookingFlow
+        bookingSummary={{
+          clientName: clientName.trim(),
+          phone: phone.trim(),
+          preferredDate: eventDate,
+          packageName: `${basePackage?.name || 'Custom Proposal'} · ${formatINR(finalPrice)}`,
+          venue: venue.trim(),
+        }}
+        onAcceptAndContinue={handleAcceptAndSubmitProposal}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }

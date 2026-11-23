@@ -24,6 +24,7 @@ import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { useStudio } from '@/src/context/StudioContext';
+import { TermsAndConditionsModal } from '@/src/components/TermsAndConditionsModal';
 
 interface AdvisorInquiryModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export function AdvisorInquiryModal({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
 
   if (!isOpen) return null;
 
@@ -108,7 +110,7 @@ export function AdvisorInquiryModal({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleDirectSubmit = async (e: React.FormEvent) => {
+  const handleDirectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!clientName.trim() || !phone.trim() || !eventDate || !venue.trim()) {
@@ -116,6 +118,10 @@ export function AdvisorInquiryModal({
       return;
     }
 
+    setIsTermsModalOpen(true);
+  };
+
+  const handleAcceptAndSubmitInquiry = async () => {
     setIsSubmitting(true);
     try {
       const addonNotes = activeAddons.map((a) => `${a.name} (${a.badge})`).join(', ');
@@ -143,6 +149,7 @@ export function AdvisorInquiryModal({
         termsVersion: '1.0',
       });
 
+      setIsTermsModalOpen(false);
       setIsSubmitted(true);
       toast.success('Your customized package inquiry has been received! We will connect shortly.');
       if (onSuccessSubmit) {
@@ -394,6 +401,20 @@ export function AdvisorInquiryModal({
           )}
         </div>
       </motion.div>
+      <TermsAndConditionsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        isBookingFlow
+        bookingSummary={{
+          clientName: clientName.trim(),
+          phone: phone.trim(),
+          preferredDate: eventDate,
+          packageName: `${pkg.name} · ${formatINR(finalEstimatedPrice)}`,
+          venue: venue.trim(),
+        }}
+        onAcceptAndContinue={handleAcceptAndSubmitInquiry}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }

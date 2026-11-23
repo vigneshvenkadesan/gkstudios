@@ -289,6 +289,7 @@ export function AdminGalleryModule() {
                   alt={item.title}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  quality={90}
                   placeholder="blur"
                   blurDataURL={SHIMMER_BLUR_DATA_URL}
                   className="h-full w-full object-cover"
