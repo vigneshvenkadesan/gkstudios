@@ -8,9 +8,6 @@ import {
   Cake,
   Flame,
   Briefcase,
-  Clock,
-  SunMedium,
-  CalendarDays,
   Home,
   Users,
   Crown,
@@ -58,56 +55,29 @@ function matchesCategory(eventCategory?: string, groupId?: string): boolean {
   return false;
 }
 
-export const SESSION_PLANS = [
-  {
-    id: 'single-3h' as SessionPlan,
-    title: 'Single Session • 3h',
-    label: 'Single Session • 3h',
-    badge: '3 Hours',
-    description: 'Focused ceremony or intimate gathering (e.g. Kaathu Kuthi, Seemantham, Housewarming).',
-    icon: <Clock className="h-5 w-5" />,
-  },
-  {
-    id: 'half' as SessionPlan,
-    title: 'Half-Day Celebration',
-    label: 'Half-Day • 6h',
-    badge: '6 Hours',
-    description: 'Traditional rituals + family feast / reception (e.g. Engagement, Muhurtham, 60th Birthday).',
-    icon: <SunMedium className="h-5 w-5" />,
-  },
-  {
-    id: 'full' as SessionPlan,
-    title: 'Full-Day / Multi-Session',
-    label: 'Full-Day • Multi-Session',
-    badge: '1.5–2 Days',
-    description: 'Complete multi-ceremony festivities (e.g. Janavasam + Muhurtham, Sangeet + Wedding).',
-    icon: <CalendarDays className="h-5 w-5" />,
-  },
-];
-
 export const GUEST_SCALES = [
   {
     id: 'intimate' as GuestScale,
     title: 'Intimate Gathering',
-    label: '< 100 Guests',
-    badge: '< 100 Guests',
-    description: 'Home or small hall with discreet, non-intrusive camera presence.',
+    label: '<200 Guests',
+    badge: '<200',
+    description: 'Small gathering with discreet, non-intrusive camera presence.',
     icon: <Home className="h-5 w-5" />,
   },
   {
     id: 'classic' as GuestScale,
     title: 'Classic Celebration',
-    label: '100–300 Guests',
-    badge: '100–300 Guests',
-    description: 'Marriage hall with balanced traditional coverage & natural candid reactions.',
+    label: '200-600 Guests',
+    badge: '200-600',
+    description: 'Medium celebration with balanced coverage and natural candid reactions.',
     icon: <Users className="h-5 w-5" />,
   },
   {
     id: 'grand' as GuestScale,
     title: 'Grand Event',
-    label: '300+ Guests',
-    badge: '300+ Guests',
-    description: 'Large mandapam with multi-camera crew & simultaneous stage and drone coverage.',
+    label: '>600 Guests',
+    badge: '>600',
+    description: 'Large celebration with multi-camera crew and broad event coverage.',
     icon: <Crown className="h-5 w-5" />,
   },
 ];
@@ -123,11 +93,11 @@ export function FastIntakeWizard({
 }: FastIntakeWizardProps) {
   const router = useRouter();
 
-  // Wizard step: 1 (Event), 2 (Session Plan), 3 (Guest Count)
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  // Wizard step: 1 (Event), 2 (Guest Count)
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
   // Intake selections
-  const [sessionPlan, setSessionPlan] = useState<SessionPlan>('half');
+  const sessionPlan: SessionPlan = 'half';
   const [guestScale, setGuestScale] = useState<GuestScale>('classic');
 
   // Filter active events for current category
@@ -151,14 +121,14 @@ export function FastIntakeWizard({
 
   // Smart Recommendation Routing Logic
   // Never show "budget" button upfront:
-  // - Full-Day or Grand (300+) => Recommend Premium (sortOrder: 3)
-  // - Otherwise (Single / Half-Day + Intimate/Classic) => Default to Signature (sortOrder: 2)
+  // - Grand guest scale => Recommend Premium (sortOrder: 3)
+  // - Otherwise => Default to Signature (sortOrder: 2)
   const recommendedTier = useMemo(() => {
-    if (sessionPlan === 'full' || guestScale === 'grand') {
+    if (guestScale === 'grand') {
       return 3;
     }
     return 2;
-  }, [sessionPlan, guestScale]);
+  }, [guestScale]);
 
   const handleBuildProposal = () => {
     const eventIdParam = encodeURIComponent(selectedEventId || currentEvent?.id || 'wedding');
@@ -177,7 +147,7 @@ export function FastIntakeWizard({
           {currentStep > 1 ? (
             <button
               type="button"
-              onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1) as 1 | 2 | 3)}
+              onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1) as 1 | 2)}
               className="group inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#D8C78E] hover:text-white transition-colors"
             >
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
@@ -185,19 +155,15 @@ export function FastIntakeWizard({
             </button>
           ) : (
             <span className="text-[11px] font-semibold tracking-widest text-[#D8C78E]/80 uppercase">
-              3-Question Intake
+              2-Question Intake
             </span>
           )}
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="font-mono text-[#D8C78E] font-medium">Question {currentStep} of 3</span>
+            <span className="font-mono text-[#D8C78E] font-medium">Question {currentStep} of 2</span>
             <span className="text-[#E6ECEB]/40">·</span>
             <span className="text-[#E6ECEB]/85 font-medium">
-              {currentStep === 1
-                ? 'Milestone Event'
-                : currentStep === 2
-                ? 'Celebration Duration'
-                : 'Guest Scale'}
+              {currentStep === 1 ? 'Milestone Event' : 'Guest Scale'}
             </span>
           </div>
         </div>
@@ -207,7 +173,7 @@ export function FastIntakeWizard({
           <motion.div
             className="h-full bg-gradient-to-r from-[#C5B378] via-[#D8C78E] to-[#F4E8C1]"
             initial={false}
-            animate={{ width: `${(currentStep / 3) * 100}%` }}
+            animate={{ width: `${(currentStep / 2) * 100}%` }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           />
         </div>
@@ -315,14 +281,13 @@ export function FastIntakeWizard({
                 onClick={() => setCurrentStep(2)}
                 className="w-full sm:w-auto gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold hover:brightness-105 shadow px-6"
               >
-                <span>Next: Event Duration</span>
+                <span>Next: Guest Count</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </motion.div>
         )}
-
-        {/* ─── Question 2: How is the event planned? ─── */}
+        {/* ─── Question 2: How many guests are joining? ─── */}
         {currentStep === 2 && (
           <motion.div
             key="q2"
@@ -335,93 +300,6 @@ export function FastIntakeWizard({
             <div className="space-y-2">
               <span className="text-xs font-semibold tracking-wider text-[#D8C78E] uppercase">
                 Question 2
-              </span>
-              <h3 className="font-serif text-2xl sm:text-3xl font-semibold text-white">
-                How is {currentEvent?.name || 'the event'} planned?
-              </h3>
-              <p className="text-sm text-[#E6ECEB]/75 leading-relaxed max-w-2xl">
-                Choose the schedule duration. This determines our crew shift timing, lighting setups, and camera battery rotations.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
-              {SESSION_PLANS.map((plan) => {
-                const isSelected = sessionPlan === plan.id;
-
-                return (
-                  <motion.button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => setSessionPlan(plan.id)}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
-                      isSelected
-                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
-                        : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
-                    }`}
-                  >
-                    <div className="flex sm:flex-col items-center sm:items-start gap-2.5 min-w-0">
-                      <div
-                        className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-sm shrink-0 transition-colors ${
-                          isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
-                        }`}
-                      >
-                        {plan.icon}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-semibold text-xs sm:text-sm text-white block truncate">
-                          {plan.label}
-                        </span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 hidden sm:block pt-0.5 line-clamp-2">
-                          {plan.description}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                        isSelected
-                          ? 'bg-[#061E1C]/40 text-[#F4E8C1]'
-                          : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
-                      }`}
-                    >
-                      {plan.badge}
-                    </span>
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#C5B378]/20">
-              <span className="text-xs text-[#E6ECEB]/70">
-                Plan: <strong className="text-white font-medium">{sessionPlan}</strong>
-              </span>
-
-              <Button
-                type="button"
-                onClick={() => setCurrentStep(3)}
-                className="w-full sm:w-auto gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold hover:brightness-105 shadow px-6"
-              >
-                <span>Next: Guest Count</span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ─── Question 3: How many guests are joining? ─── */}
-        {currentStep === 3 && (
-          <motion.div
-            key="q3"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-6"
-          >
-            <div className="space-y-2">
-              <span className="text-xs font-semibold tracking-wider text-[#D8C78E] uppercase">
-                Question 3
               </span>
               <h3 className="font-serif text-2xl sm:text-3xl font-semibold text-white">
                 How many guests are joining the celebration?
@@ -490,7 +368,7 @@ export function FastIntakeWizard({
                 </div>
                 <p className="text-xs text-[#E6ECEB]/80 max-w-xl">
                   {recommendedTier === 3
-                    ? 'Engineered for full-day or high-attendance weddings with cinema operators & drone coverage.'
+                    ? 'Engineered for high-attendance celebrations with cinema operators & broad event coverage.'
                     : 'Our most loved configuration: dedicated candid storytelling, complete ritual coverage & a heirloom Karizma photo album.'}
                 </p>
               </div>

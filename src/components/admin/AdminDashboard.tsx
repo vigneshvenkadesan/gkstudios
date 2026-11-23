@@ -11,6 +11,7 @@ import {
   Lock,
   LogOut,
   Package as PackageIcon,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
@@ -19,11 +20,12 @@ import { AdminScheduleModule } from '@/src/components/admin/AdminScheduleModule'
 import { AdminEventsTimelineModule } from '@/src/components/admin/AdminEventsTimelineModule';
 import { AdminGalleryModule } from '@/src/components/admin/AdminGalleryModule';
 import { AdminPackagesModule } from '@/src/components/admin/AdminPackagesModule';
+import { AdminServicesModule } from '@/src/components/admin/AdminServicesModule';
 import { GKCameraMark } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 
-type AdminTab = 'bookings' | 'schedule' | 'timeline' | 'gallery' | 'packages';
+type AdminTab = 'bookings' | 'schedule' | 'timeline' | 'gallery' | 'packages' | 'services';
 
 interface AdminDashboardProps {
   onExitAdmin: () => void;
@@ -179,6 +181,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     { id: 'timeline', label: 'Event Timeline & Payments', icon: GitCommitHorizontal, badgeCount: activeEventsCount },
     { id: 'gallery', label: 'Gallery Manager', icon: ImageIcon, badgeCount: visiblePhotosCount },
     { id: 'packages', label: 'Packages Manager', icon: PackageIcon, badgeCount: packages.length },
+    { id: 'services', label: 'Service Pricing', icon: SlidersHorizontal, badgeCount: undefined },
   ];
 
   const activeTitle =
@@ -190,7 +193,9 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
       ? 'Event Delivery Timeline & Payment Ledger'
       : activeTab === 'gallery'
       ? 'Live Gallery & Portfolio Manager'
-      : 'Photography Packages & Collections Manager';
+      : activeTab === 'packages'
+      ? 'Photography Packages & Collections Manager'
+      : 'Master Service & Pricing Manager';
 
   return (
     <div className="min-h-screen bg-[#072421] text-[#E6ECEB]">
@@ -289,6 +294,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {activeTab === 'timeline' && <AdminEventsTimelineModule />}
           {activeTab === 'gallery' && <AdminGalleryModule />}
           {activeTab === 'packages' && <AdminPackagesModule />}
+          {activeTab === 'services' && <AdminServicesModule />}
         </main>
       </div>
     </div>

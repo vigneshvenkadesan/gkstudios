@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { Types } from 'mongoose';
 import {
   BookingRequest,
   BookingServiceOption,
@@ -17,6 +18,11 @@ import {
   PaymentRecord,
   PortfolioItem,
   StudioBill,
+  DurationTier,
+  OptedServiceSnapshot,
+  PackageAvailableAddon,
+  PackageIncludedService,
+  StudioService,
   StudioEvent,
   StudioPackage,
   StudioState,
@@ -30,10 +36,45 @@ import {
   getEventModel,
   getEventProjectModel,
   getPackageModel,
+  getServiceModel,
 } from './mongodb';
 import { formatINR } from '../lib/utils';
+import {
+  DEFAULT_STUDIO_PACKAGES,
+  DEFAULT_STUDIO_SERVICES,
+  calculatePackageBasePrice,
+  formatServiceLineItem,
+  sanitizePackageDeliverables,
+} from '../lib/pricing';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
+const DURATION_TIER_LABELS: Record<DurationTier, string> = {
+  threeHours: 'Up to 3 Hours',
+  halfDay: 'Half Day',
+  fullDay: 'Full Day',
+};
+const STANDARD_DURATION_LABELS = new Set([
+  'Up to 3 Hours',
+  '3 Hours',
+  'Three Hours (3h)',
+  'Half Day',
+  'Half Day (Up to 6 Hours)',
+  'Half-Day',
+  'Full Day',
+  'Full Day (10h - 12h)',
+  'Full-Day',
+  'Single Day',
+]);
+
+function normalizeDurationLabel(
+  duration: string | undefined,
+  durationTier: DurationTier
+): string {
+  const trimmed = duration?.trim() || '';
+  return !trimmed || STANDARD_DURATION_LABELS.has(trimmed)
+    ? DURATION_TIER_LABELS[durationTier]
+    : trimmed;
+}
 
 let memoryCache: StudioState | null = null;
 
@@ -71,6 +112,16 @@ async function requirePackageModel() {
     throw new Error('Package storage is unavailable.');
   }
   return packages;
+}
+
+async function resolvePackageId(idOrObjectId: string): Promise<string | null> {
+  const packageModel = await requirePackageModel();
+  const filters: Array<Record<string, unknown>> = [{ id: idOrObjectId }];
+  if (Types.ObjectId.isValid(idOrObjectId)) {
+    filters.push({ _id: new Types.ObjectId(idOrObjectId) });
+  }
+  const pkg = await packageModel.findOne({ $or: filters }).select({ id: 1 }).lean().exec();
+  return pkg?.id ? String(pkg.id) : null;
 }
 
 async function requireBillModel() {
@@ -366,81 +417,77 @@ export async function getEventsFromMongo(): Promise<StudioEvent[]> {
 }
 
 export function normalizePackageDeliverables(raw: unknown): PackageDeliverables {
-  if (!raw) return {};
-
-  if (Array.isArray(raw)) {
-    const result: PackageDeliverables = {};
-    const items = raw.map(String).map((s) => s.trim()).filter(Boolean);
-    items.forEach((item) => {
-      const lower = item.toLowerCase();
-      if (
-        lower.includes('photographer') ||
-        lower.includes('videographer') ||
-        lower.includes('drone') ||
-        lower.includes('crew') ||
-        lower.includes('gimbal') ||
-        lower.includes('operator') ||
-        lower.includes('camera') ||
-        lower.includes('coverage')
-      ) {
-        result['Event Coverage & Crew'] = result['Event Coverage & Crew']
-          ? `${result['Event Coverage & Crew']} + ${item}`
-          : item;
-      } else if (
-        lower.includes('album') ||
-        lower.includes('book') ||
-        lower.includes('frame') ||
-        lower.includes('print') ||
-        lower.includes('box') ||
-        lower.includes('karizma')
-      ) {
-        result['Albums & Photo Frames'] = result['Albums & Photo Frames']
-          ? `${result['Albums & Photo Frames']} + ${item}`
-          : item;
-      } else if (
-        lower.includes('digital') ||
-        lower.includes('raw') ||
-        lower.includes('teaser') ||
-        lower.includes('video') ||
-        lower.includes('film') ||
-        lower.includes('cloud') ||
-        lower.includes('drive') ||
-        lower.includes('footage') ||
-        lower.includes('reel') ||
-        lower.includes('stills') ||
-        lower.includes('photos')
-      ) {
-        result['Digital Deliverables'] = result['Digital Deliverables']
-          ? `${result['Digital Deliverables']} + ${item}`
-          : item;
-      } else {
-        result['Event Coverage & Crew'] = result['Event Coverage & Crew']
-          ? `${result['Event Coverage & Crew']} + ${item}`
-          : item;
-      }
-    });
-    return result;
-  }
-
-  if (typeof raw === 'object') {
-    const result: PackageDeliverables = {};
-    for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
-      if (typeof val === 'string' && val.trim()) {
-        result[key] = val.trim();
-      }
-    }
-    return result;
-  }
-
-  return {};
+  return sanitizePackageDeliverables(raw);
 }
 
-export function toPlainPackage(doc: unknown): StudioPackage {
-  const p = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
+export function toPlainService(doc: unknown): StudioService {
+  const s = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
     ? (doc as { toObject: () => Record<string, unknown> }).toObject()
     : doc) as Record<string, unknown> || {};
 
-  const priceNum = typeof p.price === 'number' ? p.price : Number(p.price) || 0;
+  return {
+    id: String(s.slug || s.id || s._id || ''),
+    name: String(s.name || ''),
+    slug: String(s.slug || ''),
+    tamilName: s.tamilName ? String(s.tamilName) : undefined,
+    category: String(s.category || 'Photography'),
+    description: String(s.description || ''),
+    pricingType: s.pricingType === 'per_unit' ? 'per_unit' : 'tiered',
+    unitLabel: String(s.unitLabel || 'unit'),
+    unitPrice: typeof s.unitPrice === 'number' ? s.unitPrice : null,
+    minQuantity: typeof s.minQuantity === 'number' ? s.minQuantity : 1,
+    pricing: s.pricing && typeof s.pricing === 'object' ? (s.pricing as StudioService['pricing']) : null,
+    isActive: s.isActive !== false,
+    displayOrder: typeof s.displayOrder === 'number' ? s.displayOrder : 0,
+    createdAt: s.createdAt ? String(s.createdAt) : undefined,
+    updatedAt: s.updatedAt ? String(s.updatedAt) : undefined,
+  };
+}
+
+export async function getServicesFromMongo(): Promise<StudioService[]> {
+  try {
+    const serviceModel = await getServiceModel();
+    if (!serviceModel) {
+      return DEFAULT_STUDIO_SERVICES;
+    }
+    const docs = await serviceModel.find({}).sort({ displayOrder: 1, createdAt: 1 }).lean().exec();
+    if (!docs || docs.length === 0) {
+      // Seed default master services
+      try {
+        await serviceModel.insertMany(DEFAULT_STUDIO_SERVICES);
+        const seeded = await serviceModel.find({}).sort({ displayOrder: 1 }).lean().exec();
+        return seeded.map(toPlainService);
+      } catch (seedErr) {
+        console.warn('Could not seed services into Mongo:', seedErr);
+        return DEFAULT_STUDIO_SERVICES;
+      }
+    }
+    return docs.map(toPlainService);
+  } catch (err) {
+    console.warn('Error fetching services from Mongo, using defaults:', err);
+    return DEFAULT_STUDIO_SERVICES;
+  }
+}
+
+export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT_STUDIO_SERVICES): StudioPackage {
+  const p = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
+    ? (doc as { toObject: () => Record<string, unknown> }).toObject()
+    : doc) as Record<string, unknown> || {};
+  const resolvedDurationTier: DurationTier =
+    p.durationTier === 'threeHours' ||
+    p.durationTier === 'halfDay' ||
+    p.durationTier === 'fullDay'
+      ? p.durationTier
+      : typeof p.sortOrder === 'number' && p.sortOrder === 3
+        ? 'fullDay'
+        : 'halfDay';
+
+  // Dynamically resolve package price from services collection
+  const dynamicPrice = calculatePackageBasePrice(
+    { ...(p as Partial<StudioPackage>), durationTier: resolvedDurationTier },
+    services,
+    resolvedDurationTier
+  );
 
   // Legacy migration / backward compatibility:
   // If eventId is missing, resolve gracefully from category or default to 'wedding'
@@ -467,13 +514,16 @@ export function toPlainPackage(doc: unknown): StudioPackage {
         : undefined,
     name: String(p.name || ''),
     audience: String(p.audience || ''),
-    price: priceNum,
+    price: dynamicPrice,
     currency: String(p.currency || 'INR'),
-    priceLabel: p.priceLabel ? String(p.priceLabel) : formatINR(priceNum),
+    priceLabel: formatINR(dynamicPrice),
     duration: String(p.duration || ''),
+    durationTier: resolvedDurationTier,
+    includedServices: Array.isArray(p.includedServices) ? p.includedServices : undefined,
+    availableAddons: Array.isArray(p.availableAddons) ? p.availableAddons : undefined,
     highlighted: Boolean(p.highlighted),
     featured: Boolean(p.featured),
-    deliverables: normalizePackageDeliverables(p.deliverables),
+    deliverables: sanitizePackageDeliverables(p.deliverables),
     customizer:
       p.customizer && typeof p.customizer === 'object'
         ? (p.customizer as PackageCustomizer)
@@ -489,18 +539,71 @@ export function toPlainPackage(doc: unknown): StudioPackage {
   };
 }
 
-export async function getPackagesFromMongo(): Promise<StudioPackage[]> {
+export async function getPackagesFromMongo(services?: StudioService[]): Promise<StudioPackage[]> {
   const packageModel = await getPackageModel();
   if (!packageModel) {
     throw new Error('Package data is unavailable.');
   }
 
-  const mongoPackages = await packageModel
+  const effectiveServices = services || (await getServicesFromMongo());
+  let mongoPackages = await packageModel
     .find({})
     .sort({ sortOrder: 1, createdAt: 1 })
     .lean()
     .exec();
-  return mongoPackages.map(toPlainPackage);
+
+  if (!mongoPackages || mongoPackages.length === 0) {
+    try {
+      await packageModel.insertMany(
+        DEFAULT_STUDIO_PACKAGES.map((pkg) => ({
+          ...pkg,
+          deliverables: sanitizePackageDeliverables(pkg.deliverables),
+        }))
+      );
+      mongoPackages = await packageModel
+        .find({})
+        .sort({ sortOrder: 1, createdAt: 1 })
+        .lean()
+        .exec();
+    } catch (seedErr) {
+      console.warn('Could not seed packages into Mongo:', seedErr);
+      return DEFAULT_STUDIO_PACKAGES.map((pkg) => toPlainPackage(pkg, effectiveServices));
+    }
+  }
+
+  const deliverableMigrationOps = mongoPackages.flatMap((pkg) => {
+    const deliverables = sanitizePackageDeliverables(pkg.deliverables);
+    if (JSON.stringify(deliverables) === JSON.stringify(pkg.deliverables || {})) return [];
+    return [{
+      updateOne: {
+        filter: { _id: pkg._id },
+        update: { $set: { deliverables } },
+      },
+    }];
+  });
+  if (deliverableMigrationOps.length > 0) {
+    await packageModel.bulkWrite(deliverableMigrationOps);
+  }
+
+  return mongoPackages.map((pkg) => toPlainPackage(pkg, effectiveServices));
+}
+
+export async function getPackageFromMongo(
+  idOrObjectId: string
+): Promise<StudioPackage | null> {
+  const packageModel = await requirePackageModel();
+  const filters: Array<Record<string, unknown>> = [{ id: idOrObjectId }];
+  if (Types.ObjectId.isValid(idOrObjectId)) {
+    filters.push({ _id: new Types.ObjectId(idOrObjectId) });
+  }
+  const pkg = await packageModel.findOne({ $or: filters }).lean().exec();
+  if (!pkg) return null;
+  const services = await getServicesFromMongo();
+  const deliverables = sanitizePackageDeliverables(pkg.deliverables);
+  if (JSON.stringify(deliverables) !== JSON.stringify(pkg.deliverables || {})) {
+    await packageModel.updateOne({ _id: pkg._id }, { $set: { deliverables } });
+  }
+  return toPlainPackage({ ...pkg, deliverables }, services);
 }
 
 function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; packageSnapshot?: unknown }): BookingRequest {
@@ -520,6 +623,11 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; package
     ...(Array.isArray(booking.requestedServices) && booking.requestedServices.length
       ? { requestedServices: booking.requestedServices }
       : {}),
+    ...(booking.durationTier ? { durationTier: booking.durationTier } : {}),
+    ...(Array.isArray(booking.optedServices) && booking.optedServices.length
+      ? { optedServices: booking.optedServices }
+      : {}),
+    ...(booking.totalAmount !== undefined ? { totalAmount: Number(booking.totalAmount) } : {}),
     notes: String(booking.notes || ''),
     status: booking.status,
     ...(booking.source ? { source: String(booking.source) } : {}),
@@ -562,6 +670,11 @@ function toPlainEventProject(project: EventProject & { _id?: unknown; packageSna
     payments: Array.isArray(project.payments) ? project.payments : [],
     deliveryNotes: String(project.deliveryNotes || ''),
     ...(Array.isArray(project.requestedServices) ? { requestedServices: project.requestedServices } : {}),
+    ...(project.durationTier ? { durationTier: project.durationTier } : {}),
+    ...(Array.isArray(project.optedServices) && project.optedServices.length
+      ? { optedServices: project.optedServices }
+      : {}),
+    ...(project.totalAmount !== undefined ? { totalAmount: Number(project.totalAmount) } : {}),
     ...(project.packageSnapshot ? { packageSnapshot: project.packageSnapshot as PackageSnapshot } : {}),
   };
 }
@@ -586,6 +699,12 @@ function toPlainBill(b: any): StudioBill {
       ? {
           basePackageName: String(b.packageDetails.basePackageName || ''),
           tierLabel: b.packageDetails.tierLabel || 'Signature',
+          durationTier: b.packageDetails.durationTier || b.durationTier || undefined,
+          optedServices: Array.isArray(b.packageDetails.optedServices)
+            ? b.packageDetails.optedServices
+            : Array.isArray(b.optedServices)
+            ? b.optedServices
+            : undefined,
           includedServices: Array.isArray(b.packageDetails.includedServices)
             ? b.packageDetails.includedServices
                 .filter(
@@ -658,6 +777,11 @@ function toPlainBill(b: any): StudioBill {
           ta: String(term.ta || ''),
         }))
       : [],
+    optedServices: Array.isArray(b.optedServices)
+      ? b.optedServices
+      : Array.isArray(b.packageDetails?.optedServices)
+      ? b.packageDetails.optedServices
+      : undefined,
     createdAt: String(b.createdAt),
   };
 }
@@ -666,6 +790,8 @@ export async function getStudioState(): Promise<StudioState> {
   if (!memoryCache) {
     memoryCache = await readFromDisk();
   }
+
+  const plainServices = await getServicesFromMongo();
 
   const bookings = await requireBookingModel();
   const mongoBookings = await bookings.find({}).sort({ createdAt: -1 }).lean().exec();
@@ -691,10 +817,13 @@ export async function getStudioState(): Promise<StudioState> {
       ...(plain.phone ? { phone: String(plain.phone) } : {}),
       ...(plain.time ? { time: String(plain.time) } : {}),
       ...(Array.isArray(plain.requestedServices) ? { requestedServices: plain.requestedServices } : {}),
+      ...(plain.durationTier ? { durationTier: plain.durationTier } : {}),
+      ...(Array.isArray(plain.optedServices) ? { optedServices: plain.optedServices } : {}),
       ...(plain.packageId ? { packageId: String(plain.packageId) } : {}),
       ...(plain.packageName ? { packageName: String(plain.packageName) } : {}),
       ...(plain.packageTier ? { packageTier: plain.packageTier } : {}),
       ...(plain.totalPackageAmount !== undefined ? { totalPackageAmount: Number(plain.totalPackageAmount) } : {}),
+      ...(plain.totalAmount !== undefined ? { totalAmount: Number(plain.totalAmount) } : {}),
       ...(plain.paymentStatus ? { paymentStatus: String(plain.paymentStatus) } : {}),
     } satisfies CalendarDayEntry;
   });
@@ -711,11 +840,12 @@ export async function getStudioState(): Promise<StudioState> {
     console.warn('Failed to load bills from Mongo:', err);
   }
 
-  const plainPackages = await getPackagesFromMongo();
+  const plainPackages = await getPackagesFromMongo(plainServices);
   const plainEvents = await getEventsFromMongo();
 
   memoryCache = {
     ...memoryCache,
+    services: plainServices,
     packages: plainPackages,
     events: plainEvents,
     bookings: plainBookings,
@@ -749,6 +879,9 @@ export async function createBookingOnServer(input: {
   packageName?: string;
   quotedAmount?: number;
   requestedServices?: BookingServiceOption[];
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
+  totalAmount?: number;
   notes: string;
   status?: BookingStatus;
   source?: string;
@@ -797,6 +930,9 @@ export async function createBookingOnServer(input: {
     requestedServices: input.requestedServices?.length
       ? input.requestedServices
       : undefined,
+    durationTier: input.durationTier,
+    optedServices: input.optedServices?.length ? input.optedServices : undefined,
+    totalAmount: input.totalAmount ?? resolvedQuotedAmount,
     notes: input.notes.trim(),
     status: input.status || 'Pending',
     source: input.source?.trim() || undefined,
@@ -925,12 +1061,15 @@ export async function processBookingOnServer(input: {
         phone: targetBooking.phone,
         time: resolvedEventTime || targetBooking.eventTime,
         requestedServices: targetBooking.requestedServices,
+        durationTier: targetBooking.durationTier,
+        optedServices: targetBooking.optedServices,
         packageId: pkg ? pkg.id : targetBooking.packageId,
         packageName: resolvedPkgName,
         packageTier: pkg
           ? (pkg.sortOrder === 3 ? 'Premium' : pkg.sortOrder === 1 ? 'Essential' : 'Signature')
           : undefined,
         totalPackageAmount: input.quotedAmount,
+        totalAmount: targetBooking.totalAmount ?? input.quotedAmount,
       };
       const existingIdx = targetBooking.id
         ? updatedCalendar.findIndex(
@@ -1660,6 +1799,8 @@ export async function addEventPaymentOnServer(
     packageDetails: {
       basePackageName,
       tierLabel,
+      durationTier: project.durationTier || matchingBooking?.durationTier || matchingCalendarEntry?.durationTier,
+      optedServices: project.optedServices || matchingBooking?.optedServices || matchingCalendarEntry?.optedServices,
       includedServices,
       deliverables,
       requiredCrew,
@@ -1680,6 +1821,7 @@ export async function addEventPaymentOnServer(
       en: t.en,
       ta: t.ta,
     })),
+    optedServices: project.optedServices || matchingBooking?.optedServices || matchingCalendarEntry?.optedServices,
     createdAt: new Date().toISOString(),
   };
 
@@ -1784,8 +1926,27 @@ export async function createPackageOnServer(
     throw new Error(`Package ID "${id}" already exists. Please choose a different ID or name.`);
   }
 
-  const price = typeof input.price === 'number' ? input.price : Number(input.price) || 0;
+  const services = state.services || (await getServicesFromMongo());
   const maxSort = state.packages.reduce((max, p) => Math.max(max, p.sortOrder ?? 0), 0);
+  const durationTier: DurationTier =
+    input.durationTier === 'threeHours' ||
+    input.durationTier === 'halfDay' ||
+    input.durationTier === 'fullDay'
+      ? input.durationTier
+      : 'halfDay';
+  const includedServices = Array.isArray(input.includedServices) ? input.includedServices : undefined;
+  const availableAddons = Array.isArray(input.availableAddons) ? input.availableAddons : undefined;
+
+  const dynamicPrice = calculatePackageBasePrice(
+    {
+      includedServices,
+      durationTier,
+      sortOrder: typeof input.sortOrder === 'number' ? input.sortOrder : maxSort + 1,
+    },
+    services,
+    durationTier
+  );
+  const price = dynamicPrice > 0 ? dynamicPrice : (typeof input.price === 'number' ? input.price : Number(input.price) || 0);
 
   const newPackage: StudioPackage = {
     id,
@@ -1796,16 +1957,13 @@ export async function createPackageOnServer(
     price,
     currency: input.currency?.trim() || 'INR',
     priceLabel: input.priceLabel?.trim() || formatINR(price),
-    duration: input.duration?.trim() || 'Single Day',
+    duration: normalizeDurationLabel(input.duration, durationTier),
+    durationTier,
+    includedServices,
+    availableAddons,
     highlighted: Boolean(input.highlighted || input.featured),
     featured: Boolean(input.featured || input.highlighted),
-    deliverables: input.deliverables
-      ? normalizePackageDeliverables(input.deliverables)
-      : {
-          'Event Coverage & Crew': '1 Lead Candid Photographer + 1 Traditional Photographer',
-          'Albums & Photo Frames': 'Signature Layflat Photo Album',
-          'Digital Deliverables': 'Full Event Edited Video + Raw Footage Drive',
-        },
+    deliverables: sanitizePackageDeliverables(input.deliverables),
     customizer: input.customizer,
     imageUrl: input.imageUrl?.trim() || input.image?.trim() || '',
     category: input.category?.trim() || 'Weddings',
@@ -1832,16 +1990,51 @@ export async function createPackageOnServer(
 }
 
 export async function updatePackageOnServer(
-  id: string,
+  idOrObjectId: string,
   patch: Partial<StudioPackage>
 ): Promise<StudioState> {
   const state = await getStudioState();
-  const existing = state.packages.find((p) => p.id === id);
+  const id = await resolvePackageId(idOrObjectId);
+  const existing = id ? state.packages.find((p) => p.id === id) : undefined;
   if (!existing) {
-    throw new Error(`Package with ID "${id}" not found.`);
+    throw new Error(`Package with ID "${idOrObjectId}" not found.`);
   }
 
-  const price = patch.price !== undefined ? (Number(patch.price) || 0) : existing.price;
+  const services = state.services || (await getServicesFromMongo());
+  if (
+    patch.durationTier !== undefined &&
+    patch.durationTier !== 'threeHours' &&
+    patch.durationTier !== 'halfDay' &&
+    patch.durationTier !== 'fullDay'
+  ) {
+    throw new Error('durationTier must be one of: threeHours, halfDay, fullDay.');
+  }
+  const durationTier: DurationTier =
+    patch.durationTier !== undefined
+      ? patch.durationTier
+      : existing.durationTier === 'threeHours' ||
+          existing.durationTier === 'halfDay' ||
+          existing.durationTier === 'fullDay'
+        ? existing.durationTier
+        : 'halfDay';
+  const includedServices = patch.includedServices !== undefined ? patch.includedServices : existing.includedServices;
+  const availableAddons = patch.availableAddons !== undefined ? patch.availableAddons : existing.availableAddons;
+
+  const dynamicPrice = calculatePackageBasePrice(
+    {
+      ...existing,
+      ...patch,
+      includedServices,
+      durationTier,
+    },
+    services,
+    durationTier || 'halfDay'
+  );
+  const price = dynamicPrice > 0 ? dynamicPrice : (patch.price !== undefined ? (Number(patch.price) || 0) : existing.price);
+  const nextDuration = normalizeDurationLabel(
+    patch.duration !== undefined ? patch.duration : existing.duration,
+    durationTier
+  );
 
   const updatedPackage: StudioPackage = {
     ...existing,
@@ -1852,7 +2045,11 @@ export async function updatePackageOnServer(
     currency: patch.currency || existing.currency || 'INR',
     priceLabel:
       patch.priceLabel ||
-      (patch.price !== undefined ? formatINR(price) : existing.priceLabel),
+      formatINR(price),
+    duration: nextDuration,
+    durationTier,
+    includedServices,
+    availableAddons,
     highlighted:
       patch.highlighted !== undefined
         ? Boolean(patch.highlighted)
@@ -1867,8 +2064,8 @@ export async function updatePackageOnServer(
         : existing.featured,
     deliverables:
       patch.deliverables !== undefined
-        ? normalizePackageDeliverables(patch.deliverables)
-        : existing.deliverables,
+        ? sanitizePackageDeliverables(patch.deliverables)
+        : sanitizePackageDeliverables(existing.deliverables),
     customizer: patch.customizer !== undefined ? patch.customizer : existing.customizer,
     status: patch.status ? (patch.status === 'inactive' ? 'inactive' : 'active') : existing.status,
     displayOnPortfolio:
@@ -1880,7 +2077,10 @@ export async function updatePackageOnServer(
   };
 
   const packageModel = await requirePackageModel();
-  await packageModel.updateOne({ id }, { $set: updatedPackage }, { upsert: true });
+  const updateResult = await packageModel.updateOne({ id }, { $set: updatedPackage });
+  if (updateResult.matchedCount === 0) {
+    throw new Error(`Package with ID "${idOrObjectId}" not found.`);
+  }
 
   const nextPackages = state.packages
     .map((p) => (p.id === id ? updatedPackage : p))
@@ -1896,15 +2096,18 @@ export async function updatePackageOnServer(
 
 export async function deletePackageOnServer(id: string): Promise<StudioState> {
   const state = await getStudioState();
-  const exists = state.packages.some((p) => p.id === id);
-  if (!exists) {
+  const resolvedId = await resolvePackageId(id);
+  if (!resolvedId || !state.packages.some((p) => p.id === resolvedId)) {
     throw new Error(`Package with ID "${id}" not found.`);
   }
 
   const packageModel = await requirePackageModel();
-  await packageModel.deleteOne({ id });
+  const deleteResult = await packageModel.deleteOne({ id: resolvedId });
+  if (deleteResult.deletedCount === 0) {
+    throw new Error(`Package with ID "${id}" not found.`);
+  }
 
-  const nextPackages = state.packages.filter((p) => p.id !== id);
+  const nextPackages = state.packages.filter((p) => p.id !== resolvedId);
 
   memoryCache = {
     ...state,
@@ -1943,4 +2146,145 @@ export async function reorderPackagesOnServer(orderedIds: string[]): Promise<Stu
   };
 
   return memoryCache;
+}
+
+export async function saveServiceOnServer(service: Partial<StudioService>): Promise<StudioService> {
+  const serviceModel = await getServiceModel();
+  if (!serviceModel) throw new Error('Service storage unavailable.');
+
+  const name = service.name?.trim();
+  if (!name) throw new Error('Service name is required.');
+
+  // Auto-generate slug from name if not provided
+  const rawSlug = service.slug?.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const slug = rawSlug;
+  if (!slug) throw new Error('Service slug is required.');
+
+  const services = await getServicesFromMongo();
+  const maxSort = services.reduce((max, s) => Math.max(max, s.displayOrder ?? 0), 0);
+
+  const newDoc = {
+    ...service,
+    name,
+    slug,
+    category: service.category || 'Photography',
+    pricingType: service.pricingType === 'per_unit' ? 'per_unit' : 'tiered',
+    unitLabel: service.unitLabel || (service.pricingType === 'per_unit' ? 'unit' : 'camera'),
+    unitPrice: typeof service.unitPrice === 'number' ? service.unitPrice : null,
+    minQuantity: typeof service.minQuantity === 'number' ? service.minQuantity : 1,
+    pricing: service.pricing || null,
+    isActive: service.isActive !== false,
+    displayOrder: typeof service.displayOrder === 'number' ? service.displayOrder : maxSort + 1,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updated = await serviceModel
+    .findOneAndUpdate(
+      { slug },
+      { $set: newDoc, $setOnInsert: { createdAt: new Date().toISOString() } },
+      { new: true, upsert: true }
+    )
+    .lean()
+    .exec();
+
+  const plain = toPlainService(updated);
+
+  // Invalidate / refresh memoryCache and package prices
+  const updatedServices = await getServicesFromMongo();
+  if (memoryCache) {
+    memoryCache = {
+      ...memoryCache,
+      services: updatedServices,
+      packages: memoryCache.packages.map((pkg) => toPlainPackage(pkg, updatedServices)),
+    };
+  }
+
+  return plain;
+}
+
+export async function updateServiceOnServer(
+  slugOrId: string,
+  patch: Partial<StudioService>
+): Promise<StudioService> {
+  const serviceModel = await getServiceModel();
+  if (!serviceModel) throw new Error('Service storage unavailable.');
+
+  // Look up existing service by slug or id
+  const existing = await serviceModel
+    .findOne({
+      $or: [{ slug: slugOrId }, { id: slugOrId }],
+    })
+    .lean()
+    .exec();
+
+  if (!existing) {
+    throw new Error(`Service "${slugOrId}" not found.`);
+  }
+
+  // Preserve slug so existing package mappings never break
+  const { slug, ...safePatch } = patch;
+
+  const updateDoc: Record<string, unknown> = {
+    ...safePatch,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (patch.name?.trim()) {
+    updateDoc.name = patch.name.trim();
+  }
+
+  const updated = await serviceModel
+    .findOneAndUpdate(
+      { slug: existing.slug },
+      { $set: updateDoc },
+      { new: true }
+    )
+    .lean()
+    .exec();
+
+  const plain = toPlainService(updated);
+
+  // Invalidate / refresh memoryCache and recalculate package prices
+  const updatedServices = await getServicesFromMongo();
+  if (memoryCache) {
+    memoryCache = {
+      ...memoryCache,
+      services: updatedServices,
+      packages: memoryCache.packages.map((pkg) => toPlainPackage(pkg, updatedServices)),
+    };
+  }
+
+  return plain;
+}
+
+export async function deleteServiceOnServer(
+  slugOrId: string
+): Promise<{ success: boolean; slug: string }> {
+  const serviceModel = await getServiceModel();
+  if (!serviceModel) throw new Error('Service storage unavailable.');
+
+  const existing = await serviceModel
+    .findOne({
+      $or: [{ slug: slugOrId }, { id: slugOrId }],
+    })
+    .lean()
+    .exec();
+
+  if (!existing) {
+    throw new Error(`Service "${slugOrId}" not found.`);
+  }
+
+  await serviceModel.deleteOne({ slug: existing.slug }).exec();
+
+  // Invalidate / refresh memoryCache and recalculate package prices
+  const updatedServices = await getServicesFromMongo();
+  if (memoryCache) {
+    memoryCache = {
+      ...memoryCache,
+      services: updatedServices,
+      packages: memoryCache.packages.map((pkg) => toPlainPackage(pkg, updatedServices)),
+    };
+  }
+
+  return { success: true, slug: existing.slug };
 }

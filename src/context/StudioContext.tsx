@@ -6,18 +6,22 @@ import {
   BookingServiceOption,
   BookingStatus,
   CalendarDayEntry,
+  DurationTier,
   EventCategory,
   EventProject,
   EventStage,
+  OptedServiceSnapshot,
   PackageSnapshot,
   PaymentRecord,
   PortfolioItem,
   StudioBill,
   StudioEvent,
   StudioPackage,
+  StudioService,
   StudioState,
 } from '@/src/types/studio';
 import { INITIAL_STUDIO_STATE } from '@/src/data/initialStudioData';
+import { DEFAULT_STUDIO_SERVICES } from '@/src/lib/pricing';
 
 interface SubmitBookingInput {
   clientName: string;
@@ -31,6 +35,9 @@ interface SubmitBookingInput {
   packageName?: string;
   quotedAmount?: number;
   requestedServices?: BookingServiceOption[];
+  durationTier?: DurationTier;
+  optedServices?: OptedServiceSnapshot[];
+  totalAmount?: number;
   notes: string;
   status?: BookingStatus;
   source?: string;
@@ -70,6 +77,7 @@ interface StudioContextValue {
   state: StudioState;
   isLoading: boolean;
   packages: StudioPackage[];
+  services: StudioService[];
   events: StudioEvent[];
   portfolio: PortfolioItem[];
   bookings: BookingRequest[];
@@ -88,7 +96,11 @@ interface StudioContextValue {
   addPackage: (item: Partial<StudioPackage>) => Promise<StudioPackage>;
   updatePackage: (id: string, patch: Partial<StudioPackage>) => Promise<void>;
   deletePackage: (id: string) => Promise<void>;
+  getPackage: (id: string) => Promise<StudioPackage>;
   reorderPackages: (orderedIds: string[]) => Promise<void>;
+  saveService: (service: Partial<StudioService>) => Promise<StudioService>;
+  updateService: (idOrSlug: string, patch: Partial<StudioService>) => Promise<StudioService>;
+  deleteService: (idOrSlug: string) => Promise<void>;
   createEventProject: (input: CreateEventProjectInput) => Promise<EventProject>;
   deleteEventProject: (projectId: string) => Promise<void>;
   updateEventStage: (projectId: string, stage: EventStage, note?: string) => Promise<void>;
@@ -111,6 +123,7 @@ const StudioContext = createContext<StudioContextValue | undefined>(undefined);
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers || {}),
@@ -257,9 +270,15 @@ export function StudioProvider({
     []
   );
 
+  const getPackage = useCallback(async (id: string): Promise<StudioPackage> => {
+    return requestJson<StudioPackage>(`/api/packages/${encodeURIComponent(id)}`, {
+      cache: 'no-store',
+    });
+  }, []);
+
   const updatePackage = useCallback(
     async (id: string, patch: Partial<StudioPackage>) => {
-      const nextState = await requestJson<StudioState>(`/api/packages/${id}`, {
+      const nextState = await requestJson<StudioState>(`/api/packages/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: JSON.stringify(patch),
       });
@@ -269,7 +288,7 @@ export function StudioProvider({
   );
 
   const deletePackage = useCallback(async (id: string) => {
-    const nextState = await requestJson<StudioState>(`/api/packages/${id}`, {
+    const nextState = await requestJson<StudioState>(`/api/packages/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     setState(nextState);
@@ -282,6 +301,31 @@ export function StudioProvider({
     });
     setState(nextState);
   }, []);
+
+  const saveService = useCallback(async (service: Partial<StudioService>): Promise<StudioService> => {
+    const created = await requestJson<StudioService>('/api/services', {
+      method: 'POST',
+      body: JSON.stringify(service),
+    });
+    await refreshStudio();
+    return created;
+  }, [refreshStudio]);
+
+  const updateService = useCallback(async (idOrSlug: string, patch: Partial<StudioService>): Promise<StudioService> => {
+    const updated = await requestJson<StudioService>(`/api/services/${idOrSlug}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+    await refreshStudio();
+    return updated;
+  }, [refreshStudio]);
+
+  const deleteService = useCallback(async (idOrSlug: string): Promise<void> => {
+    await requestJson(`/api/services/${idOrSlug}`, {
+      method: 'DELETE',
+    });
+    await refreshStudio();
+  }, [refreshStudio]);
 
   const createEventProject = useCallback(
     async (input: CreateEventProjectInput): Promise<EventProject> => {
@@ -361,6 +405,7 @@ export function StudioProvider({
         state,
         isLoading,
         packages: state.packages,
+        services: state.services && state.services.length > 0 ? state.services : DEFAULT_STUDIO_SERVICES,
         events: state.events ?? [],
         portfolio: state.portfolio,
         bookings: state.bookings,
@@ -379,7 +424,11 @@ export function StudioProvider({
         addPackage,
         updatePackage,
         deletePackage,
+        getPackage,
         reorderPackages,
+        saveService,
+        updateService,
+        deleteService,
         createEventProject,
         deleteEventProject,
         updateEventStage,

@@ -21,6 +21,11 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
 import { PackageDeliverables, StudioPackage, StudioEvent } from '@/src/types/studio';
 import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
+import {
+  calculatePackageBasePrice,
+  getDynamicPackageDisplaySections,
+  sanitizePackageDeliverables,
+} from '@/src/lib/pricing';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
 import { getPackageCopy, translate } from '@/src/i18n/translations';
@@ -70,10 +75,10 @@ export function PackagesSection({
   onSelectPackage,
   preselectedEventId,
 }: PackagesSectionProps) {
-  const { packages, isLoading: isStudioLoading } = useStudio();
+  const { packages, services, isLoading: isStudioLoading } = useStudio();
   const { events, activeEvents, isLoading: isEventsLoading, error: eventsError, refresh: refreshEvents } = useEvents();
 
-  // Mode: 'intake' (3-Question Intake) vs 'grid' (Classic All Packages Grid)
+  // Mode: 'intake' (2-Question Intake) vs 'grid' (Classic All Packages Grid)
   const [viewMode, setViewMode] = useState<'intake' | 'grid'>('intake');
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('wedding');
@@ -102,7 +107,7 @@ export function PackagesSection({
     );
   }, [events, selectedEventId]);
 
-  // Filter packages based on selected eventId for standard grid
+  // Filter packages based on selected eventId for standard grid with dynamically resolved prices
   const matchingPackages = useMemo(() => {
     return packages
       .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
@@ -110,8 +115,16 @@ export function PackagesSection({
         const pkgEventId = pkg.eventId || 'wedding';
         return pkgEventId === selectedEventId;
       })
+      .map((pkg) => {
+        const dynamicPrice = calculatePackageBasePrice(pkg, services);
+        return {
+          ...pkg,
+          price: dynamicPrice,
+          priceLabel: formatINR(dynamicPrice),
+        };
+      })
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [packages, selectedEventId]);
+  }, [packages, services, selectedEventId]);
 
   const whatsappUrl = buildWhatsAppUrl(
     STUDIO_INFO.phone,
@@ -162,7 +175,7 @@ export function PackagesSection({
               }`}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span>3-Question Proposal</span>
+              <span>2-Question Proposal</span>
             </button>
 
             <button
@@ -198,7 +211,7 @@ export function PackagesSection({
           </div>
         )}
 
-        {/* ─── View Mode 1: Fast 3-Question Intake Wizard ─── */}
+        {/* ─── View Mode 1: Fast 2-Question Intake Wizard ─── */}
         {viewMode === 'intake' ? (
           isLoading ? (
             <PackageCardSkeleton />
@@ -221,7 +234,7 @@ export function PackagesSection({
               <div className="flex items-center gap-2 text-[#E6ECEB]/90">
                 <Sparkles className="h-4 w-4 text-[#D8C78E] shrink-0" />
                 <span>
-                  Looking for a custom proposal tailored to your session hours & guest count?
+                  Looking for a custom proposal tailored to your guest count?
                 </span>
               </div>
               <Button
@@ -229,7 +242,7 @@ export function PackagesSection({
                 onClick={() => setViewMode('intake')}
                 className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold text-xs"
               >
-                <span>Take 3-Question Quiz ✨</span>
+                <span>Build My Guest Proposal ✨</span>
               </Button>
             </div>
 
@@ -316,7 +329,19 @@ export function PackagesSection({
                   );
 
                   const pkgImg = pkg.imageUrl || pkg.image;
-                  const parsedDeliverables = parseDeliverables(copy.deliverables);
+                  const dynamicSections = getDynamicPackageDisplaySections(
+                    pkg.includedServices,
+                    services
+                  );
+                  const parsedDeliverables = [
+                    ...(dynamicSections.coverage
+                      ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
+                      : []),
+                    ...(dynamicSections.albums
+                      ? [{ category: 'Albums', text: dynamicSections.albums }]
+                      : []),
+                    ...parseDeliverables(sanitizePackageDeliverables(copy.deliverables)),
+                  ];
 
                   return (
                     <motion.article

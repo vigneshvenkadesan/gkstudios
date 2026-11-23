@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,7 +22,6 @@ import {
   Send,
   Loader2,
   CheckCircle2,
-  LayoutGrid,
   Star,
   ShieldCheck,
   Crown,
@@ -54,13 +53,22 @@ import { useStudio } from '@/src/context/StudioContext';
 import { useEvents } from '@/src/hooks/useEvents';
 import {
   BookingServiceOption,
+  DurationTier,
   EVENT_CATEGORY_GROUPS,
+  OptedServiceSnapshot,
   PackageDeliverables,
   PackageIncludedFeatures,
   PackageSnapshot,
   StudioPackage,
 } from '@/src/types/studio';
-import { PROPOSAL_ADDONS } from '@/src/config/packageAddons';
+import {
+  calculateCustomizedEventPrice,
+  calculatePackageBasePrice,
+  formatServiceLineItem,
+  getDynamicPackageDisplaySections,
+  resolveServicePrice,
+  sanitizePackageDeliverables,
+} from '@/src/lib/pricing';
 import { CAMERA_TEAM_GUIDES, CameraTeamMemberGuide } from '@/src/config/cameraGuide';
 import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoShowcaseSection';
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
@@ -69,7 +77,6 @@ import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { PackageCardSkeleton } from '@/src/components/ui/skeleton';
 import {
-  SESSION_PLANS,
   GUEST_SCALES,
   SessionPlan,
   GuestScale,
@@ -172,6 +179,17 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   },
 };
 
+const FEATURE_SERVICE_SLUGS: Record<keyof PackageIncludedFeatures, string[]> = {
+  traditionalPhoto: ['traditional-camera'],
+  traditionalVideo: ['traditional-video'],
+  candidPhoto: ['candid-photography'],
+  candidVideo: ['candid-cinematography'],
+  printedAlbum: ['photo-album'],
+  drone: ['drone-aerial-coverage'],
+  ledWall: ['led-wall', 'led-tv'],
+  outdoorShoot: ['outdoor-shoot'],
+};
+
 const TIME_SLOT_PRESETS = [
   {
     id: 'muhurtham',
@@ -232,7 +250,7 @@ function parseDeliverables(
 export function ProposalPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { packages, submitBooking, isLoading } = useStudio();
+  const { packages, services, submitBooking, isLoading } = useStudio();
   const { activeEvents } = useEvents();
 
   // URL Query Params detection for Fallback / Standalone mode
@@ -324,12 +342,14 @@ export function ProposalPageClient() {
   );
   const [selectedUpgradeIds, setSelectedUpgradeIds] = useState<string[]>(initialAddons);
 
+  // Album sheet customization state (synced with the selected package's catalog quantity)
+  const [customAlbumSheets, setCustomAlbumSheets] = useState<number>(
+    selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35
+  );
+
   // Accordion open states
   const [expandedCameraIds, setExpandedCameraIds] = useState<string[]>([]);
   const [isDeliverablesOpen, setIsDeliverablesOpen] = useState(false);
-  const [isSlaAccordionOpen, setIsSlaAccordionOpen] = useState(false);
-  const [isCompareTiersOpen, setIsCompareTiersOpen] = useState(false);
-  const [isPolicyAccordionOpen, setIsPolicyAccordionOpen] = useState(false);
 
   // Active modal for single camera preview
   const [activePillModal, setActivePillModal] = useState<CameraTeamMemberGuide | null>(null);
@@ -405,6 +425,28 @@ export function ProposalPageClient() {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages, currentEvent]);
 
+  // Active duration tier mapped from intake plan
+  const durationTier: DurationTier = useMemo(() => {
+    if (
+      activePlan === 'single-3h' ||
+      (activePlan as string) === 'single' ||
+      (activePlan as string) === 'single-4h'
+    ) {
+      return 'threeHours';
+    }
+    if (activePlan === 'full') return 'fullDay';
+    return 'halfDay';
+  }, [activePlan]);
+
+  const getServiceCost = useCallback(
+    (slug: string, qty: number = 1): number => {
+      const svc = services.find((s) => s.slug === slug);
+      if (!svc) return 0;
+      return resolveServicePrice(svc, durationTier, qty).total;
+    },
+    [services, durationTier]
+  );
+
   // Base package matching selectedTierOrder (1 = Essential, 2 = Signature, 3 = Premium)
   const basePackage = useMemo(() => {
     if (eventPackages.length === 0) return null;
@@ -420,8 +462,30 @@ export function ProposalPageClient() {
         match = eventPackages.find((p) => p.highlighted) || eventPackages[0];
       }
     }
-    return match || eventPackages[0];
-  }, [eventPackages, selectedTierOrder]);
+    const resolvedPkg = match || eventPackages[0];
+    if (!resolvedPkg) return null;
+
+    // Dynamically resolve base price from services
+    const dynamicPrice = calculatePackageBasePrice(resolvedPkg, services, durationTier);
+    return {
+      ...resolvedPkg,
+      price: dynamicPrice,
+      priceLabel: formatINR(dynamicPrice),
+    };
+  }, [eventPackages, selectedTierOrder, services, durationTier]);
+
+  const defaultSheetsForTier = useMemo(() => {
+    const includedAlbum = basePackage?.includedServices?.find(
+      (item) => item.serviceSlug === 'photo-album'
+    );
+    return includedAlbum?.quantity || (
+      selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35
+    );
+  }, [basePackage, selectedTierOrder]);
+
+  useEffect(() => {
+    setCustomAlbumSheets(defaultSheetsForTier);
+  }, [defaultSheetsForTier]);
 
   // ─── 1. Base Included Elements (Default Checked) ───
   const baseIncludedElements = useMemo(() => {
@@ -452,7 +516,11 @@ export function ProposalPageClient() {
 
     keys.forEach((k) => {
       let isIncluded = false;
-      if (incMap) {
+      if (basePackage.includedServices?.length) {
+        isIncluded = basePackage.includedServices.some((item) =>
+          FEATURE_SERVICE_SLUGS[k].includes(item.serviceSlug)
+        );
+      } else if (incMap) {
         isIncluded = Boolean(incMap[k]);
       } else {
         if (basePackage.sortOrder === 3) {
@@ -466,13 +534,26 @@ export function ProposalPageClient() {
 
       if (isIncluded) {
         const meta = BASE_FEATURE_DEFINITIONS[k];
-        let deduction = meta.defaultDeduction;
+        const albumSheets = basePackage.sortOrder === 3 ? 40 : basePackage.sortOrder === 1 ? 30 : 35;
+        const includedItem = basePackage.includedServices?.find((item) =>
+          FEATURE_SERVICE_SLUGS[k].includes(item.serviceSlug)
+        );
+        const qty =
+          includedItem?.quantity || (k === 'printedAlbum' ? albumSheets : 1);
+        const slug =
+          includedItem?.serviceSlug ||
+          FEATURE_SERVICE_SLUGS[k].find((serviceSlug) =>
+            services.some((service) => service.slug === serviceSlug)
+          ) ||
+          '';
+        const dynamicCost = slug ? getServiceCost(slug, qty) : 0;
+        let deduction = dynamicCost > 0 ? -dynamicCost : meta.defaultDeduction;
 
         if (k === 'printedAlbum' && basePackage.customizer?.addons) {
           const removeAddon = basePackage.customizer.addons.find(
             (a) => a.id === 'remove-album' || a.type === 'downgrade' || a.priceDelta < 0
           );
-          if (removeAddon) {
+          if (removeAddon && dynamicCost <= 0) {
             deduction = -Math.abs(removeAddon.priceDelta);
           }
         }
@@ -491,56 +572,76 @@ export function ProposalPageClient() {
     });
 
     return results;
-  }, [basePackage]);
+  }, [basePackage, getServiceCost, services]);
 
-  // ─── 2. Available Upgrades (Default Unchecked) ───
+  // ─── 2. Available catalog services not already in the base package ───
   const availableUpgrades = useMemo(() => {
     if (!basePackage) return [];
 
-    const incKeys = baseIncludedElements.map((b) => b.featureKey);
+    const includedSlugs = new Set(
+      basePackage.includedServices?.length
+        ? basePackage.includedServices.map((item) => item.serviceSlug)
+        : baseIncludedElements.flatMap((item) =>
+            FEATURE_SERVICE_SLUGS[item.featureKey as keyof PackageIncludedFeatures]
+          )
+    );
 
-    if (basePackage.customizer?.addons && basePackage.customizer.addons.length > 0) {
-      return basePackage.customizer.addons
-        .filter((a) => a.type === 'upgrade' || a.priceDelta > 0)
-        .filter((a) => {
-          if (a.id.includes('candid-photo') && incKeys.includes('candidPhoto')) return false;
-          if (a.id.includes('candid-video') && incKeys.includes('candidVideo')) return false;
-          if (a.id.includes('drone') && incKeys.includes('drone')) return false;
-          if (a.id.includes('led') && incKeys.includes('ledWall')) return false;
-          return true;
-        })
-        .map((a) => ({
-          id: a.id,
-          label: a.label,
-          description: `Add ${a.label} to your package coverage.`,
+    return services
+      .filter((service) => service.isActive && !includedSlugs.has(service.slug))
+      .map((service) => {
+        const quantity =
+          service.pricingType === 'per_unit'
+            ? Math.max(
+                service.minQuantity || 1,
+                service.slug === 'photo-album' ? defaultSheetsForTier : 1
+              )
+            : 1;
+        const priceDelta = resolveServicePrice(service, durationTier, quantity).total;
+        const quantityDescription =
+          service.pricingType === 'per_unit'
+            ? `Default quantity: ${quantity} ${service.unitLabel}. `
+            : '';
+        return {
+          id: service.slug,
+          serviceSlug: service.slug,
+          quantity,
+          label: service.name,
+          description: `${quantityDescription}${service.description || `Add ${service.name} to your package.`}`,
           isBaseIncluded: false,
-          priceDelta: Math.abs(a.priceDelta),
-          badge: `+${formatINR(Math.abs(a.priceDelta))}`,
-        }));
-    }
-
-    return PROPOSAL_ADDONS
-      .filter((a) => a.type === 'add')
-      .filter((a) => (!a.applicableIf ? true : a.applicableIf(basePackage)))
-      .filter((a) => {
-        if (a.id.includes('candid-photo') && incKeys.includes('candidPhoto')) return false;
-        if (a.id.includes('candid-cinema') && incKeys.includes('candidVideo')) return false;
-        if (a.id.includes('drone') && incKeys.includes('drone')) return false;
-        if (a.id.includes('led') && incKeys.includes('ledWall')) return false;
-        return true;
-      })
-      .map((a) => ({
-        id: a.id,
-        label: a.shortTitle || a.name,
-        description: a.description,
-        isBaseIncluded: false,
-        priceDelta: Math.abs(a.priceDelta),
-        badge: `+${formatINR(Math.abs(a.priceDelta))}`,
-      }));
-  }, [basePackage, baseIncludedElements]);
+          priceDelta,
+          badge: `+${formatINR(priceDelta)}`,
+        };
+      });
+  }, [basePackage, baseIncludedElements, services, durationTier, defaultSheetsForTier]);
 
   // ─── 3. Custom Plan Detection & Pricing Calculation ───
-  const isCustomModified = unselectedIncludedIds.length > 0 || selectedUpgradeIds.length > 0;
+  const isCustomModified =
+    unselectedIncludedIds.length > 0 ||
+    selectedUpgradeIds.length > 0 ||
+    customAlbumSheets !== defaultSheetsForTier;
+
+  const albumSheetDelta = useMemo(() => {
+    const albumIncluded = baseIncludedElements.some(
+      (item) => item.featureKey === 'printedAlbum'
+    );
+    if (
+      !albumIncluded ||
+      unselectedIncludedIds.includes('inc-printedAlbum') ||
+      customAlbumSheets === defaultSheetsForTier
+    ) {
+      return 0;
+    }
+    return (
+      getServiceCost('photo-album', customAlbumSheets) -
+      getServiceCost('photo-album', defaultSheetsForTier)
+    );
+  }, [
+    baseIncludedElements,
+    unselectedIncludedIds,
+    customAlbumSheets,
+    defaultSheetsForTier,
+    getServiceCost,
+  ]);
 
   const { finalPrice, totalDelta, customizedModifications } = useMemo(() => {
     const base = basePackage?.price || 0;
@@ -574,13 +675,33 @@ export function ProposalPageClient() {
       }
     });
 
-    const delta = deductionSum + additionSum;
+    if (albumSheetDelta !== 0) {
+      const sheetDiff = customAlbumSheets - defaultSheetsForTier;
+      mods.push({
+        id: 'mod-album-sheets',
+        label: `${customAlbumSheets} Sheets Karizma Album (${sheetDiff > 0 ? `+${sheetDiff}` : sheetDiff} sheets)`,
+        badge: sheetDiff > 0 ? `+${formatINR(albumSheetDelta)}` : formatINR(albumSheetDelta),
+        isDeduction: sheetDiff < 0,
+        amount: albumSheetDelta,
+      });
+    }
+
+    const delta = deductionSum + additionSum + albumSheetDelta;
     return {
       finalPrice: Math.max(0, base + delta),
       totalDelta: delta,
       customizedModifications: mods,
     };
-  }, [basePackage?.price, baseIncludedElements, unselectedIncludedIds, availableUpgrades, selectedUpgradeIds]);
+  }, [
+    basePackage?.price,
+    baseIncludedElements,
+    unselectedIncludedIds,
+    availableUpgrades,
+    selectedUpgradeIds,
+    customAlbumSheets,
+    defaultSheetsForTier,
+    albumSheetDelta,
+  ]);
 
   // ─── 4. Derive Active Features & At-a-Glance Chips Dynamically (Zero Hardcoded Chips) ───
   const { baseFeatures, activeFeatures, activeChips } = useMemo(() => {
@@ -608,6 +729,11 @@ export function ProposalPageClient() {
     };
 
     const isBaseKey = (k: string): boolean => {
+      if (basePackage.includedServices?.length) {
+        return FEATURE_SERVICE_SLUGS[k as keyof PackageIncludedFeatures].some((slug) =>
+          basePackage.includedServices?.some((item) => item.serviceSlug === slug)
+        );
+      }
       if (incMap && typeof incMap[k] === 'boolean') {
         return Boolean(incMap[k]);
       }
@@ -625,52 +751,21 @@ export function ProposalPageClient() {
       outdoorShoot: isBaseKey('outdoorShoot'),
     };
 
-    const hasUpgrade = (patterns: string[]): boolean => {
-      return selectedUpgradeIds.some((id) =>
-        patterns.some((p) => id.toLowerCase().includes(p.toLowerCase()))
-      );
-    };
-
-    // Live toggles
-    // 1. Photo coverage
-    let traditionalPhoto =
-      baseFlags.traditionalPhoto && !unselectedIncludedIds.includes('inc-traditionalPhoto');
-    if (hasUpgrade(['traditional-photo'])) traditionalPhoto = true;
-
-    let candidPhoto =
-      baseFlags.candidPhoto && !unselectedIncludedIds.includes('inc-candidPhoto');
-    if (hasUpgrade(['candid-photo', 'candidphoto'])) candidPhoto = true;
-
-    // 2. Video coverage
-    let traditionalVideo =
-      baseFlags.traditionalVideo && !unselectedIncludedIds.includes('inc-traditionalVideo');
-    if (hasUpgrade(['traditional-video'])) traditionalVideo = true;
-
-    let candidVideo =
-      baseFlags.candidVideo && !unselectedIncludedIds.includes('inc-candidVideo');
-    if (hasUpgrade(['candid-video', 'candid-cinema', 'candidvideo'])) candidVideo = true;
-
-    // 3. Album
-    let printedAlbum =
-      baseFlags.printedAlbum && !unselectedIncludedIds.includes('inc-printedAlbum');
-    if (hasUpgrade(['remove-album'])) printedAlbum = false;
-    if (hasUpgrade(['album', 'extra-album'])) printedAlbum = true;
-
-    // 4. Drone
-    let drone = baseFlags.drone && !unselectedIncludedIds.includes('inc-drone');
-    if (hasUpgrade(['drone'])) drone = true;
-
-    // 5. LED Wall
-    let ledWall = baseFlags.ledWall && !unselectedIncludedIds.includes('inc-ledWall');
-    if (hasUpgrade(['remove-led-wall'])) ledWall = false;
-    if (hasUpgrade(['led-wall', 'ledwall', 'led'])) ledWall = true;
-
-    // 6. Outdoor shoot
-    let outdoorShoot =
-      baseFlags.outdoorShoot && !unselectedIncludedIds.includes('inc-outdoorShoot');
-    if (hasUpgrade(['outdoor-shoot', 'outdoorshoot', 'outdoor'])) outdoorShoot = true;
-
     const currentFeatures = {
+      traditionalPhoto:
+        baseFlags.traditionalPhoto && !unselectedIncludedIds.includes('inc-traditionalPhoto'),
+      traditionalVideo:
+        baseFlags.traditionalVideo && !unselectedIncludedIds.includes('inc-traditionalVideo'),
+      candidPhoto: baseFlags.candidPhoto && !unselectedIncludedIds.includes('inc-candidPhoto'),
+      candidVideo: baseFlags.candidVideo && !unselectedIncludedIds.includes('inc-candidVideo'),
+      printedAlbum:
+        baseFlags.printedAlbum && !unselectedIncludedIds.includes('inc-printedAlbum'),
+      drone: baseFlags.drone && !unselectedIncludedIds.includes('inc-drone'),
+      ledWall: baseFlags.ledWall && !unselectedIncludedIds.includes('inc-ledWall'),
+      outdoorShoot:
+        baseFlags.outdoorShoot && !unselectedIncludedIds.includes('inc-outdoorShoot'),
+    };
+    const {
       traditionalPhoto,
       traditionalVideo,
       candidPhoto,
@@ -679,7 +774,7 @@ export function ProposalPageClient() {
       drone,
       ledWall,
       outdoorShoot,
-    };
+    } = currentFeatures;
 
     // Build Accurate, Dynamic At-a-Glance Chips
     interface ChipItem {
@@ -785,7 +880,82 @@ export function ProposalPageClient() {
       activeFeatures: currentFeatures,
       activeChips: chips,
     };
-  }, [basePackage, unselectedIncludedIds, selectedUpgradeIds]);
+  }, [basePackage, unselectedIncludedIds]);
+
+  const customizedActiveServiceItems = useMemo(() => {
+    if (!basePackage) return [];
+    const excludedSlugs = new Set(
+      unselectedIncludedIds.flatMap((id) => {
+        const feature = id.replace('inc-', '') as keyof PackageIncludedFeatures;
+        return FEATURE_SERVICE_SLUGS[feature] || [];
+      })
+    );
+    const activeItems = new Map<string, { serviceSlug: string; quantity: number }>();
+
+    if (basePackage.includedServices?.length) {
+      basePackage.includedServices
+        .filter((item) => !excludedSlugs.has(item.serviceSlug))
+        .forEach((item) => {
+          activeItems.set(item.serviceSlug, {
+            ...item,
+            quantity:
+              item.serviceSlug === 'photo-album' && activeFeatures.printedAlbum
+                ? customAlbumSheets
+                : item.quantity,
+          });
+        });
+    } else {
+      (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>).forEach(
+        (feature) => {
+          if (!activeFeatures[feature]) return;
+          const serviceSlug =
+            FEATURE_SERVICE_SLUGS[feature].find((slug) =>
+              services.some((service) => service.slug === slug)
+            ) || FEATURE_SERVICE_SLUGS[feature][0];
+          activeItems.set(serviceSlug, {
+            serviceSlug,
+            quantity: feature === 'printedAlbum' ? customAlbumSheets : 1,
+          });
+        }
+      );
+    }
+
+    availableUpgrades.forEach((upgrade) => {
+      if (selectedUpgradeIds.includes(upgrade.id) && !activeItems.has(upgrade.serviceSlug)) {
+        activeItems.set(upgrade.serviceSlug, {
+          serviceSlug: upgrade.serviceSlug,
+          quantity: upgrade.quantity,
+        });
+      }
+    });
+
+    return [...activeItems.values()];
+  }, [
+    basePackage,
+    activeFeatures,
+    customAlbumSheets,
+    services,
+    unselectedIncludedIds,
+    availableUpgrades,
+    selectedUpgradeIds,
+  ]);
+
+  const proposalDeliverables = useMemo(() => {
+    if (!basePackage) return [];
+    const dynamicSections = getDynamicPackageDisplaySections(
+      customizedActiveServiceItems,
+      services
+    );
+    return [
+      ...(dynamicSections.coverage
+        ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
+        : []),
+      ...(dynamicSections.albums
+        ? [{ category: 'Albums', text: dynamicSections.albums }]
+        : []),
+      ...parseDeliverables(sanitizePackageDeliverables(basePackage.deliverables)),
+    ];
+  }, [basePackage, customizedActiveServiceItems, services]);
 
   // Handlers for tier switching and toggles
   const handleSwitchTier = (tierOrder: number) => {
@@ -839,6 +1009,7 @@ export function ProposalPageClient() {
   const handleResetToDefault = () => {
     setUnselectedIncludedIds([]);
     setSelectedUpgradeIds([]);
+    setCustomAlbumSheets(selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35);
     updateUrlParams(
       activeEventId,
       activePlan,
@@ -876,10 +1047,10 @@ export function ProposalPageClient() {
 
   const guestsShortLabel =
     activeGuests === 'intimate'
-      ? '< 100 Guests'
+      ? '<200 Guests'
       : activeGuests === 'grand'
-      ? '300+ Guests'
-      : '100–300 Guests';
+      ? '>600 Guests'
+      : '200-600 Guests';
 
   // Build WhatsApp payload
   const buildWhatsAppMessage = () => {
@@ -959,13 +1130,29 @@ export function ProposalPageClient() {
         .filter(Boolean)
         .join(' | ');
 
-      const requestedServices: BookingServiceOption[] = [];
-      if (activeFeatures.traditionalPhoto) requestedServices.push('Traditional Camera');
-      if (activeFeatures.traditionalVideo) requestedServices.push('Traditional Video');
-      if (activeFeatures.candidPhoto) requestedServices.push('Candid Camera');
-      if (activeFeatures.candidVideo) requestedServices.push('Candid Video');
-      if (activeFeatures.drone) requestedServices.push('Drone');
-      if (activeFeatures.ledWall) requestedServices.push('LED Wall');
+      const requestedServiceBySlug: Record<string, BookingServiceOption> = {
+        'traditional-camera': 'Traditional Camera',
+        'traditional-video': 'Traditional Video',
+        'candid-photography': 'Candid Camera',
+        'candid-cinematography': 'Candid Video',
+        'drone-aerial-coverage': 'Drone',
+        'led-wall': 'LED Wall',
+        'led-tv': 'TV',
+      };
+      const requestedServices = [
+        ...new Set(
+          customizedActiveServiceItems
+            .map((item) => requestedServiceBySlug[item.serviceSlug])
+            .filter((service): service is BookingServiceOption => Boolean(service))
+        ),
+      ];
+
+      // Build historical opted services snapshot from the exact selected catalog items.
+      const { snapshots: optedServicesSnapshot } = calculateCustomizedEventPrice(
+        customizedActiveServiceItems,
+        services,
+        durationTier
+      );
 
       const snapshot: PackageSnapshot = {
         id: basePackage?.id || 'pkg-custom',
@@ -997,6 +1184,9 @@ export function ProposalPageClient() {
         packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
         quotedAmount: finalPrice,
         requestedServices,
+        durationTier,
+        optedServices: optedServicesSnapshot,
+        totalAmount: finalPrice,
         notes: combinedNotes,
         status: 'Pending',
         termsAccepted: true,
@@ -1133,37 +1323,10 @@ export function ProposalPageClient() {
                 </div>
               </div>
 
-              {/* Question 2: Duration */}
+              {/* Question 2: Guest Scale */}
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                  2. Celebration Duration
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {SESSION_PLANS.map((plan) => {
-                    const isSelected = activePlan === plan.id;
-                    return (
-                      <button
-                        key={plan.id}
-                        type="button"
-                        onClick={() => setActivePlan(plan.id)}
-                        className={`flex items-center justify-between p-3 rounded border text-xs transition-all ${
-                          isSelected
-                            ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
-                            : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
-                        }`}
-                      >
-                        <span>{plan.label}</span>
-                        <span className="text-[10px] text-[#D8C78E] font-bold">{plan.badge}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Question 3: Guest Scale */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                  3. Expected Guest Count
+                  2. Expected Guest Count
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {GUEST_SCALES.map((scale) => {
@@ -1483,7 +1646,7 @@ export function ProposalPageClient() {
                         )}
 
                         {/* Standard Base Deliverables */}
-                        {parseDeliverables(basePackage.deliverables).map((item, idx) => (
+                        {proposalDeliverables.map((item, idx) => (
                           <div
                             key={idx}
                             className="flex items-start gap-2 rounded-sm bg-[#061E1C]/40 border border-[#C5B378]/15 px-3 py-2"
@@ -1533,63 +1696,117 @@ export function ProposalPageClient() {
                       return (
                         <div
                           key={el.id}
-                          className={`group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
+                          className={`group flex flex-col gap-2 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
                             isChecked
                               ? 'border-[#C5B378]/40 bg-[#061E1C]/90 hover:border-[#D8C78E]'
                               : 'border-rose-500/40 bg-rose-950/30'
                           }`}
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleToggleBaseIncluded(el.id)}
-                            className="flex-1 flex items-center gap-2.5 text-left"
-                          >
-                            <div
-                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                                isChecked
-                                  ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
-                                  : 'border-rose-400 bg-transparent text-rose-300'
-                              }`}
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBaseIncluded(el.id)}
+                              className="flex-1 flex items-center gap-2.5 text-left"
                             >
-                              {isChecked ? (
-                                <Check className="h-3 w-3 stroke-[3]" />
-                              ) : (
-                                <Minus className="h-3 w-3 stroke-[3]" />
-                              )}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                  className={`text-xs font-semibold ${
-                                    isChecked
-                                      ? 'text-white'
-                                      : 'text-rose-200 line-through decoration-rose-400/60'
-                                  }`}
-                                >
-                                  {el.label}
-                                </span>
-                                {el.tamilLabel && (
-                                  <span className="text-[10px] text-[#D8C78E]/80 hidden sm:inline">
-                                    ({el.tamilLabel})
-                                  </span>
+                              <div
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                  isChecked
+                                    ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
+                                    : 'border-rose-400 bg-transparent text-rose-300'
+                                }`}
+                              >
+                                {isChecked ? (
+                                  <Check className="h-3 w-3 stroke-[3]" />
+                                ) : (
+                                  <Minus className="h-3 w-3 stroke-[3]" />
                                 )}
                               </div>
-                              <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
-                                {el.description}
-                              </p>
-                            </div>
-                          </button>
 
-                          <span
-                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                              isChecked
-                                ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
-                                : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
-                            }`}
-                          >
-                            {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
-                          </span>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`text-xs font-semibold ${
+                                      isChecked
+                                        ? 'text-white'
+                                        : 'text-rose-200 line-through decoration-rose-400/60'
+                                    }`}
+                                  >
+                                    {el.label}
+                                  </span>
+                                  {el.tamilLabel && (
+                                    <span className="text-[10px] text-[#D8C78E]/80 hidden sm:inline">
+                                      ({el.tamilLabel})
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                  {el.description}
+                                </p>
+                              </div>
+                            </button>
+
+                            <span
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                isChecked
+                                  ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
+                                  : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                              }`}
+                            >
+                              {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
+                            </span>
+                          </div>
+
+                          {/* Interactive Album Sheet Stepper (when Album is included) */}
+                          {el.featureKey === 'printedAlbum' && isChecked && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#C5B378]/15 mt-0.5">
+                              <span className="text-[11px] text-[#D8C78E] font-medium flex items-center gap-1.5">
+                                <BookOpen className="h-3.5 w-3.5" />
+                                Custom Album Sheets:
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center rounded border border-[#C5B378]/40 bg-[#072421]">
+                                  <button
+                                    type="button"
+                                    disabled={customAlbumSheets <= 20}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCustomAlbumSheets((s) => Math.max(20, s - 5));
+                                    }}
+                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
+                                    title="Decrease 5 sheets"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="px-2.5 py-0.5 font-bold text-white text-xs font-mono border-x border-[#C5B378]/30">
+                                    {customAlbumSheets} sheets
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={customAlbumSheets >= 60}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCustomAlbumSheets((s) => Math.min(60, s + 5));
+                                    }}
+                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
+                                    title="Increase 5 sheets"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <span className="text-[10px] text-[#E6ECEB]/70 font-mono">
+                                  {customAlbumSheets !== defaultSheetsForTier ? (
+                                    <span className={customAlbumSheets > defaultSheetsForTier ? 'text-[#D8C78E] font-bold' : 'text-amber-300 font-bold'}>
+                                      {albumSheetDelta > 0
+                                        ? `+${formatINR(albumSheetDelta)}`
+                                        : formatINR(albumSheetDelta)}
+                                    </span>
+                                  ) : (
+                                    'Standard Tier Base'
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1599,6 +1816,9 @@ export function ProposalPageClient() {
                       <div className="pt-2 pb-0.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]/80 block">
                           Available Upgrades & Add-ons (Tap to Add)
+                        </span>
+                        <span className="text-[10px] text-[#E6ECEB]/55">
+                          Catalog services not included in this package. Prices update with the selected duration.
                         </span>
                       </div>
                     )}
@@ -1661,171 +1881,6 @@ export function ProposalPageClient() {
               </div>
             )}
 
-            {/* ─── Collapsible Accordions (SLA, Tiers & Policies) ─── */}
-            <div className="space-y-3 pt-2">
-              {/* Accordion 1: SLA & Studio Guarantees */}
-              <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsSlaAccordionOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between p-4 text-left text-xs font-bold text-white hover:bg-[#0E423E]/60 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-[#D8C78E]" />
-                    <span>Delivery Timelines & Studio Guarantees ▾</span>
-                  </span>
-                  {isSlaAccordionOpen ? <ChevronUp className="h-3.5 w-3.5 text-[#D8C78E]" /> : <ChevronDown className="h-3.5 w-3.5 text-[#D8C78E]" />}
-                </button>
-
-                <AnimatePresence>
-                  {isSlaAccordionOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="p-4 border-t border-[#C5B378]/20 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
-                    >
-                      <div className="space-y-1">
-                        <span className="text-[#D8C78E] font-bold block">48h Sneak Peeks</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          25+ highlights in 2 days.
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[#D8C78E] font-bold block">7d Raw & Gallery</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          Full high-res cloud backup.
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[#D8C78E] font-bold block">30d Album & Film</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          Turnaround after selection.
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[#D8C78E] font-bold block">Dual-Card Backup</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          Zero data loss guarantee.
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Accordion 2: Compare All 3 Base Tiers */}
-              <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsCompareTiersOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between p-4 text-left text-xs font-bold text-white hover:bg-[#0E423E]/60 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <LayoutGrid className="h-4 w-4 text-[#D8C78E]" />
-                    <span>Compare All 3 Base Tiers ▾</span>
-                  </span>
-                  {isCompareTiersOpen ? <ChevronUp className="h-3.5 w-3.5 text-[#D8C78E]" /> : <ChevronDown className="h-3.5 w-3.5 text-[#D8C78E]" />}
-                </button>
-
-                <AnimatePresence>
-                  {isCompareTiersOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="p-4 border-t border-[#C5B378]/20 overflow-x-auto"
-                    >
-                      <table className="w-full text-xs text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-[#C5B378]/20 text-[#D8C78E]">
-                            <th className="pb-2 font-bold">Tier</th>
-                            <th className="pb-2 font-bold">Price</th>
-                            <th className="pb-2 font-bold">Duration</th>
-                            <th className="pb-2 font-bold">Key Inclusions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#C5B378]/10 text-[#E6ECEB]/85">
-                          {eventPackages.map((p) => {
-                            const isCurrent = p.id === basePackage?.id;
-                            return (
-                              <tr
-                                key={p.id}
-                                onClick={() => handleSwitchTier(p.sortOrder ?? 2)}
-                                className={`cursor-pointer transition-colors ${
-                                  isCurrent ? 'bg-[#0E423E] font-medium' : 'hover:bg-[#0E423E]/50'
-                                }`}
-                              >
-                                <td className="py-2.5 font-bold text-white flex items-center gap-1.5">
-                                  <span>{p.name}</span>
-                                  {isCurrent && (
-                                    <span className="text-[10px] text-[#D8C78E] font-bold bg-[#114A45] border border-[#D8C78E]/40 px-1.5 py-0.2 rounded">
-                                      Active
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 font-mono font-semibold text-[#D8C78E]">
-                                  {formatINR(p.price)}
-                                </td>
-                                <td className="py-2.5 text-[11px]">{p.duration}</td>
-                                <td className="py-2.5 text-[11px] text-[#E6ECEB]/70 max-w-[200px] truncate">
-                                  {p.audience}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Accordion 3: Booking & Reschedule Policy */}
-              <div className="rounded-sm border border-[#C5B378]/25 bg-[#092E2B] overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsPolicyAccordionOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between p-4 text-left text-xs font-bold text-white hover:bg-[#0E423E]/60 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-[#D8C78E]" />
-                    <span>Booking & Reschedule Policy ▾</span>
-                  </span>
-                  {isPolicyAccordionOpen ? <ChevronUp className="h-3.5 w-3.5 text-[#D8C78E]" /> : <ChevronDown className="h-3.5 w-3.5 text-[#D8C78E]" />}
-                </button>
-
-                <AnimatePresence>
-                  {isPolicyAccordionOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="p-4 border-t border-[#C5B378]/20 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs"
-                    >
-                      <div className="space-y-0.5">
-                        <span className="text-[#D8C78E] font-bold">20% Advance Lock</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          Locks crew date instantly.
-                        </p>
-                      </div>
-                      <div className="space-y-0.5">
-                        <span className="text-[#D8C78E] font-bold">Free Date Change</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          Free reschedule up to 14 days before.
-                        </p>
-                      </div>
-                      <div className="space-y-0.5">
-                        <span className="text-[#D8C78E] font-bold">Zero Hidden Fees</span>
-                        <p className="text-[11px] text-[#E6ECEB]/70 leading-tight">
-                          Per-hour overtime transparent upfront.
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
           </div>
 
           {/* ══════════ RIGHT COLUMN (35% Sticky Summary Card) ══════════ */}

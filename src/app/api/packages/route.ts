@@ -6,6 +6,8 @@ import {
 } from '@/src/server/studioStore';
 import { StudioPackage } from '@/src/types/studio';
 
+const VALID_DURATION_TIERS = ['threeHours', 'halfDay', 'fullDay'] as const;
+
 const ADMIN_COOKIE = 'gk_admin_session';
 const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
 
@@ -60,6 +62,15 @@ export async function POST(request: Request) {
     if (!body.name?.trim()) {
       return NextResponse.json(
         { error: 'Package name is required.' },
+        { status: 400 }
+      );
+    }
+    if (
+      body.durationTier !== undefined &&
+      !VALID_DURATION_TIERS.includes(body.durationTier as (typeof VALID_DURATION_TIERS)[number])
+    ) {
+      return NextResponse.json(
+        { error: 'durationTier must be one of: threeHours, halfDay, fullDay.' },
         { status: 400 }
       );
     }

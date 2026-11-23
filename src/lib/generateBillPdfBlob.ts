@@ -72,6 +72,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
   const addons = (bill.packageDetails.addons || []).filter(isServiceActive);
   const excludedItems = bill.packageDetails.excludedItems || [];
   const tierLabel = bill.packageDetails.tierLabel || 'Signature';
+  const optedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
 
   // ═══════════════════════════════════════════════════════════════════════
   // PAGE 1: OFFICIAL PAYMENT RECEIPT & INVOICE STATEMENT
@@ -178,25 +179,51 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
           </div>
         </div>
 
-        <!-- 2-Column Grid of Final Active Services with Bilingual labels -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 10px; color: #334155;">
-          ${includedServices
-            .map(
-              (svc) =>
-                `<div style="display: flex; align-items: flex-start; gap: 6px; line-height: 1.3;">
-                  <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
-                  <div>
-                    <span style="font-weight: 600; color: #1e293b;">${svc.en}</span>
-                    ${
-                      svc.ta
-                        ? `<span style="display: block; font-size: 9px; color: #64748b; font-family: 'Noto Sans Tamil', 'Latha', sans-serif;">${svc.ta}</span>`
-                        : ''
-                    }
-                  </div>
-                </div>`
-            )
-            .join('')}
-        </div>
+        <!-- Itemized Confirmed Services (Single Source of Truth) -->
+        ${
+          optedServices.length > 0
+            ? `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 10px; color: #334155;">
+                ${optedServices
+                  .map(
+                    (svc) =>
+                      `<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; line-height: 1.3; background: #ffffff; border: 1px solid #f1f5f9; padding: 4px 6px; border-radius: 3px;">
+                        <div style="display: flex; align-items: flex-start; gap: 4px;">
+                          <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
+                          <div>
+                            <span style="font-weight: 700; color: #1e293b;">${svc.name}</span>
+                            ${svc.tamilName ? `<span style="display: block; font-size: 8.5px; color: #64748b; font-family: 'Noto Sans Tamil', 'Latha', sans-serif;">${svc.tamilName}</span>` : ''}
+                            <span style="display: block; font-size: 8.5px; color: #64748b;">
+                              ${svc.quantity} ${svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹${svc.unitPrice.toLocaleString('en-IN')}
+                              ${svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <span style="font-family: monospace; font-weight: 700; color: #072421; font-size: 10.5px;">
+                          ₹${svc.total.toLocaleString('en-IN')}
+                        </span>
+                      </div>`
+                  )
+                  .join('')}
+              </div>`
+            : `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 10px; color: #334155;">
+                ${includedServices
+                  .map(
+                    (svc) =>
+                      `<div style="display: flex; align-items: flex-start; gap: 6px; line-height: 1.3;">
+                        <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
+                        <div>
+                          <span style="font-weight: 600; color: #1e293b;">${svc.en}</span>
+                          ${
+                            svc.ta
+                              ? `<span style="display: block; font-size: 9px; color: #64748b; font-family: 'Noto Sans Tamil', 'Latha', sans-serif;">${svc.ta}</span>`
+                              : ''
+                          }
+                        </div>
+                      </div>`
+                  )
+                  .join('')}
+              </div>`
+        }
 
         ${
           bill.packageDetails.deliverables && Object.keys(bill.packageDetails.deliverables).length > 0
