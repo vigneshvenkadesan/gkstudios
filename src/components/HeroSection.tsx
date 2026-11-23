@@ -83,7 +83,7 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
   return (
     <section
       id="hero"
-      className="relative min-h-[92svh] sm:min-h-screen flex flex-col justify-between overflow-hidden bg-[#061E1C] border-b border-[#C5B378]/18"
+      className="relative h-[100svh] min-h-[100svh] sm:h-auto sm:min-h-screen flex flex-col justify-between overflow-hidden bg-[#061E1C] border-b border-[#C5B378]/18"
     >
       {/* Full-Bleed Cinematic Photography Stage */}
       <div className="absolute inset-0 z-0">
@@ -142,47 +142,49 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
       <MandalaCorner className="pointer-events-none absolute -top-6 -right-6 z-10 h-32 w-32 sm:h-40 sm:w-40 rotate-90 opacity-30" />
 
       {/* Top Spacer for Fixed Transparent Navbar */}
-      <div className="h-20 sm:h-24 shrink-0" aria-hidden="true" />
+      <div className="h-16 sm:h-24 shrink-0" aria-hidden="true" />
 
       {/* Main Editorial Center Content — Minimal & Confident */}
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-        <div className="max-w-3xl space-y-6">
-          {/* Brand Name */}
-          <motion.p
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="text-xs sm:text-sm font-semibold tracking-[0.3em] text-[#D8C78E]"
-          >
-            {STUDIO_INFO.name}
-          </motion.p>
+      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:block sm:flex-none sm:px-6 sm:py-16 lg:px-8">
+        <div className="flex h-full flex-col justify-between gap-8 sm:block">
+          <div className="max-w-3xl space-y-4 sm:space-y-6">
+            {/* Brand Name */}
+            <motion.p
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="text-xs sm:text-sm font-semibold tracking-[0.3em] text-[#D8C78E]"
+            >
+              {STUDIO_INFO.name}
+            </motion.p>
 
-          {/* Dominant Display Headline */}
-          <motion.h1
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[6.25rem] font-semibold tracking-[-0.025em] text-white leading-[0.98] [text-shadow:0_2px_16px_rgba(0,0,0,0.35)]"
-          >
-            {t('hero.heading')}
-          </motion.h1>
+            {/* Dominant Display Headline */}
+            <motion.h1
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+              className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-[6.25rem] font-semibold tracking-[-0.025em] text-white leading-[0.98] [text-shadow:0_2px_16px_rgba(0,0,0,0.35)]"
+            >
+              {t('hero.heading')}
+            </motion.h1>
 
-          {/* Concise Supporting Line */}
-          <motion.p
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="text-base sm:text-xl font-normal tracking-[0.02em] text-[#E6ECEB]/90"
-          >
-            {t('hero.subtitle')}
-          </motion.p>
+            {/* Concise Supporting Line */}
+            <motion.p
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="text-base sm:text-xl font-normal tracking-[0.02em] text-[#E6ECEB]/90"
+            >
+              {t('hero.subtitle')}
+            </motion.p>
+          </div>
 
           {/* Primary & Secondary CTAs */}
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="grid w-full grid-cols-2 items-stretch gap-1.5 mt-8 pt-0 sm:flex sm:w-auto sm:max-w-none sm:mt-0 sm:flex-wrap sm:items-center sm:gap-3.5 sm:pt-2"
+            className="grid w-full grid-cols-2 items-stretch gap-2 sm:flex sm:w-auto sm:max-w-none sm:flex-wrap sm:items-center sm:gap-3.5 sm:pt-2"
           >
             <Button
               size="sm"
