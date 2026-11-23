@@ -343,6 +343,14 @@ export interface PackageSnapshot {
     exclusions?: string[];
     netAdjustment?: number;
     liveTotal?: number;
+    excludedIncludedIds?: string[];
+    selectedUpgradeIds?: string[];
+    serviceDurationOverrides?: Record<string, DurationTier>;
+    albumSheets?: number;
+    eventId?: string;
+    plan?: 'half' | 'full';
+    guests?: string;
+    shootSetting?: string;
   };
 }
 
@@ -400,8 +408,67 @@ export interface BookingRequest {
   termsAcceptedAt?: string;
   termsVersion?: string;
   packageSnapshot?: PackageSnapshot;
+  proposalToken?: string;
+  proposalDraft?: BookingProposalUpdate;
+  proposalUpdatedAt?: string;
+  proposalSubmittedAt?: string;
+  proposalRevision?: number;
   createdAt: string;
 }
+
+export type BookingProposalUpdate = Pick<
+  BookingRequest,
+  | 'clientName'
+  | 'phone'
+  | 'eventType'
+  | 'preferredDate'
+  | 'venue'
+  | 'packageId'
+  | 'packageName'
+  | 'quotedAmount'
+  | 'notes'
+  | 'requestedServices'
+  | 'durationTier'
+  | 'optedServices'
+  | 'totalAmount'
+  | 'packageSnapshot'
+> &
+  Partial<
+    Pick<
+      BookingRequest,
+      'endDate' | 'eventTime' | 'termsAccepted' | 'termsAcceptedAt' | 'termsVersion'
+    >
+  >;
+
+export type ProposalBookingView = Pick<
+  BookingRequest,
+  | 'id'
+  | 'clientName'
+  | 'phone'
+  | 'eventType'
+  | 'preferredDate'
+  | 'endDate'
+  | 'eventTime'
+  | 'venue'
+  | 'packageId'
+  | 'packageName'
+  | 'quotedAmount'
+  | 'requestedServices'
+  | 'durationTier'
+  | 'optedServices'
+  | 'totalAmount'
+  | 'notes'
+  | 'status'
+  | 'termsAccepted'
+  | 'termsAcceptedAt'
+  | 'termsVersion'
+  | 'packageSnapshot'
+  | 'proposalDraft'
+  | 'proposalUpdatedAt'
+  | 'proposalSubmittedAt'
+  | 'proposalRevision'
+  | 'createdAt'
+>;
 
 export interface CalendarDayEntry {
   id?: string;

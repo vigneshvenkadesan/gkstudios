@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
   Clock,
   Copy,
+  ExternalLink,
   Loader2,
   MessageCircle,
   Phone,
@@ -163,6 +165,7 @@ function getStatusBadge(status: BookingStatus) {
 }
 
 export function AdminBookingModule() {
+  const router = useRouter();
   const {
     bookings,
     packages,
@@ -219,6 +222,9 @@ export function AdminBookingModule() {
   const [editCrew, setEditCrew] = useState('');
   const [editNote, setEditNote] = useState('');
   const [editEventTime, setEditEventTime] = useState('');
+  const [proposalLinks, setProposalLinks] = useState<{ editor: string; client: string } | null>(null);
+  const [isCreatingProposalLink, setIsCreatingProposalLink] = useState(false);
+  const [proposalLinkError, setProposalLinkError] = useState('');
   const [processingAction, setProcessingAction] = useState<
     'confirm' | 'acknowledge' | 'inTalks' | 'decline' | null
   >(null);
@@ -560,14 +566,110 @@ export function AdminBookingModule() {
 
   const openManageDialog = (booking: BookingRequest) => {
     setActiveBooking(booking);
-    setEditPackageId(booking.packageId);
-    setEditQuote(booking.quotedAmount);
+    setProposalLinks(null);
+    setProposalLinkError('');
+    setEditPackageId(booking.proposalDraft?.packageId || booking.packageId);
+    setEditQuote(booking.proposalDraft?.quotedAmount ?? booking.quotedAmount);
     setEditCrew(booking.assignedCrew || 'G Krishna + Studio Unit');
     setEditEventTime(booking.eventTime || '');
     setEditNote(
       booking.acknowledgementNote ||
         'Thank you for choosing GK Studios. Date is available for your ceremony.'
     );
+    if (booking.status !== 'Confirmed' && booking.status !== 'Declined') {
+      void handleCreateProposalLink(
+        booking,
+        booking.proposalDraft?.packageId || booking.packageId,
+        false
+      );
+    }
+  };
+
+  useEffect(() => {
+    const inquiryId = new URLSearchParams(window.location.search).get('manageInquiry');
+    if (!inquiryId) return;
+    const booking = bookings.find((item) => item.id === inquiryId);
+    if (!booking) return;
+
+    openManageDialog(booking);
+    router.replace('/admin');
+  }, [bookings, router]);
+
+  async function handleCreateProposalLink(
+    booking = activeBooking,
+    packageId = editPackageId,
+    notify = true
+  ) {
+    if (!booking || booking.status === 'Confirmed' || booking.status === 'Declined') return;
+    setIsCreatingProposalLink(true);
+    setProposalLinkError('');
+    try {
+      const response = await fetch(`/api/bookings/${encodeURIComponent(booking.id)}/proposal`, {
+        method: 'POST',
+      });
+      const result = (await response.json()) as { proposalToken?: string; error?: string };
+      if (!response.ok || !result.proposalToken) {
+        throw new Error(result.error || 'Could not create the proposal link.');
+      }
+
+      const proposalDraft = booking.proposalDraft;
+      const proposalEventType = proposalDraft?.eventType || booking.eventType;
+      const selectedPackage = packages.find((pkg) => pkg.id === packageId);
+      const eventId =
+        proposalDraft?.packageSnapshot?.customizerState?.eventId ||
+        activeEvents.find(
+          (item) => item.name.toLowerCase() === proposalEventType.toLowerCase()
+        )?.id ||
+        'wedding';
+      const params = new URLSearchParams({
+        proposal: result.proposalToken,
+        admin: '1',
+        event: eventId,
+        plan:
+          (proposalDraft?.durationTier || booking.durationTier || selectedPackage?.durationTier) === 'fullDay'
+            ? 'full'
+            : 'half',
+        guests: 'classic',
+        tier: String(selectedPackage?.sortOrder ?? 2),
+      });
+      if (packageId !== CUSTOM_PACKAGE_ID) {
+        params.set('package', packageId);
+      }
+
+      const origin = window.location.origin;
+      const editor = `${origin}/packages/proposal?${params.toString()}`;
+      const client = `${origin}/packages/proposal?proposal=${encodeURIComponent(result.proposalToken)}`;
+      setProposalLinks({ editor, client });
+      if (notify) {
+        toast.success('Proposal link is ready.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not create the proposal link.';
+      setProposalLinkError(message);
+      if (notify) toast.error(message);
+    } finally {
+      setIsCreatingProposalLink(false);
+    }
+  }
+
+  const handleCopyProposalLink = async () => {
+    if (!proposalLinks) return;
+    try {
+      await navigator.clipboard.writeText(proposalLinks.client);
+      toast.success('Client proposal link copied.');
+    } catch {
+      toast.error('Could not copy the proposal link. Open the editor and copy it from the address bar.');
+    }
+  };
+
+  const handleShareProposalOnWhatsApp = () => {
+    if (!activeBooking || !proposalLinks) return;
+    const message = [
+      `Vanakkam ${activeBooking.clientName},`,
+      'Your GK STUDIOS proposal is ready. You can review it and send any changes for our review here:',
+      proposalLinks.client,
+    ].join('\n\n');
+    window.open(buildWhatsAppUrl(activeBooking.phone, message), '_blank', 'noopener,noreferrer');
   };
 
   const filteredBookings = useMemo(() => {
@@ -588,6 +690,24 @@ export function AdminBookingModule() {
   }, [bookings, statusFilter, searchQuery]);
 
   const selectedPkg = packages.find((p) => p.id === editPackageId);
+
+  useEffect(() => {
+    if (!activeBooking) return;
+    const latestBooking = bookings.find((booking) => booking.id === activeBooking.id);
+    if (latestBooking && latestBooking !== activeBooking) {
+      const receivedProposalDraft =
+        Boolean(latestBooking.proposalDraft) &&
+        latestBooking.proposalSubmittedAt !== activeBooking.proposalSubmittedAt;
+      if (receivedProposalDraft && latestBooking.proposalDraft) {
+        const draftPackageId = latestBooking.proposalDraft.packageId;
+        setEditPackageId(draftPackageId);
+        setEditQuote(latestBooking.proposalDraft.quotedAmount);
+        setProposalLinks(null);
+        void handleCreateProposalLink(latestBooking, draftPackageId, false);
+      }
+      setActiveBooking(latestBooking);
+    }
+  }, [activeBooking, bookings]);
 
   const generatedMessage = useMemo(() => {
     if (!activeBooking) return '';
@@ -1523,6 +1643,7 @@ export function AdminBookingModule() {
                           onClick={() => {
                             setEditPackageId(p.id);
                             setEditQuote(p.price);
+                            void handleCreateProposalLink(activeBooking, p.id, false);
                           }}
                           className={`p-2.5 rounded-sm border text-left transition-all cursor-pointer ${
                             isSelected
@@ -1548,6 +1669,79 @@ export function AdminBookingModule() {
                 </div>
               </div>
 
+              <div className="space-y-2 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-[#D8C78E]">Proposal revision</p>
+                    <p className="text-[11px] text-[#E6ECEB]/65">
+                      A private link is prepared for this inquiry. Edit the plan, save it here, then share it for client review.
+                    </p>
+                    {activeBooking.proposalDraft && (
+                      <p className="mt-1 text-[10px] font-medium text-amber-200">
+                        Client resubmitted a proposal for review.
+                      </p>
+                    )}
+                  </div>
+                  {proposalLinks ? (
+                    <a
+                      href={proposalLinks.editor}
+                      className="inline-flex h-8 shrink-0 items-center rounded-md bg-[#C5B378] px-3 text-xs font-semibold text-[#072421] hover:bg-[#D8C78E]"
+                    >
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      Open Proposal Editor
+                    </a>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isProcessingAction || isCreatingProposalLink || activeBooking.status === 'Confirmed' || activeBooking.status === 'Declined'}
+                      onClick={() => void handleCreateProposalLink()}
+                      className="shrink-0 border-[#C5B378]/40 text-[#E6ECEB]"
+                    >
+                      {isCreatingProposalLink ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      {isCreatingProposalLink
+                        ? 'Preparing Link...'
+                        : activeBooking.status === 'Confirmed' || activeBooking.status === 'Declined'
+                          ? 'Inquiry Closed'
+                          : 'Retry Proposal Link'}
+                    </Button>
+                  )}
+                </div>
+                {proposalLinkError && (
+                  <p role="alert" className="text-[11px] text-rose-300">
+                    Could not prepare the proposal link: {proposalLinkError}
+                  </p>
+                )}
+                {proposalLinks && (
+                  <div className="space-y-2 border-t border-[#C5B378]/15 pt-2">
+                    <p className="break-all font-mono text-[10px] text-[#E6ECEB]/60">
+                      {proposalLinks.client}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={handleCopyProposalLink}>
+                      <Copy className="mr-1.5 h-3.5 w-3.5" />
+                      Copy Client Link
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleShareProposalOnWhatsApp}
+                      className="border-[#25D366]/40 text-emerald-300"
+                    >
+                      <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                      Share on WhatsApp
+                    </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-[#D8C78E]">
@@ -1561,6 +1755,7 @@ export function AdminBookingModule() {
                       setEditPackageId(nextId);
                       const found = packages.find((p) => p.id === nextId);
                       setEditQuote(found?.price ?? 0);
+                      void handleCreateProposalLink(activeBooking, nextId, false);
                     }}
                     className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                   >
@@ -1781,8 +1976,13 @@ export function AdminBookingModule() {
                   <Button
                     type="button"
                     size="sm"
-                    disabled={isProcessingAction}
+                    disabled={isProcessingAction || Boolean(activeBooking.proposalDraft)}
                     onClick={handleConfirmAndBlock}
+                    title={
+                      activeBooking.proposalDraft
+                        ? 'Review and save the client proposal before confirming.'
+                        : undefined
+                    }
                     className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
                   >
                     {processingAction === 'confirm' ? (

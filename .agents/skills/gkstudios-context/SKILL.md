@@ -124,6 +124,11 @@ Exact schema fields:
 | `termsAcceptedAt` | string | Optional |
 | `termsVersion` | string | Optional |
 | `packageSnapshot` | mixed | Historical package snapshot |
+| `proposalToken` | string | Optional 256-bit random capability token; omitted from plain studio-state responses |
+| `proposalDraft` | mixed | Optional client-resubmitted proposal awaiting admin review; does not replace the current quote until admin saves |
+| `proposalUpdatedAt` | string | Optional ISO timestamp of the latest admin save or client submission |
+| `proposalSubmittedAt` | string | Optional ISO timestamp of the latest client resubmission |
+| `proposalRevision` | number | Optional proposal edit/submission revision counter |
 | `createdAt` | string | ISO timestamp |
 
 Example:
@@ -390,6 +395,8 @@ The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, 
 4. The proposal summary omits duration. The public package intake and proposal intake ask guest count for regular events, but ask Indoor, Outdoor, or Indoor & Outdoor instead when the lowercased event name contains “outdoor” or “shoot”; the package intake passes this setting to the proposal, where it is required for inquiry submission and saved in booking notes. Premium is recommended for more than 600 guests or an Indoor & Outdoor shoot. Public duration controls offer Half Day and Full Day. A package's studio-configured 3-hour service tier remains honored but is not selectable by public users.
 5. Booking submission creates `booking_requests` with Pending status, resolved service-tier snapshots, and package snapshot data; the confirmation's Done button returns the user to `/`.
 6. Direct offline leads use the same booking model and historical snapshot helpers.
+7. Admins can create a stable, tokenized proposal URL from Leads & Inquiries. The admin editor is the public proposal customizer with an admin-only save action; admin saves update the original inquiry's package, quote, service snapshots, and customizer state.
+8. A client opening the token link can revise and resubmit to that same inquiry. The submitted data is stored in `proposalDraft`, moves the inquiry to In Discussion, and triggers the persistent admin alert. It does not replace the current approved quote or confirm the booking.
 
 ### Leads to calendar
 
@@ -399,7 +406,8 @@ The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, 
 4. Confirmation creates `event_projects` at `Booking Confirmed` if none exists.
 5. Multiple bookings can use the same date; date blocking is not a uniqueness constraint.
 6. Removing a calendar entry cascades through its linked multi-day schedule entries, `event_projects`, payment bills, and linked `booking_requests`; unrelated entries on the same date remain.
-7. While authenticated, the Admin Dashboard refreshes studio state every five minutes. Leads & Inquiries also has a manual Refresh action; pending inquiries trigger a persistent, manually dismissible alert, and newly received pending inquiries trigger it again.
+7. A booking with an unreviewed `proposalDraft` cannot be confirmed. Admins must open the proposal editor and save the reviewed proposal first; final confirmation remains an explicit Leads & Inquiries action.
+8. While authenticated, the Admin Dashboard refreshes studio state every five minutes. Leads & Inquiries also has a manual Refresh action; pending inquiries and newly resubmitted proposals trigger a persistent, manually dismissible alert.
 
 ### Payments and bills
 
@@ -418,6 +426,8 @@ The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, 
 | GET | `/api/studio` | Combined studio state |
 | POST | `/api/bookings` | Create inquiry/lead |
 | PATCH | `/api/bookings/[id]` | Status update or process/confirm booking |
+| POST | `/api/bookings/[id]/proposal` | Admin-only stable proposal-token creation |
+| GET/PATCH | `/api/proposals/[token]` | Read a single shared proposal; client resubmission or admin-only save |
 | PUT/DELETE | `/api/schedule` | Upsert/delete calendar entry |
 | GET | `/api/events` | List event definitions |
 | POST | `/api/events` | Create event project or dynamic event |
@@ -435,7 +445,7 @@ The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, 
 | POST | `/api/portfolio` | Add portfolio item |
 | PATCH/DELETE | `/api/portfolio/[id]` | Update/delete portfolio item |
 
-Mutating package, service, and package-reorder routes require `gk_admin_session=admin-session-v2`. The value is created only after a valid six-digit `ADMIN_PIN`.
+Mutating package, service, and package-reorder routes, booking status/process actions, and proposal-token creation require `gk_admin_session=admin-session-v2`. The value is created only after a valid six-digit `ADMIN_PIN`. On `/api/proposals/[token]`, client PATCH requests can only save an unapproved `proposalDraft`; admin PATCH requests require that cookie and commit the reviewed proposal to the inquiry.
 
 ## 6. UI and Development Conventions
 
@@ -456,7 +466,7 @@ Mutating package, service, and package-reorder routes require `gk_admin_session=
 
 ## 7. Known Implementation Pitfalls
 
-- `/api/bookings` currently drops `durationTier`, `optedServices`, and `totalAmount` even though `StudioContext.submitBooking` sends them. This is a route-parity issue; update the route together with server code if changed.
+- `/api/bookings` forwards `durationTier`, `optedServices`, `totalAmount`, and `packageSnapshot`. Keep its input aligned with `createBookingOnServer` when adding booking fields.
 - Package prices are recalculated dynamically and do not represent immutable historical package prices.
 - `bills` generation uses legacy `BookingServiceOption` names plus modern `optedServices`; both flows may coexist.
 - Some bill fields are derived heuristically from package name, customizer snapshot, booking notes, and calendar entry.

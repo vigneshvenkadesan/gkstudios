@@ -46,6 +46,11 @@ const BookingSchema = new Schema<BookingRequestDocument>(
     termsAcceptedAt: String,
     termsVersion: String,
     packageSnapshot: { type: Schema.Types.Mixed },
+    proposalToken: { type: String, unique: true, sparse: true },
+    proposalDraft: { type: Schema.Types.Mixed },
+    proposalUpdatedAt: String,
+    proposalSubmittedAt: String,
+    proposalRevision: Number,
     createdAt: { type: String, required: true },
   },
   { collection: 'booking_requests', strict: false, timestamps: false }

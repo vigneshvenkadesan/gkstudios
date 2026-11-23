@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { randomBytes } from 'crypto';
 import { Types } from 'mongoose';
 import {
+  BookingProposalUpdate,
   BookingRequest,
   BookingServiceOption,
   BookingStatus,
@@ -642,11 +644,114 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; package
     ...(booking.termsAcceptedAt ? { termsAcceptedAt: String(booking.termsAcceptedAt) } : {}),
     ...(booking.termsVersion ? { termsVersion: String(booking.termsVersion) } : {}),
     ...(booking.packageSnapshot ? { packageSnapshot: booking.packageSnapshot as PackageSnapshot } : {}),
+    ...(booking.proposalDraft
+      ? { proposalDraft: booking.proposalDraft as BookingProposalUpdate }
+      : {}),
+    ...(booking.proposalUpdatedAt
+      ? { proposalUpdatedAt: String(booking.proposalUpdatedAt) }
+      : {}),
+    ...(booking.proposalSubmittedAt
+      ? { proposalSubmittedAt: String(booking.proposalSubmittedAt) }
+      : {}),
+    ...(booking.proposalRevision !== undefined
+      ? { proposalRevision: Number(booking.proposalRevision) }
+      : {}),
     createdAt:
       typeof booking.createdAt === 'string'
         ? booking.createdAt
         : new Date(String(booking.createdAt)).toISOString(),
   };
+}
+
+export async function createProposalTokenOnServer(bookingId: string): Promise<string> {
+  const bookings = await requireBookingModel();
+  const booking = await bookings.findOne({ id: bookingId }).lean().exec();
+  if (!booking) throw new Error('Booking request not found.');
+  if (booking.status === 'Confirmed' || booking.status === 'Declined') {
+    throw new Error('This inquiry is no longer accepting proposal changes.');
+  }
+  if (typeof booking.proposalToken === 'string' && booking.proposalToken) {
+    return booking.proposalToken;
+  }
+
+  const token = randomBytes(32).toString('hex');
+  await bookings.updateOne(
+    { id: bookingId, proposalToken: { $exists: false } },
+    { $set: { proposalToken: token } }
+  );
+  const saved = await bookings.findOne({ id: bookingId }).lean().exec();
+  if (typeof saved?.proposalToken !== 'string' || !saved.proposalToken) {
+    throw new Error('Could not create a proposal link. Please try again.');
+  }
+  return saved.proposalToken;
+}
+
+export async function getBookingByProposalTokenOnServer(
+  token: string
+): Promise<BookingRequest> {
+  const bookings = await requireBookingModel();
+  const booking = await bookings.findOne({ proposalToken: token }).lean().exec();
+  if (!booking) throw new Error('Proposal link not found.');
+  return toPlainBooking(booking as unknown as BookingRequest);
+}
+
+export async function updateBookingProposalOnServer(
+  token: string,
+  input: BookingProposalUpdate,
+  actor: 'admin' | 'client'
+): Promise<BookingRequest> {
+  const bookings = await requireBookingModel();
+  const current = await bookings.findOne({ proposalToken: token }).lean().exec();
+  if (!current) throw new Error('Proposal link not found.');
+  if (current.status === 'Confirmed' || current.status === 'Declined') {
+    throw new Error('This inquiry is no longer accepting proposal changes.');
+  }
+
+  const now = new Date().toISOString();
+  const update =
+    actor === 'client'
+      ? {
+          proposalDraft: input,
+          status: 'In Discussion' as const,
+          proposalSubmittedAt: now,
+        }
+      : {
+          ...input,
+        };
+  const unset =
+    actor === 'admin'
+      ? {
+          proposalDraft: 1,
+          ...(input.endDate ? {} : { endDate: 1 }),
+        }
+      : undefined;
+  await bookings.updateOne(
+    {
+      id: current.id,
+      proposalToken: token,
+      status: { $nin: ['Confirmed', 'Declined'] },
+    },
+    {
+      $set: {
+        ...update,
+        proposalUpdatedAt: now,
+        proposalRevision: Number(current.proposalRevision || 0) + 1,
+      },
+      ...(unset ? { $unset: unset } : {}),
+    }
+  );
+
+  const saved = await bookings.findOne({ id: current.id }).lean().exec();
+  if (!saved) throw new Error('Booking request not found.');
+  const updatedBooking = toPlainBooking(saved as unknown as BookingRequest);
+  const state = await getStudioState();
+  memoryCache = {
+    ...state,
+    bookings: state.bookings.map((booking) =>
+      booking.id === updatedBooking.id ? updatedBooking : booking
+    ),
+  };
+  return updatedBooking;
 }
 
 function toPlainEventProject(project: EventProject & { _id?: unknown; packageSnapshot?: unknown }): EventProject {
@@ -984,17 +1089,27 @@ export async function updateBookingStatusOnServer(
   status: BookingStatus
 ): Promise<StudioState> {
   const state = await getStudioState();
-  const exists = state.bookings.some((b) => b.id === bookingId);
-  if (!exists) {
+  const bookings = await requireBookingModel();
+  const current = await bookings.findOne({ id: bookingId }).lean().exec();
+  if (!current) {
     throw new Error('Booking request not found.');
   }
-
-  const bookings = await requireBookingModel();
+  if (status === 'Confirmed' && current.proposalDraft) {
+    throw new Error('Review and save the client proposal before confirming this inquiry.');
+  }
   await bookings.updateOne({ id: bookingId }, { $set: { status } });
 
+  const updatedBooking = {
+    ...toPlainBooking(current as unknown as BookingRequest),
+    status,
+  };
   const nextState = {
     ...state,
-    bookings: state.bookings.map((b) => (b.id === bookingId ? { ...b, status } : b)),
+    bookings: state.bookings.some((booking) => booking.id === bookingId)
+      ? state.bookings.map((booking) =>
+          booking.id === bookingId ? updatedBooking : booking
+        )
+      : [updatedBooking, ...state.bookings],
   };
   memoryCache = nextState;
   return nextState;
@@ -1010,11 +1125,24 @@ export async function processBookingOnServer(input: {
   blockCalendarDate?: boolean;
   eventTime?: string;
 }): Promise<StudioState> {
-  const state = await getStudioState();
-  const targetBooking = state.bookings.find((b) => b.id === input.bookingId);
-  if (!targetBooking) {
+  const cachedState = await getStudioState();
+  const bookingsModel = await requireBookingModel();
+  const persistedBooking = await bookingsModel.findOne({ id: input.bookingId }).lean().exec();
+  if (!persistedBooking) {
     throw new Error('Booking request not found.');
   }
+  const targetBooking = toPlainBooking(persistedBooking as unknown as BookingRequest);
+  if (input.nextStatus === 'Confirmed' && targetBooking.proposalDraft) {
+    throw new Error('Review and save the client proposal before confirming this inquiry.');
+  }
+  const state: StudioState = {
+    ...cachedState,
+    bookings: cachedState.bookings.some((booking) => booking.id === targetBooking.id)
+      ? cachedState.bookings.map((booking) =>
+          booking.id === targetBooking.id ? targetBooking : booking
+        )
+      : [targetBooking, ...cachedState.bookings],
+  };
 
   const pkg = state.packages.find((p) => p.id === input.packageId);
   const resolvedPkgName =

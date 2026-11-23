@@ -56,6 +56,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
   const [alertedInquiryIds, setAlertedInquiryIds] = useState<string[]>([]);
   const hasInitializedInquiryAlerts = useRef(false);
   const observedInquiryIds = useRef(new Set<string>());
+  const observedProposalSubmissions = useRef(new Map<string, string>());
 
   useEffect(() => {
     let active = true;
@@ -92,9 +93,16 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
 
     if (!hasInitializedInquiryAlerts.current) {
       hasInitializedInquiryAlerts.current = true;
-      const pendingInquiries = bookings.filter((booking) => booking.status === 'Pending');
-      setAlertedInquiryIds(pendingInquiries.map((booking) => booking.id));
-      bookings.forEach((booking) => observedInquiryIds.current.add(booking.id));
+      const inquiriesNeedingAttention = bookings.filter(
+        (booking) => booking.status === 'Pending' || Boolean(booking.proposalDraft)
+      );
+      setAlertedInquiryIds(inquiriesNeedingAttention.map((booking) => booking.id));
+      bookings.forEach((booking) => {
+        observedInquiryIds.current.add(booking.id);
+        if (booking.proposalSubmittedAt) {
+          observedProposalSubmissions.current.set(booking.id, booking.proposalSubmittedAt);
+        }
+      });
       return;
     }
 
@@ -102,11 +110,25 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
       (booking) =>
         booking.status === 'Pending' && !observedInquiryIds.current.has(booking.id)
     );
-    bookings.forEach((booking) => observedInquiryIds.current.add(booking.id));
+    const resubmittedProposals = bookings.filter(
+      (booking) =>
+        booking.proposalSubmittedAt &&
+        observedProposalSubmissions.current.get(booking.id) !== booking.proposalSubmittedAt
+    );
+    bookings.forEach((booking) => {
+      observedInquiryIds.current.add(booking.id);
+      if (booking.proposalSubmittedAt) {
+        observedProposalSubmissions.current.set(booking.id, booking.proposalSubmittedAt);
+      }
+    });
 
-    if (newPendingInquiries.length > 0) {
+    if (newPendingInquiries.length > 0 || resubmittedProposals.length > 0) {
       setAlertedInquiryIds((currentIds) => [
-        ...new Set([...currentIds, ...newPendingInquiries.map((booking) => booking.id)]),
+        ...new Set([
+          ...currentIds,
+          ...newPendingInquiries.map((booking) => booking.id),
+          ...resubmittedProposals.map((booking) => booking.id),
+        ]),
       ]);
     }
   }, [bookings, isAuthenticated, isLoading]);
@@ -414,7 +436,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       : `${alertedInquiryIds.length} inquiries need your attention`}
                   </p>
                   <p className="mt-1 text-sm text-amber-100/80">
-                    Review them in Leads &amp; Inquiries. This alert stays here until you close it.
+                    New inquiries or client proposal updates need review in Leads &amp; Inquiries. This alert stays here until you close it.
                   </p>
                 </div>
               </div>

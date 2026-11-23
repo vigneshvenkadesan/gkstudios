@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -53,12 +53,15 @@ import { useStudio } from '@/src/context/StudioContext';
 import { useEvents } from '@/src/hooks/useEvents';
 import {
   BookingServiceOption,
+  BookingProposalUpdate,
   DurationTier,
   EVENT_CATEGORY_GROUPS,
+  EventCategory,
   OptedServiceSnapshot,
   PackageDeliverables,
   PackageIncludedFeatures,
   PackageSnapshot,
+  ProposalBookingView,
   StudioPackage,
 } from '@/src/types/studio';
 import {
@@ -253,7 +256,7 @@ function parseDeliverables(
 export function ProposalPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { packages, services, submitBooking, isLoading } = useStudio();
+  const { packages, services, submitBooking, refreshStudio, isLoading } = useStudio();
   const { activeEvents } = useEvents();
 
   // URL Query Params detection for Fallback / Standalone mode
@@ -263,10 +266,12 @@ export function ProposalPageClient() {
   const rawTierParam = searchParams.get('tier');
   const rawPackageParam = searchParams.get('package');
   const rawInquiryParam = searchParams.get('inquiry');
+  const rawProposalToken = searchParams.get('proposal');
+  const isAdminProposalMode = searchParams.get('admin') === '1';
   const rawShootSettingParam = searchParams.get('shootSetting');
   const initialShootSetting =
     SHOOT_SETTING_OPTIONS.find((option) => option.id === rawShootSettingParam)?.id ?? null;
-  const hasQueryParams = Boolean(rawEventParam || rawPlanParam || rawPackageParam);
+  const hasQueryParams = Boolean(rawEventParam || rawPlanParam || rawPackageParam || rawProposalToken);
 
   const parsePlanParam = (param: string | null): SessionPlan => {
     if (param === 'single-3h' || param === 'single-4h' || param === 'single') return 'half';
@@ -398,6 +403,178 @@ export function ProposalPageClient() {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [proposalInquiry, setProposalInquiry] = useState<ProposalBookingView | null>(null);
+  const [isProposalLoading, setIsProposalLoading] = useState(Boolean(rawProposalToken));
+  const [proposalLoadError, setProposalLoadError] = useState('');
+  const [proposalHydrated, setProposalHydrated] = useState(!rawProposalToken);
+  const skipNextAlbumDefault = useRef(false);
+
+  useEffect(() => {
+    if (!rawProposalToken) return;
+    let cancelled = false;
+    setIsProposalLoading(true);
+    setProposalLoadError('');
+    setProposalHydrated(false);
+
+    fetch(`/api/proposals/${encodeURIComponent(rawProposalToken)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        const result = (await response.json()) as {
+          booking?: ProposalBookingView;
+          error?: string;
+        };
+        if (!response.ok || !result.booking) {
+          throw new Error(result.error || 'This proposal link is unavailable.');
+        }
+        if (!cancelled) setProposalInquiry(result.booking);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setProposalLoadError(
+            error instanceof Error ? error.message : 'Could not load this proposal.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsProposalLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawProposalToken]);
+
+  useEffect(() => {
+    if (!rawProposalToken || !proposalInquiry || isLoading || proposalHydrated) return;
+
+    const proposalData = proposalInquiry.proposalDraft || proposalInquiry;
+    const savedState = proposalData.packageSnapshot?.customizerState;
+    const targetPackageId =
+      (isAdminProposalMode && rawPackageParam) ||
+      proposalData.packageSnapshot?.id ||
+      proposalData.packageId;
+    const isSavedPackage =
+      targetPackageId === proposalData.packageSnapshot?.id ||
+      targetPackageId === proposalData.packageId;
+    const targetPackage = packages.find((pkg) => pkg.id === targetPackageId);
+    const optedServices = proposalData.optedServices || [];
+    const includedSlugs = new Set(
+      targetPackage?.includedServices?.map((item) => item.serviceSlug) || []
+    );
+    const savedOverrides = savedState?.serviceDurationOverrides;
+    const inferredOverrides = Object.fromEntries(
+      optedServices
+        .filter((item) => item.durationTier)
+        .map((item) => [item.serviceSlug, item.durationTier as DurationTier])
+    );
+    const inferredExcludedIds = isSavedPackage ? targetPackage?.includedServices
+      ?.filter((item) =>
+        !optedServices.some((opted) => opted.serviceSlug === item.serviceSlug)
+      )
+      .flatMap((item) => {
+        const feature = (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>).find(
+          (key) => FEATURE_SERVICE_SLUGS[key].includes(item.serviceSlug)
+        );
+        return feature ? [`inc-${feature}`] : [];
+      }) || [] : [];
+    const inferredUpgradeIds = isSavedPackage ? optedServices
+      .filter((item) => !includedSlugs.has(item.serviceSlug))
+      .map((item) => item.serviceSlug) : [];
+    const savedAlbumSheets = isSavedPackage
+      ? optedServices.find((item) => item.serviceSlug === 'photo-album')?.quantity
+      : undefined;
+    const matchedEvent = activeEvents.find(
+      (event) => event.name.toLowerCase() === proposalData.eventType.toLowerCase()
+    );
+    const matchedCategoryEvent = activeEvents.find((event) =>
+      matchesCategory(event.category, proposalData.eventType)
+    );
+    const resolvedEventId =
+      (isAdminProposalMode && rawEventParam) ||
+      savedState?.eventId ||
+      matchedEvent?.id ||
+      matchedCategoryEvent?.id ||
+      'wedding';
+    const savedPlan =
+      (isAdminProposalMode && rawPlanParam ? parsePlanParam(rawPlanParam) : undefined) ||
+      savedState?.plan ||
+      (proposalData.durationTier === 'fullDay' ? 'full' : 'half');
+    const savedGuestScale =
+      savedState?.guests && GUEST_SCALES.some((scale) => scale.id === savedState.guests)
+        ? (savedState.guests as GuestScale)
+        : 'classic';
+    const savedShootSetting =
+      (savedState?.shootSetting as ShootSetting | undefined) ||
+      SHOOT_SETTING_OPTIONS.find((option) =>
+        proposalData.notes.toLowerCase().includes(option.label.toLowerCase())
+      )?.id ||
+      null;
+    const time = proposalData.eventTime || '';
+    const timePreset = TIME_SLOT_PRESETS.find(
+      (slot) =>
+        slot.value.toLowerCase() === time.toLowerCase() ||
+        slot.label.toLowerCase() === time.toLowerCase()
+    );
+    const timeMatch = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    let parsedTime = '';
+    if (timeMatch) {
+      let hour = Number(timeMatch[1]);
+      if (timeMatch[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
+      if (timeMatch[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+      parsedTime = `${String(hour).padStart(2, '0')}:${timeMatch[2]}`;
+    } else if (/^([01]\d|2[0-3]):[0-5]\d/.test(time)) {
+      parsedTime = time.slice(0, 5);
+    }
+
+    skipNextAlbumDefault.current = true;
+    setActiveEventId(resolvedEventId);
+    setActivePlan(savedPlan);
+    setActiveGuests(savedGuestScale);
+    setPreferredPackageId(targetPackageId);
+    setSelectedTierOrder(
+      isAdminProposalMode && rawTierParam
+        ? Number(rawTierParam)
+        : isSavedPackage
+          ? proposalData.packageSnapshot?.selectedTier ?? targetPackage?.sortOrder ?? 2
+          : targetPackage?.sortOrder ?? 2
+    );
+    setShootSetting(savedShootSetting);
+    setUnselectedIncludedIds(
+      isSavedPackage ? savedState?.excludedIncludedIds || inferredExcludedIds : []
+    );
+    setSelectedUpgradeIds(
+      isSavedPackage ? savedState?.selectedUpgradeIds || inferredUpgradeIds : []
+    );
+    setServiceDurationOverrides(
+      isSavedPackage ? savedOverrides || inferredOverrides : {}
+    );
+    setCustomAlbumSheets(
+      (isSavedPackage ? savedState?.albumSheets : undefined) ??
+        savedAlbumSheets ??
+        (targetPackage?.sortOrder === 1 ? 30 : targetPackage?.sortOrder === 3 ? 40 : 35)
+    );
+    setClientName(proposalData.clientName);
+    setPhone(proposalData.phone);
+    setEventDate(proposalData.preferredDate);
+    setEndDate(proposalData.endDate || '');
+    setSelectedTimeSlot(timePreset?.value || 'custom');
+    setCustomTime(timePreset?.time || parsedTime);
+    setVenue(proposalData.venue);
+    const clientNotesMatch = proposalData.notes.match(/Client Notes:\s*([^|]*)/i);
+    setNotes(clientNotesMatch?.[1]?.trim() || '');
+    setProposalHydrated(true);
+  }, [
+    activeEvents,
+    isAdminProposalMode,
+    isLoading,
+    packages,
+    proposalHydrated,
+    proposalInquiry,
+    rawEventParam,
+    rawPackageParam,
+    rawPlanParam,
+    rawProposalToken,
+    rawTierParam,
+  ]);
 
   // Auto-default based on intake plan (e.g. multi-session)
   useEffect(() => {
@@ -523,8 +700,12 @@ export function ProposalPageClient() {
   }, [basePackage, selectedTierOrder]);
 
   useEffect(() => {
+    if (skipNextAlbumDefault.current) {
+      skipNextAlbumDefault.current = false;
+      return;
+    }
     setCustomAlbumSheets(defaultSheetsForTier);
-  }, [defaultSheetsForTier]);
+  }, [defaultSheetsForTier, proposalHydrated]);
 
   // ─── 1. Base Included Elements (Default Checked) ───
   const baseIncludedElements = useMemo(() => {
@@ -1180,114 +1361,195 @@ export function ProposalPageClient() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleBookingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const buildProposalUpdate = (): BookingProposalUpdate => {
+    const customNotes = customizedModifications.map((mod) => `${mod.label} (${mod.badge})`).join(', ');
+    const timingNote = effectiveEventTime ? `Timing: ${effectiveEventTime}` : '';
+    const multiDayNote =
+      activePlan === 'full' && endDate
+        ? `End Date: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`
+        : '';
+    const combinedNotes = [
+      `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}${
+        asksForShootSetting ? '' : `, ${guestsShortLabel}`
+      })`,
+      asksForShootSetting ? `Shoot setting: ${selectedShootSetting}` : '',
+      timingNote,
+      multiDayNote,
+      `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
+      customNotes ? `Customizations: ${customNotes}` : '',
+      `Estimated Total: ${formatINR(finalPrice)}`,
+      notes ? `Client Notes: ${notes}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    const requestedServiceBySlug: Record<string, BookingServiceOption> = {
+      'traditional-camera': 'Traditional Camera',
+      'traditional-video': 'Traditional Video',
+      'candid-photography': 'Candid Camera',
+      'candid-cinematography': 'Candid Video',
+      'drone-aerial-coverage': 'Drone',
+      'led-wall': 'LED Wall',
+      'led-tv': 'TV',
+    };
+    const requestedServices = [
+      ...new Set(
+        customizedActiveServiceItems
+          .map((item) => requestedServiceBySlug[item.serviceSlug])
+          .filter((service): service is BookingServiceOption => Boolean(service))
+      ),
+    ];
+    const { snapshots: optedServicesSnapshot } = calculateCustomizedEventPrice(
+      customizedActiveServiceItems,
+      services,
+      durationTier
+    );
+    const snapshot: PackageSnapshot = {
+      id: basePackage?.id || 'pkg-custom',
+      name: basePackage?.name || 'Custom Proposal',
+      price: finalPrice,
+      duration: basePackage?.duration,
+      deliverables: basePackage?.deliverables,
+      snapshotAt: new Date().toISOString(),
+      basePackageName: basePackage?.name,
+      basePrice: basePackage?.price,
+      selectedTier: basePackage?.sortOrder ?? 2,
+      customizerState: {
+        additions: customizedModifications.filter((mod) => !mod.isDeduction).map((mod) => mod.label),
+        exclusions: customizedModifications.filter((mod) => mod.isDeduction).map((mod) => mod.label),
+        netAdjustment: totalDelta,
+        liveTotal: finalPrice,
+        excludedIncludedIds: unselectedIncludedIds,
+        selectedUpgradeIds,
+        serviceDurationOverrides,
+        albumSheets: customAlbumSheets,
+        eventId: currentEvent?.id,
+        plan: activePlan === 'full' ? 'full' : 'half',
+        guests: activeGuests,
+        shootSetting: shootSetting || undefined,
+      },
+    };
+
+    return {
+      clientName: clientName.trim(),
+      phone: phone.trim(),
+      eventType: (currentEvent?.name || 'Weddings') as EventCategory,
+      preferredDate: eventDate,
+      ...(activePlan === 'full' && endDate ? { endDate } : {}),
+      eventTime: effectiveEventTime || 'To be confirmed',
+      venue: venue.trim(),
+      packageId: basePackage?.id || 'pkg-custom',
+      packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
+      quotedAmount: finalPrice,
+      requestedServices,
+      durationTier,
+      optedServices: optedServicesSnapshot,
+      totalAmount: finalPrice,
+      notes: combinedNotes,
+      termsAccepted: true,
+      termsAcceptedAt: new Date().toISOString(),
+      termsVersion: '1.0',
+      packageSnapshot: snapshot,
+    };
+  };
+
+  const saveProposalToInquiry = async (
+    actor: 'admin' | 'client'
+  ): Promise<ProposalBookingView> => {
+    if (!rawProposalToken) throw new Error('Proposal link is missing.');
+    const response = await fetch(`/api/proposals/${encodeURIComponent(rawProposalToken)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor, proposal: buildProposalUpdate() }),
+    });
+    const result = (await response.json()) as { booking?: ProposalBookingView; error?: string };
+    if (!response.ok || !result.booking) {
+      throw new Error(result.error || 'Could not save this proposal.');
+    }
+    setProposalInquiry(result.booking);
+    await refreshStudio();
+    return result.booking;
+  };
+
+  const validateProposalDetails = () => {
     if (asksForShootSetting && !shootSetting) {
       toast.error('Please select Indoor, Outdoor, or Indoor & Outdoor.');
-      return;
+      return false;
     }
     if (!clientName.trim() || !phone.trim() || !eventDate || !venue.trim()) {
       toast.error('Please fill in your name, phone, date, and venue.');
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateProposalDetails()) return;
 
     setIsSubmitting(true);
     try {
-      const customNotes = customizedModifications.map((m) => `${m.label} (${m.badge})`).join(', ');
-      const timingNote = effectiveEventTime ? `Timing: ${effectiveEventTime}` : '';
-      const multiDayNote =
-        activePlan === 'full' && endDate
-          ? `End Date: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`
-          : '';
-      const combinedNotes = [
-        `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}${
-          asksForShootSetting ? '' : `, ${guestsShortLabel}`
-        })`,
-        asksForShootSetting ? `Shoot setting: ${selectedShootSetting}` : '',
-        timingNote,
-        multiDayNote,
-        `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
-        customNotes ? `Customizations: ${customNotes}` : '',
-        `Estimated Total: ${formatINR(finalPrice)}`,
-        notes ? `Client Notes: ${notes}` : '',
-      ]
-        .filter(Boolean)
-        .join(' | ');
-
-      const requestedServiceBySlug: Record<string, BookingServiceOption> = {
-        'traditional-camera': 'Traditional Camera',
-        'traditional-video': 'Traditional Video',
-        'candid-photography': 'Candid Camera',
-        'candid-cinematography': 'Candid Video',
-        'drone-aerial-coverage': 'Drone',
-        'led-wall': 'LED Wall',
-        'led-tv': 'TV',
-      };
-      const requestedServices = [
-        ...new Set(
-          customizedActiveServiceItems
-            .map((item) => requestedServiceBySlug[item.serviceSlug])
-            .filter((service): service is BookingServiceOption => Boolean(service))
-        ),
-      ];
-
-      // Build historical opted services snapshot from the exact selected catalog items.
-      const { snapshots: optedServicesSnapshot } = calculateCustomizedEventPrice(
-        customizedActiveServiceItems,
-        services,
-        durationTier
-      );
-
-      const snapshot: PackageSnapshot = {
-        id: basePackage?.id || 'pkg-custom',
-        name: basePackage?.name || 'Custom Proposal',
-        price: finalPrice,
-        duration: basePackage?.duration,
-        deliverables: basePackage?.deliverables,
-        snapshotAt: new Date().toISOString(),
-        basePackageName: basePackage?.name,
-        basePrice: basePackage?.price,
-        selectedTier: basePackage?.sortOrder ?? 2,
-        customizerState: {
-          additions: customizedModifications.filter((m) => !m.isDeduction).map((m) => m.label),
-          exclusions: customizedModifications.filter((m) => m.isDeduction).map((m) => m.label),
-          netAdjustment: totalDelta,
-          liveTotal: finalPrice,
-        },
-      };
-
-      await submitBooking({
-        clientName: clientName.trim(),
-        phone: phone.trim(),
-        eventType: (currentEvent?.name || 'Weddings') as any,
-        preferredDate: eventDate,
-        endDate: activePlan === 'full' && endDate ? endDate : undefined,
-        eventTime: effectiveEventTime || 'To be confirmed',
-        venue: venue.trim(),
-        packageId: basePackage?.id || 'pkg-custom',
-        packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
-        quotedAmount: finalPrice,
-        requestedServices,
-        durationTier,
-        optedServices: optedServicesSnapshot,
-        totalAmount: finalPrice,
-        notes: combinedNotes,
-        status: 'Pending',
-        termsAccepted: true,
-        termsAcceptedAt: new Date().toISOString(),
-        termsVersion: '1.0',
-        packageSnapshot: snapshot,
-      });
-
-      setIsSubmitted(true);
-      toast.success('Inquiry submitted! We will check date availability shortly.');
+      if (rawProposalToken) {
+        await saveProposalToInquiry('client');
+        setIsSubmitted(true);
+        toast.success('Your updated proposal has been sent to the studio for review.');
+      } else {
+        await submitBooking({
+          ...buildProposalUpdate(),
+          status: 'Pending',
+        });
+        setIsSubmitted(true);
+        toast.success('Inquiry submitted! We will check date availability shortly.');
+      }
     } catch (err) {
       console.error('Failed to submit proposal:', err);
-      toast.error('Failed to submit online. Please use WhatsApp option.');
+      toast.error(err instanceof Error ? err.message : 'Failed to submit online. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleAdminProposalSave = async () => {
+    if (!rawProposalToken) return;
+    if (!validateProposalDetails()) return;
+    setIsSubmitting(true);
+    try {
+      const savedBooking = await saveProposalToInquiry('admin');
+      toast.success('Proposal saved to this inquiry. You can now share the client link.');
+      router.replace(`/admin?manageInquiry=${encodeURIComponent(savedBooking.id)}`);
+    } catch (error) {
+      console.error('Failed to save admin proposal:', error);
+      toast.error(error instanceof Error ? error.message : 'Could not save the proposal.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const proposalIsClosed =
+    proposalInquiry?.status === 'Confirmed' || proposalInquiry?.status === 'Declined';
+
+  if (rawProposalToken && !proposalLoadError && (isProposalLoading || !proposalHydrated)) {
+    return (
+      <div className="min-h-screen bg-[#072421] flex flex-col items-center justify-center gap-3 text-[#D8C78E]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="text-xs uppercase tracking-widest font-semibold text-[#E6ECEB]/70">
+          Loading your proposal...
+        </p>
+      </div>
+    );
+  }
+
+  if (rawProposalToken && proposalLoadError) {
+    return (
+      <div className="min-h-screen bg-[#072421] flex flex-col items-center justify-center gap-4 px-6 text-center text-[#E6ECEB]">
+        <h1 className="font-serif text-2xl font-bold text-white">Proposal unavailable</h1>
+        <p className="max-w-md text-sm text-[#E6ECEB]/70">{proposalLoadError}</p>
+        <Button type="button" onClick={() => router.push('/')} className="bg-[#C5B378] text-[#072421]">
+          Return to home
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#072421] text-[#E6ECEB] selection:bg-[#C5B378]/30 selection:text-white pb-24 lg:pb-12">
@@ -1303,21 +1565,51 @@ export function ProposalPageClient() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleShareLink}
-              className="gap-1.5 border-[#C5B378]/40 text-[#D8C78E] hover:bg-[#C5B378]/15 text-xs h-8 px-3"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              <span>Share Quote</span>
-            </Button>
+            {isAdminProposalMode ? (
+              <>
+                <span className="hidden sm:inline text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                  Admin proposal editor
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAdminProposalSave}
+                  disabled={isSubmitting || proposalIsClosed}
+                  className="h-8 bg-[#C5B378] px-3 text-xs font-bold text-[#061E1C]"
+                >
+                  {isSubmitting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
+                  Save Proposal
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleShareLink}
+                className="gap-1.5 border-[#C5B378]/40 text-[#D8C78E] hover:bg-[#C5B378]/15 text-xs h-8 px-3"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                <span>Share Quote</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        {rawProposalToken && proposalInquiry && (
+          <div className="rounded-sm border border-[#C5B378]/35 bg-[#0E423E] px-4 py-3 text-xs text-[#E6ECEB]/85">
+            {isAdminProposalMode
+              ? `Editing proposal for ${proposalInquiry.clientName}. Save changes here; final confirmation remains in Leads & Inquiries.`
+              : `Proposal for ${proposalInquiry.clientName}. Update the plan and send it back to GK STUDIOS for review.`}
+            {proposalIsClosed && (
+              <span className="ml-1 font-semibold text-amber-200">
+                This inquiry is {proposalInquiry.status.toLowerCase()} and can no longer be changed.
+              </span>
+            )}
+          </div>
+        )}
         {/* ─── 3. Fallback / Direct Intake Mode (Rendered when no query params or when editing) ─── */}
         <AnimatePresence>
           {isEditingIntake && (
@@ -2118,10 +2410,11 @@ export function ProposalPageClient() {
               <div className="space-y-2.5 pt-1">
                 <Button
                   type="button"
-                  onClick={() => setIsOrderModalOpen(true)}
+                  disabled={proposalIsClosed}
+                  onClick={isAdminProposalMode ? handleAdminProposalSave : () => setIsOrderModalOpen(true)}
                   className="w-full gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold hover:brightness-105 shadow-[0_4px_16px_rgba(216,199,142,0.35)] py-3 text-sm"
                 >
-                  <span>Check Date & Book</span>
+                  <span>{isAdminProposalMode ? 'Save Proposal' : rawProposalToken ? 'Send Updated Proposal' : 'Check Date & Book'}</span>
                 </Button>
 
                 <Button
@@ -2163,10 +2456,11 @@ export function ProposalPageClient() {
 
             <Button
               type="button"
-              onClick={() => setIsOrderModalOpen(true)}
+              disabled={proposalIsClosed}
+              onClick={isAdminProposalMode ? handleAdminProposalSave : () => setIsOrderModalOpen(true)}
               className="bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold shadow px-4 py-2 text-xs"
             >
-              <span>Check Date & Book</span>
+              <span>{isAdminProposalMode ? 'Save Proposal' : rawProposalToken ? 'Send Updated Proposal' : 'Check Date & Book'}</span>
             </Button>
           </div>
         </div>
@@ -2430,11 +2724,11 @@ export function ProposalPageClient() {
                       <SubmitButton
                         type="submit"
                         isLoading={isSubmitting}
-                        loadingText="Locking Your Plan..."
+                        loadingText={rawProposalToken ? 'Sending for Review...' : 'Locking Your Plan...'}
                         icon={<Send className="h-4 w-4" />}
                         className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold py-2.5 text-xs hover:brightness-105 shadow cursor-pointer"
                       >
-                        Submit Online Inquiry
+                        {rawProposalToken ? 'Send Updated Proposal' : 'Submit Online Inquiry'}
                       </SubmitButton>
 
                       <Button
@@ -2457,10 +2751,13 @@ export function ProposalPageClient() {
                   </div>
 
                   <div className="space-y-1">
-                    <h3 className="font-serif text-2xl font-bold text-white">Inquiry Received!</h3>
+                    <h3 className="font-serif text-2xl font-bold text-white">
+                      {rawProposalToken ? 'Proposal Sent for Review' : 'Inquiry Received!'}
+                    </h3>
                     <p className="text-xs text-[#E6ECEB]/80 max-w-sm mx-auto">
-                      Vanakkam {clientName}! We have received your inquiry for {currentEvent?.name} on {eventDate}
-                      {effectiveEventTime ? ` (${effectiveEventTime})` : ''}. We will review date availability and contact you on WhatsApp at {phone}.
+                      {rawProposalToken
+                        ? `Vanakkam ${clientName}! Your updated proposal for ${currentEvent?.name} on ${eventDate} has been sent to GK STUDIOS for review. We will contact you on WhatsApp at ${phone}.`
+                        : `Vanakkam ${clientName}! We have received your inquiry for ${currentEvent?.name} on ${eventDate}${effectiveEventTime ? ` (${effectiveEventTime})` : ''}. We will review date availability and contact you on WhatsApp at ${phone}.`}
                     </p>
                   </div>
 
