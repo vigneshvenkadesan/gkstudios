@@ -8,6 +8,7 @@ import {
   Flame,
   Briefcase,
   Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { EVENT_CATEGORY_GROUPS, StudioEvent, StudioPackage } from '@/src/types/studio';
 
@@ -95,8 +96,14 @@ export function EventCategoryTabs({
   return (
     <div className="space-y-6">
       {/* ─── Level 1: Category Navigation Bar (Counts show number of EVENTS) ─── */}
-      <div className="relative border-b border-[#C5B378]/20 pb-2">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none scroll-smooth">
+      <div className="space-y-1.5 border-b border-[#C5B378]/20 pb-2">
+        <div className="flex items-center justify-end gap-1 text-[10px] font-medium text-[#D8C78E]/80 sm:hidden">
+          <span>Swipe to see categories</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </div>
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#072421] to-transparent sm:hidden" />
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {EVENT_CATEGORY_GROUPS.map((group) => {
             const isActive = selectedCategoryId === group.id;
 
@@ -118,7 +125,7 @@ export function EventCategoryTabs({
                     onSelectEvent(firstEv.id);
                   }
                 }}
-                className={`group relative flex shrink-0 items-center gap-2.5 rounded-full px-4 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer ${
+                className={`group relative flex shrink-0 snap-start items-center gap-2.5 rounded-full px-4 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] cursor-pointer ${
                   isActive
                     ? 'bg-[#0E423E] text-[#D8C78E] border border-[#D8C78E]/60 shadow-[0_0_16px_rgba(216,199,142,0.18)]'
                     : 'bg-[#072421]/80 text-[#E6ECEB]/70 border border-[#C5B378]/15 hover:border-[#C5B378]/40 hover:text-white hover:bg-[#0A332F]'
@@ -152,6 +159,7 @@ export function EventCategoryTabs({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
 

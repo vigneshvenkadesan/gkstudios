@@ -138,7 +138,7 @@ export function PackagesSection({
   return (
     <section
       id="packages"
-      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#072421] py-16 sm:py-24 border-b border-[#C5B378]/18"
+      className="gk-content-120 scroll-mt-16 sm:scroll-mt-[72px] bg-[#072421] py-16 sm:py-24 border-b border-[#C5B378]/18"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-10">
         {/* Editorial Header with View Mode Switcher */}
@@ -231,23 +231,6 @@ export function PackagesSection({
         ) : (
           /* ─── View Mode 2: Classic 3-Tier Grid with Live Event Selector ─── */
           <div className="space-y-8">
-            {/* Banner: Switch back to intake */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-sm border border-[#C5B378]/25 bg-[#0E423E] p-4 text-xs">
-              <div className="flex items-center gap-2 text-[#E6ECEB]/90">
-                <Sparkles className="h-4 w-4 text-[#D8C78E] shrink-0" />
-                <span>
-                  Need a custom package?
-                </span>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => setViewMode('intake')}
-                className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold text-xs"
-              >
-                <span>Customize</span>
-              </Button>
-            </div>
-
             {/* Event Category Tabs */}
             <EventCategoryTabs
               events={activeEvents}
@@ -552,6 +535,22 @@ export function PackagesSection({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {viewMode === 'grid' && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-sm border border-[#C5B378]/25 bg-[#0E423E] p-4 text-xs">
+            <div className="flex items-center gap-2 text-[#E6ECEB]/90">
+              <Sparkles className="h-4 w-4 text-[#D8C78E] shrink-0" />
+              <span>Need a custom package?</span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setViewMode('intake')}
+              className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold text-xs"
+            >
+              <span>Customize</span>
+            </Button>
           </div>
         )}
 

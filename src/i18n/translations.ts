@@ -17,11 +17,7 @@ const translations = {
   'nav.language': { en: 'Language', ta: 'மொழி' },
   'nav.primary': { en: 'Primary navigation', ta: 'முக்கிய மெனு' },
   'nav.mobile': { en: 'Mobile navigation', ta: 'கைபேசி மெனு' },
-  'hero.heading': { en: 'Creating Memories', ta: 'நினைவுகளைக் காப்போம்' },
-  'hero.subtitle': {
-    en: 'Timeless Wedding Photography & Cinematic Films.',
-    ta: 'அழகு நிறைந்த திருமணப் புகைப்படங்களும் சினிமா நிமிடங்களும்.',
-  },
+  'hero.heading': { en: 'Love, caught in the moment.', ta: 'காதல், தருணத்தில் பிடிக்கப்பட்டது.' },
   'hero.explore': { en: 'Explore Stories', ta: 'கதைகளைப் பாருங்கள்' },
   'hero.scroll': { en: 'Scroll', ta: 'கீழே செல்ல' },
   'hero.previous': { en: 'Previous hero photograph', ta: 'முந்தைய படம்' },

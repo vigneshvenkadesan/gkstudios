@@ -77,7 +77,6 @@ import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoS
 import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
-import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { PackageCardSkeleton } from '@/src/components/ui/skeleton';
 import { TermsAndConditionsModal } from '@/src/components/TermsAndConditionsModal';
 import {
@@ -399,7 +398,6 @@ export function ProposalPageClient() {
     activePlan === 'full' ? '' : '06:00'
   );
   const [venue, setVenue] = useState('');
-  const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
@@ -413,9 +411,8 @@ export function ProposalPageClient() {
     if (isSubmitting) return;
     setIsOrderModalOpen(false);
     if (rawInquiryParam === '1') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('inquiry');
-      window.history.replaceState({}, '', url.toString());
+      setIsReturningToStudio(true);
+      router.push('/#packages');
     }
   };
   const orderModalCloseButton = (
@@ -580,8 +577,6 @@ export function ProposalPageClient() {
     setSelectedTimeSlot(timePreset?.value || 'custom');
     setCustomTime(timePreset?.time || parsedTime);
     setVenue(proposalData.venue);
-    const clientNotesMatch = proposalData.notes.match(/Client Notes:\s*([^|]*)/i);
-    setNotes(clientNotesMatch?.[1]?.trim() || '');
     setProposalHydrated(true);
   }, [
     activeEvents,
@@ -1361,7 +1356,6 @@ export function ProposalPageClient() {
     }
 
     if (venue.trim()) lines.push(`📍 Venue: ${venue.trim()}`);
-    if (notes.trim()) lines.push(`📝 Notes: ${notes.trim()}`);
 
     lines.push(``);
     lines.push(`Please confirm our date availability and next steps.`);
@@ -1376,6 +1370,34 @@ export function ProposalPageClient() {
     const message = buildWhatsAppMessage();
     const url = buildWhatsAppUrl(STUDIO_INFO.phone, message);
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleWhatsAppInquiry = async () => {
+    if (!validateProposalDetails()) return;
+
+    const message = buildWhatsAppMessage();
+    const url = buildWhatsAppUrl(STUDIO_INFO.phone, message);
+    window.open(url, '_blank', 'noopener,noreferrer');
+
+    setIsSubmitting(true);
+    try {
+      if (rawProposalToken) {
+        await saveProposalToInquiry('client');
+        toast.success('Your updated proposal has been sent to the studio.');
+      } else {
+        await submitBooking({
+          ...buildProposalUpdate(true),
+          status: 'Pending',
+        });
+        toast.success('Inquiry sent. We will check date availability shortly.');
+      }
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error('Failed to store WhatsApp inquiry:', error);
+      toast.error(error instanceof Error ? error.message : 'Could not save your inquiry.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const buildProposalUpdate = (acceptedTerms = false): BookingProposalUpdate => {
@@ -1395,7 +1417,6 @@ export function ProposalPageClient() {
       `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
       customNotes ? `Customizations: ${customNotes}` : '',
       `Estimated Total: ${formatINR(finalPrice)}`,
-      notes ? `Client Notes: ${notes}` : '',
     ]
       .filter(Boolean)
       .join(' | ');
@@ -1581,7 +1602,7 @@ export function ProposalPageClient() {
   }
 
   return (
-    <div className="min-h-screen bg-[#072421] text-[#E6ECEB] selection:bg-[#C5B378]/30 selection:text-white pb-24 lg:pb-12">
+    <div className="proposal-page-scale min-h-screen bg-[#072421] text-[#E6ECEB] selection:bg-[#C5B378]/30 selection:text-white pb-24 lg:pb-12">
       {/* ─── Top Minimal Bar ─── */}
       <header className="sticky top-0 z-40 bg-[#072421]/95 backdrop-blur-md border-b border-[#C5B378]/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
@@ -2439,17 +2460,7 @@ export function ProposalPageClient() {
                   onClick={isAdminProposalMode ? handleAdminProposalSave : () => setIsOrderModalOpen(true)}
                   className="w-full gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold hover:brightness-105 shadow-[0_4px_16px_rgba(216,199,142,0.35)] py-3 text-sm"
                 >
-                  <span>{isAdminProposalMode ? 'Save Proposal' : rawProposalToken ? 'Send Updated Proposal' : 'Check Date & Book'}</span>
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleWhatsAppSend}
-                  className="w-full gap-2 border-[#25D366]/50 bg-[#25D366]/10 text-emerald-300 hover:bg-[#25D366]/20 text-xs py-2"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  <span>Share on WhatsApp</span>
+                  <span>{isAdminProposalMode ? 'Save Proposal' : rawProposalToken ? 'Send Updated Proposal' : 'Send via WhatsApp'}</span>
                 </Button>
               </div>
             </div>
@@ -2470,29 +2481,21 @@ export function ProposalPageClient() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleWhatsAppSend}
-              className="p-2.5 rounded-sm bg-[#25D366] text-[#061E1C] hover:brightness-105"
-              aria-label="WhatsApp Quote"
-            >
-              <MessageCircle className="h-4 w-4 fill-[#061E1C]" />
-            </button>
-
             <Button
               type="button"
               disabled={proposalIsClosed}
               onClick={isAdminProposalMode ? handleAdminProposalSave : () => setIsOrderModalOpen(true)}
-              className="bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold shadow px-4 py-2 text-xs"
+              className="gap-1.5 bg-[#25D366] text-[#061E1C] font-bold shadow px-4 py-2 text-xs"
             >
-              <span>{isAdminProposalMode ? 'Save Proposal' : rawProposalToken ? 'Send Updated Proposal' : 'Check Date & Book'}</span>
+              <MessageCircle className="h-4 w-4" />
+              <span>{isAdminProposalMode ? 'Save Proposal' : rawProposalToken ? 'Send Updated Proposal' : 'Send via WhatsApp'}</span>
             </Button>
           </div>
         </div>
       </div>
 
 
-      {/* ─── Modal 2: Check Date & Book Drawer / Dialog ─── */}
+      {/* ─── Inquiry Drawer / Dialog ─── */}
       <AnimatePresence>
         {isOrderModalOpen && (
           <div
@@ -2518,55 +2521,45 @@ export function ProposalPageClient() {
                 <>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1 pt-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]">
-                        Availability & Booking
-                      </span>
                       <h3 className="font-serif text-2xl font-bold text-white">
                         Package & Date Inquiry
                       </h3>
-                      <p className="text-xs text-[#E6ECEB]/70">
-                        Send your selected package and event details to check availability with GK STUDIOS.
+                      <p className="whitespace-nowrap text-xs text-[#E6ECEB]/80">
+                        {currentEvent?.name} · {basePackage?.name} · {formatINR(finalPrice)}
                       </p>
                     </div>
                     {orderModalCloseButton}
                   </div>
 
-                  {/* Summary Bar */}
-                  <div className="rounded-sm bg-[#0E423E] border border-[#C5B378]/25 p-3 flex justify-between items-baseline text-xs">
-                    <div>
-                      <span className="font-bold text-white">{currentEvent?.name} · {basePackage?.name}</span>
-                      <p className="text-[11px] text-[#D8C78E]">
-                        {asksForShootSetting
-                          ? selectedShootSetting || 'Select Shoot Setting'
-                          : guestsShortLabel}
-                      </p>
-                    </div>
-                    <span className="font-serif text-2xl font-bold text-white">{formatINR(finalPrice)}</span>
-                  </div>
-
                   {/* Form */}
-                  <form onSubmit={handleBookingSubmit} className="space-y-3.5">
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleWhatsAppInquiry();
+                    }}
+                    className="space-y-3.5"
+                  >
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">Your Name *</label>
+                        <label className="text-xs font-semibold text-white/90">Name *</label>
                         <input
                           type="text"
                           required
                           value={clientName}
                           onChange={(e) => setClientName(e.target.value)}
-                          placeholder="e.g. Vignesh & Meera"
+                          placeholder="Your name"
                           className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">WhatsApp Number *</label>
+                        <label className="text-xs font-semibold text-white/90">Number *</label>
                         <input
                           type="tel"
                           required
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="e.g. 98400 12345"
+                          placeholder="WhatsApp number"
                           className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
@@ -2576,7 +2569,7 @@ export function ProposalPageClient() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-white/90 flex items-center justify-between">
-                          <span>Event Date *</span>
+                          <span>Event date *</span>
                           {activePlan === 'full' && (
                             <span className="text-[10px] text-[#D8C78E] font-medium">Day 1</span>
                           )}
@@ -2591,12 +2584,7 @@ export function ProposalPageClient() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90 flex items-center justify-between">
-                          <span>Event Start Time / Slot</span>
-                          <span className="text-[10px] text-[#D8C78E] font-medium truncate max-w-[150px]">
-                            {effectiveEventTime || 'Select below'}
-                          </span>
-                        </label>
+                        <label className="text-xs font-semibold text-white/90">Time</label>
                         <input
                           type="time"
                           value={customTime}
@@ -2606,43 +2594,6 @@ export function ProposalPageClient() {
                           }}
                           className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
                         />
-                      </div>
-                    </div>
-
-                    {/* Smart Quick-Select Timing Chips */}
-                    <div className="space-y-1.5 pt-0.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]/90 flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-[#D8C78E]" />
-                          Quick Timing Presets
-                        </span>
-                        <span className="text-[10px] text-[#E6ECEB]/50">Tap to autofill slot</span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5">
-                        {TIME_SLOT_PRESETS.map((slot) => {
-                          const isSelected =
-                            selectedTimeSlot === slot.value ||
-                            (slot.time && customTime === slot.time && selectedTimeSlot !== 'custom');
-
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedTimeSlot(slot.value);
-                                setCustomTime(slot.time);
-                              }}
-                              className={`text-[11px] px-2.5 py-1 rounded-sm border transition-all ${
-                                isSelected
-                                  ? 'border-[#D8C78E] bg-[#114A45] text-white font-semibold ring-1 ring-[#D8C78E]'
-                                  : 'border-[#C5B378]/25 bg-[#061E1C]/80 text-[#E6ECEB]/75 hover:border-[#D8C78E]/50 hover:text-white'
-                              }`}
-                            >
-                              {slot.label}
-                            </button>
-                          );
-                        })}
                       </div>
                     </div>
 
@@ -2716,49 +2667,23 @@ export function ProposalPageClient() {
                         required
                         value={venue}
                         onChange={(e) => setVenue(e.target.value)}
-                        placeholder="e.g. Mayor Ramanathan Hall, Chennai"
+                        placeholder="Venue or city"
                         className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-white/90">Notes / Specific Rituals (Optional)</label>
-                      <textarea
-                        rows={2}
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="e.g. Morning Muhurtham at 6 AM, evening reception at 7 PM"
-                        className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1 text-[11px] text-[#E6ECEB]/70">
-                      <ShieldCheck className="h-4 w-4 text-[#D8C78E] shrink-0" />
-                      <span>Zero obligation · No instant payment · Date confirmed in 2 hours</span>
-                    </div>
-
-                    <div className="flex gap-2 pt-2">
-                      <SubmitButton
-                        type="submit"
-                        isLoading={isSubmitting}
-                        loadingText={rawProposalToken ? 'Sending for Review...' : 'Locking Your Plan...'}
-                        icon={<Send className="h-4 w-4" />}
-                        className="flex-1 gap-2 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold py-2.5 text-xs hover:brightness-105 shadow cursor-pointer"
-                      >
-                        {rawProposalToken ? 'Send Updated Proposal' : 'Submit Online Inquiry'}
-                      </SubmitButton>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={isSubmitting}
-                        onClick={handleWhatsAppSend}
-                        className="gap-1.5 border-[#25D366]/60 bg-[#25D366]/15 text-emerald-300 hover:bg-[#25D366]/25 text-xs py-2.5 px-4 disabled:opacity-50 cursor-pointer"
-                      >
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full gap-2 border-[#25D366]/60 bg-[#25D366] text-[#061E1C] hover:bg-[#34E779] text-sm font-bold py-3 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
                         <MessageCircle className="h-4 w-4" />
-                        <span>Send via WhatsApp</span>
-                      </Button>
-                    </div>
+                      )}
+                      <span>{isSubmitting ? 'Sending...' : 'Send via WhatsApp'}</span>
+                    </Button>
                   </form>
                 </>
               ) : (

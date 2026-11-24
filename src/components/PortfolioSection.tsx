@@ -150,7 +150,7 @@ export function PortfolioSection({
     <section
       id="portfolio"
       ref={sectionRef}
-      className="scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-16 sm:py-24 border-b border-[#C5B378]/18 content-auto"
+      className="gk-content-120 scroll-mt-16 sm:scroll-mt-[72px] bg-[#092E2B] py-16 sm:py-24 border-b border-[#C5B378]/18 content-auto"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Minimal Editorial Header */}

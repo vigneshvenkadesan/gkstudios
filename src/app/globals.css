@@ -27,6 +27,11 @@
     overflow-x: clip;
   }
 
+  .gk-content-120,
+  .proposal-page-scale {
+    zoom: 1.2;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     html {
       scroll-behavior: auto;

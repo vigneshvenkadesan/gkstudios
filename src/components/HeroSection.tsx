@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
-import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { MandalaCorner } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
@@ -147,17 +146,7 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
       {/* Main Editorial Center Content — Minimal & Confident */}
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:block sm:flex-none sm:px-6 sm:py-16 lg:px-8">
         <div className="flex h-full flex-col justify-between gap-8 sm:block">
-          <div className="max-w-3xl space-y-4 sm:space-y-6">
-            {/* Brand Name */}
-            <motion.p
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="text-xs sm:text-sm font-semibold tracking-[0.3em] text-[#D8C78E]"
-            >
-              {STUDIO_INFO.name}
-            </motion.p>
-
+          <div className="max-w-3xl">
             {/* Dominant Display Headline */}
             <motion.h1
               initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
@@ -167,16 +156,6 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
             >
               {t('hero.heading')}
             </motion.h1>
-
-            {/* Concise Supporting Line */}
-            <motion.p
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.75, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
-              className="text-base sm:text-xl font-normal tracking-[0.02em] text-[#E6ECEB]/90"
-            >
-              {t('hero.subtitle')}
-            </motion.p>
           </div>
 
           {/* Primary & Secondary CTAs */}
@@ -184,27 +163,27 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
             initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="grid w-full grid-cols-2 items-stretch gap-2 sm:flex sm:w-auto sm:max-w-none sm:flex-wrap sm:items-center sm:gap-3.5 sm:pt-2"
+            className="flex w-full flex-col gap-3 pt-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:pt-4"
           >
             <Button
-              size="sm"
-              variant="secondary"
+              size="lg"
+              variant="default"
               onClick={onViewPackages}
               aria-label={t('nav.packages')}
-              className="h-9 min-w-0 px-1.5 text-[11px] sm:h-12 sm:w-auto sm:px-7 sm:text-sm"
+              className="h-12 w-full gap-2.5 rounded-sm border border-[#F4E8C1]/70 bg-gradient-to-r from-[#D8C78E] to-[#F0DFA8] px-5 text-sm font-bold text-[#061E1C] shadow-[0_8px_28px_rgba(216,199,142,0.42)] transition-all hover:-translate-y-0.5 hover:from-[#F0DFA8] hover:to-[#D8C78E] hover:shadow-[0_12px_34px_rgba(216,199,142,0.55)] active:translate-y-0 sm:w-auto sm:px-7"
             >
               {t('nav.packages')}
+              <ArrowRight className="h-4 w-4" />
             </Button>
             <Button
-              size="sm"
+              size="lg"
               variant="outline"
               onClick={onExploreWork}
               aria-label={t('hero.explore')}
-              className="h-9 min-w-0 px-1.5 text-[11px] sm:h-12 sm:w-auto sm:px-7 sm:text-sm"
+              className="h-12 w-full gap-2.5 rounded-sm border border-[#F0DFA8]/80 bg-[#061E1C]/75 px-5 text-sm font-semibold text-white shadow-[0_6px_22px_rgba(0,0,0,0.32)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-[#F4E8C1] hover:bg-[#0E423E]/95 hover:text-[#F4E8C1] hover:shadow-[0_10px_28px_rgba(0,0,0,0.45)] active:translate-y-0 sm:w-auto sm:px-7"
             >
-              <span className="sm:hidden">{locale === 'ta' ? 'கதை' : 'Stories'}</span>
-              <span className="hidden sm:inline">{t('hero.explore')}</span>
-              <ArrowRight className="hidden h-4 w-4 sm:block" />
+              <span>{t('hero.explore')}</span>
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </motion.div>
         </div>
