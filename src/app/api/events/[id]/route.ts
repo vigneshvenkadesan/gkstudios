@@ -1,12 +1,33 @@
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import {
   addEventPaymentOnServer,
   deleteEventPaymentOnServer,
   deleteEventProjectOnServer,
+  deleteEventOnServer,
+  updateEventOnServer,
   updateEventFinancialsOnServer,
   updateEventStageOnServer,
 } from '@/src/server/studioStore';
-import { EventStage, PaymentRecord } from '@/src/types/studio';
+import { EventStage, PaymentRecord, StudioEvent } from '@/src/types/studio';
+
+const ADMIN_COOKIE = 'gk_admin_session';
+const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
+
+async function isAuthorizedAdmin(): Promise<boolean> {
+  const cookieStore = await cookies();
+  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
+}
+
+function revalidateCatalogPages() {
+  revalidatePath('/');
+  revalidatePath('/packages');
+  revalidatePath('/portfolio');
+  revalidatePath('/admin');
+  revalidatePath('/admin/events');
+  revalidatePath('/admin/packages');
+}
 
 export async function PATCH(
   request: Request,
@@ -15,6 +36,7 @@ export async function PATCH(
   try {
     const { id } = await context.params;
     const body = (await request.json()) as {
+      resource?: string;
       // EventProject actions
       action?: 'stage' | 'financials' | 'add_payment' | 'delete_payment';
       stage?: EventStage;
@@ -27,6 +49,19 @@ export async function PATCH(
       payment?: Omit<PaymentRecord, 'id'>;
       paymentId?: string;
     };
+
+    if (body.resource === 'catalog-event') {
+      if (!(await isAuthorizedAdmin())) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Studio staff authentication required.' },
+          { status: 401 }
+        );
+      }
+      const { resource: _resource, ...patch } = body;
+      const state = await updateEventOnServer(id, patch as Partial<StudioEvent>);
+      revalidateCatalogPages();
+      return NextResponse.json(state);
+    }
 
     if (body.action === 'stage' && body.stage) {
       const state = await updateEventStageOnServer(id, body.stage, body.note);
@@ -56,8 +91,14 @@ export async function PATCH(
 
     return NextResponse.json({ error: 'Invalid event update action' }, { status: 400 });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Event project not found.') {
+    if (error instanceof Error && error.message.includes('not found.')) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof Error && error.message.includes('already exists')) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof Error && error.message.includes('must be')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     console.error('Failed to update event.', error);
     return NextResponse.json({ error: 'Unable to update event.' }, { status: 500 });
@@ -71,10 +112,27 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
+    const { searchParams } = new URL(_request.url);
+    const resource = searchParams.get('resource');
+    if (resource === 'catalog-event') {
+      if (!(await isAuthorizedAdmin())) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Studio staff authentication required.' },
+          { status: 401 }
+        );
+      }
+      const state = await deleteEventOnServer(id);
+      revalidateCatalogPages();
+      return NextResponse.json(state);
+    }
+
     const state = await deleteEventProjectOnServer(id);
     return NextResponse.json(state);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Event project not found.') {
+    if (error instanceof Error && error.message.includes('still has linked packages')) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof Error && error.message.includes('not found.')) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
     console.error('Failed to delete event.', error);

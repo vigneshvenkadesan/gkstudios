@@ -71,10 +71,7 @@ export function PackageAdvisor({
   const matchingPackages = useMemo(() => {
     return packages
       .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
-      .filter((pkg) => {
-        const pkgEventId = pkg.eventId || 'wedding';
-        return pkgEventId === selectedEventId;
-      })
+      .filter((pkg) => pkg.eventId === selectedEventId)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages, selectedEventId]);
 

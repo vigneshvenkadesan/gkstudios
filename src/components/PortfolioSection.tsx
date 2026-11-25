@@ -6,8 +6,6 @@ import { Camera, ChevronLeft, ChevronRight, Expand, MapPin } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
 import {
-  CoreEventCategory,
-  EVENT_CATEGORIES,
   EventCategory,
   normalizeEventCategory,
   PortfolioItem,
@@ -22,6 +20,7 @@ import {
   translateCategory,
   TranslationKey,
 } from '@/src/i18n/translations';
+import { useEvents } from '@/src/hooks/useEvents';
 import {
   Dialog,
   DialogContent,
@@ -36,30 +35,18 @@ interface PortfolioSectionProps {
   externalCategoryFilter?: EventCategory | null;
 }
 
-type FilterOption = 'All Events' | CoreEventCategory;
-
-const FILTER_OPTIONS: FilterOption[] = ['All Events', ...EVENT_CATEGORIES];
-
-const FILTER_LABEL_KEYS: Record<FilterOption, TranslationKey> = {
-  'All Events': 'portfolio.all',
-  Weddings: 'portfolio.weddings',
-  'Traditional Ceremonies': 'portfolio.ceremonies',
-  'Family Celebrations': 'portfolio.family',
-  'Portraits & Outdoor Shoots': 'portfolio.outdoor',
-  'Corporate Events': 'portfolio.corporate',
-};
-
 export function PortfolioSection({
   onBookCategory,
   externalCategoryFilter,
 }: PortfolioSectionProps) {
   const { portfolio } = useStudio();
+  const { activeEvents } = useEvents();
   const { locale } = usePublicPreferences();
   const t = (key: TranslationKey, params?: Record<string, string | number>) =>
     translate(locale, key, params);
   const prefersReducedMotion = Boolean(useReducedMotion());
 
-  const [selectedCategory, setSelectedCategory] = useState<FilterOption>('All Events');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
@@ -67,7 +54,7 @@ export function PortfolioSection({
 
   useEffect(() => {
     if (externalCategoryFilter) {
-      setSelectedCategory(normalizeEventCategory(externalCategoryFilter));
+      setSelectedCategory(`category:${normalizeEventCategory(externalCategoryFilter)}`);
     }
   }, [externalCategoryFilter]);
 
@@ -76,24 +63,21 @@ export function PortfolioSection({
     [portfolio]
   );
 
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    visiblePortfolio.forEach((item) => {
-      const normalized = normalizeEventCategory(item.category);
-      counts.set(normalized, (counts.get(normalized) || 0) + 1);
-    });
-    return counts;
-  }, [visiblePortfolio]);
-
   const filteredItems = useMemo(() => {
-    const categoryItems =
-      selectedCategory === 'All Events'
-        ? visiblePortfolio
-        : visiblePortfolio.filter(
-      (item) => normalizeEventCategory(item.category) === selectedCategory
+    if (selectedCategory === 'all') return visiblePortfolio;
+    const selectedEvent = activeEvents.find((event) => event.id === selectedCategory);
+    const category = selectedEvent
+      ? normalizeEventCategory(selectedEvent.category)
+      : normalizeEventCategory(selectedCategory.replace(/^category:/, ''));
+    const categoryItems = visiblePortfolio.filter((item) =>
+      selectedCategory.startsWith('category:')
+        ? normalizeEventCategory(item.category) === category
+        : item.eventId
+        ? item.eventId === selectedCategory
+        : normalizeEventCategory(item.category) === category
     );
     return Array.from(new Map(categoryItems.map((item) => [item.id, item])).values());
-  }, [visiblePortfolio, selectedCategory]);
+  }, [visiblePortfolio, selectedCategory, activeEvents]);
 
   const activeLightboxIndex = lightboxItem
     ? filteredItems.findIndex((i) => i.id === lightboxItem.id)
@@ -125,7 +109,7 @@ export function PortfolioSection({
   }, [lightboxItem, navigateLightbox]);
 
   const getEditorialLayoutClass = (item: PortfolioItem, index: number): string => {
-    if (selectedCategory !== 'All Events') {
+    if (selectedCategory !== 'all') {
       return 'aspect-[4/3]';
     }
     if (index === 0 || item.aspect === 'wide') {
@@ -145,6 +129,22 @@ export function PortfolioSection({
     [filteredItems]
   );
   usePreloadImagesOnApproach(sectionRef, preloadUrls, '600px 0px');
+  const filterOptions = [
+    { id: 'all', name: t('portfolio.all'), count: visiblePortfolio.length },
+    ...activeEvents.map((event) => ({
+      id: event.id,
+      name: event.name,
+      count: visiblePortfolio.filter((item) =>
+        item.eventId
+          ? item.eventId === event.id
+          : normalizeEventCategory(item.category) === normalizeEventCategory(event.category)
+      ).length,
+    })),
+  ];
+  const selectedEvent = activeEvents.find((event) => event.id === selectedCategory);
+  const selectedCategoryFallback = selectedCategory.startsWith('category:')
+    ? normalizeEventCategory(selectedCategory.replace(/^category:/, ''))
+    : null;
 
   return (
     <section
@@ -181,34 +181,30 @@ export function PortfolioSection({
           aria-label={t('portfolio.filterLabel')}
           className="mt-10 flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-[#C5B378]/15"
         >
-          {FILTER_OPTIONS.map((category) => {
-            const isActive = selectedCategory === category;
-            const count =
-              category === 'All Events'
-                ? visiblePortfolio.length
-                : categoryCounts.get(category) || 0;
+          {filterOptions.map((option) => {
+            const isActive = selectedCategory === option.id;
 
             return (
               <button
-                key={category}
+                key={option.id}
                 role="tab"
                 aria-selected={isActive}
                 type="button"
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => setSelectedCategory(option.id)}
                 className={`whitespace-nowrap shrink-0 rounded-sm px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] ${
                   isActive
                     ? 'bg-[#C5B378] text-[#061E1C] font-semibold'
                     : 'text-[#E6ECEB]/75 hover:bg-[#0E423E] hover:text-white'
                 }`}
               >
-                <span>{t(FILTER_LABEL_KEYS[category])}</span>
-                {count > 0 && (
+                <span>{option.name}</span>
+                {option.count > 0 && (
                   <span
                     className={`ml-1.5 font-mono text-[11px] tabular-nums ${
                       isActive ? 'text-[#061E1C]/75' : 'text-[#D8C78E]/70'
                     }`}
                   >
-                    {count}
+                    {option.count}
                   </span>
                 )}
               </button>
@@ -223,21 +219,31 @@ export function PortfolioSection({
             <h3 className="mt-4 font-serif text-2xl font-semibold text-white">
               {t('portfolio.empty', {
                 category:
-                  selectedCategory === 'All Events'
+                  selectedCategory === 'all'
                     ? t('portfolio.all')
-                    : translateCategory(locale, selectedCategory),
+                    : selectedEvent?.name ||
+                      translateCategory(locale, selectedCategoryFallback || 'Weddings'),
               })}
             </h3>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedCategory('All Events')}
+                onClick={() => setSelectedCategory('all')}
               >
                 {t('portfolio.viewAll')}
               </Button>
-              {selectedCategory !== 'All Events' && (
-                <Button size="sm" onClick={() => onBookCategory(selectedCategory)}>
+              {selectedCategory !== 'all' && (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    onBookCategory(
+                      selectedEvent?.category
+                        ? normalizeEventCategory(selectedEvent.category)
+                        : selectedCategoryFallback || 'Weddings'
+                    )
+                  }
+                >
                   {t('portfolio.inquire')}
                 </Button>
               )}

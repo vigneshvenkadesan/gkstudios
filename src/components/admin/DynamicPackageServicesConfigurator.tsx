@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import {
   DurationTier,
-  PackageAvailableAddon,
   PackageIncludedService,
   StudioService,
 } from '@/src/types/studio';
@@ -26,8 +25,6 @@ interface DynamicPackageServicesConfiguratorProps {
   onChangeDurationTier: (tier: DurationTier) => void;
   includedServices: PackageIncludedService[];
   onChangeIncludedServices: (items: PackageIncludedService[]) => void;
-  availableAddons: PackageAvailableAddon[];
-  onChangeAvailableAddons: (items: PackageAvailableAddon[]) => void;
   services: StudioService[];
 }
 
@@ -36,8 +33,6 @@ export function DynamicPackageServicesConfigurator({
   onChangeDurationTier,
   includedServices,
   onChangeIncludedServices,
-  availableAddons,
-  onChangeAvailableAddons,
   services,
 }: DynamicPackageServicesConfiguratorProps) {
   // Only use active services for configuration
@@ -112,9 +107,6 @@ export function DynamicPackageServicesConfigurator({
         { serviceSlug: svc.slug, quantity: defaultQty, durationTier },
       ];
       onChangeIncludedServices(nextIncluded);
-      onChangeAvailableAddons(
-        availableAddons.filter((item) => item.serviceSlug !== svc.slug)
-      );
     }
   };
 

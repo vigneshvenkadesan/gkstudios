@@ -44,7 +44,7 @@ src/app/
     studio/                        Combined studio state
     bookings/                      Inquiry CRUD and booking actions
     schedule/                      Calendar upsert/delete
-    events/                        Package-derived ceremonies and production projects
+    events/                        Event catalog CRUD and production project actions
     services/                      Master service pricing
     packages/                      Package CRUD/reorder
     bills/                         Bill lookup
@@ -87,13 +87,14 @@ MongoDB collection names and Mongoose models:
 | `calendar_schedule` | `CalendarSchedule` | Booked/limited schedule entries |
 | `event_projects` | `EventProject` | Delivery stages, financials, embedded payments |
 | `bills` | `Bill` | Generated historical bill snapshots |
+| `events` | `StudioEvent` | Event catalog and event ordering |
 | `packages` | `Package` | Package tiers and service links |
 | `services` | `Service` | Master pricing catalog |
 
-Ceremonies are derived from `packages.eventId`, `category`, and `eventSortOrder` rather than a
-separate events collection. The `/api/events` route remains for event-project workflows and returns
-the derived ceremony list for its GET request. The application does not drop an existing MongoDB
-`events` collection automatically.
+Events are stored in the `events` collection. Each package links to one event through `eventId`;
+its `category` mirrors that event ID and `eventSortOrder` mirrors the Event's `sortOrder`.
+`/api/events` provides catalog reads/CRUD while retaining POST/PATCH/DELETE actions used by
+event-project workflows.
 
 `portfolio` is not currently a MongoDB collection. Portfolio items come from `data/studio-db.json`, `INITIAL_STUDIO_STATE`, and in-memory/disk state mutations. It does not have a Mongoose schema. There is no Mongo-backed `users`, `admins`, or `settings` collection. Admin authentication uses an HTTP-only application cookie with a fixed value plus server-side `ADMIN_PIN` verification.
 
@@ -291,24 +292,23 @@ Default/fallback services include traditional/candid photography and videography
 | Field | Type | Notes |
 |---|---|---|
 | `id` | string | Unique, normally `pkg-*` |
-| `eventId` | string | Stable ceremony ID; the source for ceremony grouping |
+| `eventId` | string | Foreign key matching `events.id` |
+| `category` | string | Mirrors `eventId` |
 | `tier` | string | `essential`, `signature`, `premium` |
 | `name` | string | Required |
 | `audience` | string | Required in UI schema |
-| `price` | number | Dynamically calculated, sorting/display |
+| `price` | number/null/omitted | Optional override; otherwise calculated from included services |
 | `currency` | string | Default `INR` |
 | `priceLabel` | string | Display label |
 | `duration` | string | Display text |
 | `durationTier` | `threeHours \| halfDay \| fullDay` | Defaults/inferred for legacy packages |
 | `includedServices` | `{ serviceSlug: string, quantity: number, durationTier?: threeHours \| halfDay \| fullDay }[]` | Drives coverage display and base pricing; item tier falls back to package tier |
-| `availableAddons` | `{ serviceSlug: string, defaultQuantity?: number, label?: string, durationTier?: threeHours \| halfDay \| fullDay }[]` | Optional catalog add-ons, each with its own pricing tier |
 | `highlighted` | boolean | Most-popular flag |
 | `featured` | boolean | Featured flag |
-| `deliverables` | `Record<string, string>` | Custom text only: `Deliverables` plus custom categories; coverage/albums are derived from services |
+| `deliverables` | `{ Deliverables: string }` | Package deliverables text; coverage/albums are derived from services |
 | `customizer` | mixed | Legacy/customizer data |
 | `imageUrl` | string | Public image URL |
 | `image` | string | Legacy alias |
-| `category` | string | Ceremony category group ID |
 | `status` | `active \| inactive` | Default active |
 | `displayOnPortfolio` | boolean | Public package visibility |
 | `sortOrder` | number | 1, 2, 3 convention |
@@ -332,12 +332,8 @@ Example:
     { "serviceSlug": "traditional-camera", "quantity": 1, "durationTier": "fullDay" },
     { "serviceSlug": "candid-photography", "quantity": 1, "durationTier": "halfDay" }
   ],
-  "availableAddons": [
-    { "serviceSlug": "drone-aerial-coverage", "defaultQuantity": 1, "durationTier": "threeHours", "label": "Drone Aerial Coverage (3 Hrs)" }
-  ],
   "deliverables": {
-    "Deliverables": "4K cinematic highlight film",
-    "Outdoor Portraits": "A dedicated couple portrait session"
+    "Deliverables": "4K cinematic highlight film; dedicated couple portrait session"
   },
   "status": "active",
   "displayOnPortfolio": true,
@@ -346,18 +342,32 @@ Example:
 }
 ```
 
-### Derived ceremonies
+### `events`
 
-The application groups package documents by `eventId`. Ceremony category and ordering come from
-the matching packages' `category` and `eventSortOrder`; a ceremony is active when at least one of
-its packages is active. Known legacy IDs retain their English display labels, while new IDs are
-humanized for display. Creating or editing ceremony metadata is done through a package, and
-category/order changes are shared across packages with the same `eventId`. The Package Manager's
-event status control updates the status of every package under that event.
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Unique event slug and package foreign key |
+| `name` | string | English display name |
+| `tamilName` | string | Tamil display name |
+| `category` | `wedding \| baby-kids \| outdoor \| family-milestones` | Event grouping |
+| `status` | `active \| inactive` | Defaults to active; inactive events are hidden publicly |
+| `sortOrder` | number | Event-tab/card order; mirrored to linked packages |
+
+Admin CRUD is available at `/admin/events`. Renaming an event ID and changing its order/category
+updates linked packages; changing status also toggles linked package status. Events with packages
+cannot be deleted.
+
+### Package pricing and services
+
+When `packages.price` is absent, package price is calculated from `includedServices`: `unitPrice ×
+quantity` for `per_unit` services, or the selected duration-tier price times quantity for `tiered`
+services. The services catalog supports legacy `photo-album` plus `photo-album-8x12`,
+`photo-album-10x30`, `photo-album-16x24`, `photo-album-12x36`, `photo-album-18x24`, and
+`photo-album-18x24-combo-box` slugs.
 
 ### Portfolio fallback structure
 
-`PortfolioItem` fields: `id`, `title`, `category`, `location`, `imageUrl`, `shootNotes`, `exif`, `dateLabel`, `isHeroFeatured`, `isVisible`, `aspect` (`wide|standard`).
+`PortfolioItem` fields: `id`, optional `eventId`, `title`, `category`, `location`, `imageUrl`, `shootNotes`, `exif`, `dateLabel`, `isHeroFeatured`, `isVisible`, `aspect` (`wide|standard`). The portfolio filter uses active events; legacy items without `eventId` are grouped by category.
 
 `data/studio-db.json` is a static seed/fallback file. Its current portfolio data is not a Mongo collection.
 
@@ -370,11 +380,11 @@ event status control updates the status of every package under that event.
 3. Per-unit services use `unitPrice * quantity`, with `minQuantity` applied.
 4. `calculatePackageBasePrice` in `src/lib/pricing.ts` sums package `includedServices`, resolving each tiered item from its own `durationTier` first, then an explicitly supplied whole-event tier, the package tier, and finally `fullDay`. Per-unit services use their unit price and quantity regardless of tier.
 5. Legacy packages without `includedServices` use backward-compatible tier synthesis.
-6. Package updates recalculate `price`; they do not independently trust a submitted package price.
+6. A stored package price is an optional override; without one, the effective price is calculated from included services. Admin forms distinguish the override from the resolved display price.
 7. `buildOptedServicesForPackage` and `calculateCustomizedEventPrice` create historical service snapshots.
 8. `getDynamicPackageDisplaySections` derives “Event Coverage & Crew” and “Albums” from active service items for public cards, proposal customizer, and admin views. These derived sections must never be persisted in `packages.deliverables`; legacy documents are sanitized on package reads and writes.
 9. `/api/packages/[id]` supports GET, PATCH/PUT, and DELETE by custom package `id`, with Mongo `_id` lookup as a fallback. Mutations require the `gk_admin_session=admin-session-v2` cookie; shared client requests include credentials.
-10. The Admin Package Manager configures `includedServices` and optional `availableAddons`; tiered rows have independent duration selectors, while newly added services default to the package tier. API routes validate per-item tiers, and the Mongo `Mixed` arrays preserve them. The manager does not expose base-feature toggles, legacy custom proposal add-on/downgrade editing, or package-image upload. Existing package image data remains available to package cards. Proposal upgrades are built from active `services` catalog entries not included in the base; configured addon tiers are honored, and per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
+10. The Admin Package Manager configures event-linked packages, included services, deliverables, optional price overrides, and all customizer inclusion flags. Included-service rows support duration tiers. Proposal upgrades are built from active `services` catalog entries not included in the base; per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
 
 ### Historical snapshot rule
 

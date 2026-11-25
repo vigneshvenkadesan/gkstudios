@@ -301,14 +301,14 @@ export function AdminBookingModule() {
         'halfDay',
     };
   });
-  if (selectedLeadPackage?.includedServices?.some((item) => item.serviceSlug === 'photo-album')) {
-    const album = selectedLeadPackage.includedServices.find(
-      (item) => item.serviceSlug === 'photo-album'
-    );
+  const includedLeadAlbum = selectedLeadPackage?.includedServices?.find((item) =>
+    item.serviceSlug.startsWith('photo-album')
+  );
+  if (includedLeadAlbum) {
     leadActiveItems.push({
-      serviceSlug: 'photo-album',
-      quantity: album?.quantity || 30,
-      durationTier: album?.durationTier ?? selectedLeadPackage.durationTier,
+      serviceSlug: includedLeadAlbum.serviceSlug,
+      quantity: includedLeadAlbum.quantity || 30,
+      durationTier: includedLeadAlbum.durationTier ?? selectedLeadPackage?.durationTier,
     });
   }
   const { snapshots: leadOptedServices, total: calculatedLeadAmount } =

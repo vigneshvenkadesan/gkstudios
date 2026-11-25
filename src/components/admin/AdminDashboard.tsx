@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   Inbox,
   KeyRound,
+  Layers,
   Lock,
   LogOut,
   PanelLeftClose,
@@ -23,6 +24,7 @@ import { useStudio } from '@/src/context/StudioContext';
 import { AdminBookingModule } from '@/src/components/admin/AdminBookingModule';
 import { AdminScheduleModule } from '@/src/components/admin/AdminScheduleModule';
 import { AdminEventsTimelineModule } from '@/src/components/admin/AdminEventsTimelineModule';
+import { AdminEventsModule } from '@/src/components/admin/AdminEventsModule';
 import { AdminGalleryModule } from '@/src/components/admin/AdminGalleryModule';
 import { AdminPackagesModule } from '@/src/components/admin/AdminPackagesModule';
 import { AdminServicesModule } from '@/src/components/admin/AdminServicesModule';
@@ -30,13 +32,14 @@ import { GKCameraMark } from '@/src/components/MandalaAccents';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 
-type AdminTab = 'bookings' | 'schedule' | 'timeline' | 'gallery' | 'packages' | 'services';
+type AdminTab = 'bookings' | 'schedule' | 'timeline' | 'gallery' | 'events' | 'packages' | 'services';
 
 interface AdminDashboardProps {
   onExitAdmin: () => void;
+  initialTab?: AdminTab;
 }
 
-export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
+export function AdminDashboard({ onExitAdmin, initialTab = 'bookings' }: AdminDashboardProps) {
   const {
     bookings,
     calendarEntries,
@@ -50,7 +53,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [pinInput, setPinInput] = useState('');
-  const [activeTab, setActiveTab] = useState<AdminTab>('bookings');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarHidden, setIsSidebarHidden] = useState(false);
   const [alertedInquiryIds, setAlertedInquiryIds] = useState<string[]>([]);
@@ -254,6 +257,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     { id: 'schedule', label: 'Schedule & Calendar', icon: CalendarDays, badgeCount: blockedDatesCount },
     { id: 'timeline', label: 'Event Timeline & Payments', icon: GitCommitHorizontal, badgeCount: activeEventsCount },
     { id: 'gallery', label: 'Gallery Manager', icon: ImageIcon, badgeCount: visiblePhotosCount },
+    { id: 'events', label: 'Events Manager', icon: Layers, badgeCount: undefined },
     { id: 'packages', label: 'Packages Manager', icon: PackageIcon, badgeCount: packages.length },
     { id: 'services', label: 'Service Pricing', icon: SlidersHorizontal, badgeCount: undefined },
   ];
@@ -267,6 +271,8 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
       ? 'Event Delivery Timeline & Payment Ledger'
       : activeTab === 'gallery'
       ? 'Live Gallery & Portfolio Manager'
+      : activeTab === 'events'
+      ? 'Events Catalog Manager'
       : activeTab === 'packages'
       ? 'Photography Packages & Collections Manager'
       : 'Master Service & Pricing Manager';
@@ -470,6 +476,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {activeTab === 'schedule' && <AdminScheduleModule />}
           {activeTab === 'timeline' && <AdminEventsTimelineModule />}
           {activeTab === 'gallery' && <AdminGalleryModule />}
+          {activeTab === 'events' && <AdminEventsModule />}
           {activeTab === 'packages' && <AdminPackagesModule />}
           {activeTab === 'services' && <AdminServicesModule />}
         </main>

@@ -84,8 +84,12 @@ export function BookingSection({
   const [venue, setVenue] = useState('');
   const activePackages = React.useMemo(() => {
     return packages
-      .filter((pkg) => (pkg.status ?? 'active') === 'active')
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
+      .sort(
+        (a, b) =>
+          (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
   }, [packages]);
 
   const [packageId, setPackageId] = useState(
@@ -113,6 +117,17 @@ export function BookingSection({
       setEventId(preselectedEventId);
     }
   }, [preselectedEventId]);
+
+  useEffect(() => {
+    if (
+      preselectedEventId ||
+      !activeEvents.length ||
+      activeEvents.some((event) => event.id === eventId)
+    ) {
+      return;
+    }
+    setEventId(activeEvents[0].id);
+  }, [activeEvents, eventId, preselectedEventId]);
 
   useEffect(() => {
     setRequestedServices([]);
@@ -436,9 +451,11 @@ export function BookingSection({
                     value={eventId}
                     onChange={(selectedId) => {
                       setEventId(selectedId);
-                      const matching = activePackages.filter((p) => (p.eventId || 'wedding') === selectedId);
+                      const matching = activePackages.filter((p) => p.eventId === selectedId);
                       if (matching.length > 0 && !matching.some((p) => p.id === packageId)) {
                         setPackageId(matching[0].id);
+                      } else if (matching.length === 0) {
+                        setPackageId(CUSTOM_PACKAGE_ID);
                       }
                     }}
                   />
@@ -454,36 +471,25 @@ export function BookingSection({
                     onChange={(e) => setPackageId(e.target.value)}
                     className={`${inputBaseClass} studio-select cursor-pointer`}
                   >
-                    {activePackages.some((p) => (p.eventId || 'wedding') === eventId) ? (
+                    {activePackages.some((p) => p.eventId === eventId) ? (
                       <>
                         <optgroup
-                          label={`Recommended for ${selectedEvent?.name || 'this ceremony'}`}
+                          label={`Available for ${selectedEvent?.name || 'this event'}`}
                           className="bg-[#051B19] text-[#D8C78E] font-semibold"
                         >
                           {activePackages
-                            .filter((p) => (p.eventId || 'wedding') === eventId)
+                            .filter((p) => p.eventId === eventId)
                             .map((pkg) => (
                               <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white font-normal">
-                                {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
-                              </option>
-                            ))}
-                        </optgroup>
-                        <optgroup label="Other Studio Collections" className="bg-[#051B19] text-[#D8C78E]/60 font-semibold">
-                          {activePackages
-                            .filter((p) => (p.eventId || 'wedding') !== eventId)
-                            .map((pkg) => (
-                              <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white font-normal">
-                                {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
+                                {getPackageCopy(pkg).name} ({formatINR(calculatePackageBasePrice(pkg, services))})
                               </option>
                             ))}
                         </optgroup>
                       </>
                     ) : (
-                      activePackages.map((pkg) => (
-                        <option key={pkg.id} value={pkg.id} className="bg-[#072421] text-white">
-                          {getPackageCopy(pkg).name} ({formatINR(pkg.price)})
-                        </option>
-                      ))
+                      <option value="" disabled className="bg-[#072421] text-white">
+                        No packages currently available
+                      </option>
                     )}
                     <option value={CUSTOM_PACKAGE_ID} className="bg-[#072421] text-[#D8C78E]">
                       ✨ {t('booking.customPackage')}
@@ -615,7 +621,7 @@ export function BookingSection({
                     {isCustomPackage
                       ? t('booking.customQuote')
                       : selectedPackage
-                        ? formatINR(selectedPackage.price)
+                        ? formatINR(calculatePackageBasePrice(selectedPackage, services))
                         : ''}
                   </span>
                 </div>

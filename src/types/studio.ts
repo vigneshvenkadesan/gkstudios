@@ -30,23 +30,22 @@ export const EVENT_CATEGORIES: CoreEventCategory[] = [
   'Corporate Events',
 ];
 
+export type StudioEventCategory = 'wedding' | 'baby-kids' | 'outdoor' | 'family-milestones';
+
 export interface StudioEvent {
-  id: string; // Unique event identifier (e.g. 'wedding', 'engagement', 'valai-kaapu')
+  id: string;
   name: string;
-  tamilName?: string;
-  category: string; // Event category identifier (e.g. 'wedding', 'baby-maternity', 'birthday-kids', 'family-traditional', 'corporate-business')
+  tamilName: string;
+  category: StudioEventCategory;
   status: 'active' | 'inactive';
   sortOrder: number;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export const EVENT_CATEGORY_GROUPS = [
   { id: 'wedding', label: 'Wedding', icon: 'Heart' },
-  { id: 'baby-maternity', label: 'Baby & Maternity', icon: 'Baby' },
-  { id: 'birthday-kids', label: 'Birthday & Kids', icon: 'Cake' },
-  { id: 'family-traditional', label: 'Family & Traditional', icon: 'Flame' },
-  { id: 'corporate-business', label: 'Corporate & Business', icon: 'Briefcase' },
+  { id: 'baby-kids', label: 'Baby & Kids', icon: 'Baby' },
+  { id: 'outdoor', label: 'Outdoor', icon: 'Sparkles' },
+  { id: 'family-milestones', label: 'Family & Milestones', icon: 'Flame' },
 ] as const;
 
 export type EventCategoryGroupId = (typeof EVENT_CATEGORY_GROUPS)[number]['id'];
@@ -57,6 +56,7 @@ export function normalizeEventCategory(category?: string): CoreEventCategory {
     case 'Iyer Weddings':
     case 'Temple Weddings':
     case 'Hindu, Christian & Muslim Weddings':
+    case 'wedding':
       return 'Weddings';
     case 'Traditional Ceremonies':
     case 'Kaathu Kuthi':
@@ -68,14 +68,18 @@ export function normalizeEventCategory(category?: string): CoreEventCategory {
     case 'Family Celebrations':
     case 'Birthdays & Milestones':
     case 'Maternity & Newborn Shoots':
+    case 'baby-kids':
       return 'Family Celebrations';
     case 'Portraits & Outdoor Shoots':
     case 'Pre-Wedding & Engagement Shoots':
     case 'Outdoor Shoots':
+    case 'outdoor':
       return 'Portraits & Outdoor Shoots';
     case 'Corporate Events':
     case 'Corporate & Social Events':
       return 'Corporate Events';
+    case 'family-milestones':
+      return 'Family Celebrations';
     default:
       return 'Weddings';
   }
@@ -137,13 +141,6 @@ export interface StudioService {
 export interface PackageIncludedService {
   serviceSlug: string;
   quantity: number;
-  durationTier?: DurationTier;
-}
-
-export interface PackageAvailableAddon {
-  serviceSlug: string;
-  defaultQuantity?: number;
-  label?: string;
   durationTier?: DurationTier;
 }
 
@@ -287,6 +284,7 @@ export interface EventProject {
 
 export interface PortfolioItem {
   id: string;
+  eventId?: string;
   title: string;
   category: EventCategory;
   location: string;
@@ -301,7 +299,7 @@ export interface PortfolioItem {
 
 export interface PackageDeliverables {
   Deliverables?: string;
-  [key: string]: string | undefined; // Allow dynamic category keys
+  [category: string]: string | undefined;
 }
 
 export interface PackageIncludedFeatures {
@@ -361,23 +359,23 @@ export interface StudioPackage {
   tier?: 'essential' | 'signature' | 'premium';
   name: string; // e.g., "Essential Engagement"
   audience: string; // e.g., "Most Popular — Complete event coverage"
-  price: number; // Numeric value for sorting/calculations (e.g., 18000)
+  price?: number | null; // Effective API price; persisted only when explicitly overridden
+  priceIsOverride?: boolean; // Resolved response metadata; not persisted in MongoDB
   currency?: string; // e.g., "INR"
   priceLabel?: string; // Formatted display string (e.g., "₹18,000")
   duration: string; // e.g., "Up to 4 Hours"
   durationTier?: DurationTier;
   includedServices?: PackageIncludedService[];
-  availableAddons?: PackageAvailableAddon[];
   highlighted?: boolean; // Marks the recommended/"Most Popular" tier
   deliverables: PackageDeliverables;
   customizer?: PackageCustomizer;
-  category?: string; // Matches eventId
+  category?: string;
   image?: string;
   imageUrl?: string;
   status?: 'active' | 'inactive';
   displayOnPortfolio?: boolean;
   sortOrder?: number; // 1 = Essential, 2 = Signature, 3 = Premium
-  eventSortOrder?: number; // Ceremony order shared by packages with the same eventId
+  eventSortOrder?: number; // Mirrors the linked event's sortOrder
   featured?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -497,6 +495,7 @@ export interface CalendarDayEntry {
 
 export interface StudioState {
   portfolio: PortfolioItem[];
+  events: StudioEvent[];
   packages: StudioPackage[];
   services?: StudioService[];
   bookings: BookingRequest[];

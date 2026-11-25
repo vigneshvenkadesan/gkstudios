@@ -22,6 +22,7 @@ export const DEFAULT_IMAGE_BY_ID: Record<string, string> = {
 };
 
 export const INITIAL_STUDIO_STATE: StudioState = {
+  events: [],
   portfolio: [
     {
       id: 'pf-cloudinary-bride-wedding-portrait',

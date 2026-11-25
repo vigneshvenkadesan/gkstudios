@@ -15,6 +15,7 @@ import {
   PaymentRecord,
   PortfolioItem,
   StudioBill,
+  StudioEvent,
   StudioPackage,
   StudioService,
   StudioState,
@@ -76,6 +77,7 @@ interface StudioContextValue {
   state: StudioState;
   isLoading: boolean;
   packages: StudioPackage[];
+  events: StudioEvent[];
   services: StudioService[];
   portfolio: PortfolioItem[];
   bookings: BookingRequest[];
@@ -93,10 +95,12 @@ interface StudioContextValue {
   deletePortfolioItem: (id: string) => Promise<void>;
   addPackage: (item: Partial<StudioPackage>) => Promise<StudioPackage>;
   updatePackage: (id: string, patch: Partial<StudioPackage>) => Promise<void>;
-  updateEventPackagesStatus: (eventId: string, status: 'active' | 'inactive') => Promise<void>;
   deletePackage: (id: string) => Promise<void>;
   getPackage: (id: string) => Promise<StudioPackage>;
-  reorderPackages: (orderedIds: string[]) => Promise<void>;
+  reorderPackages: (eventId: string, orderedIds: string[]) => Promise<void>;
+  addEvent: (event: Partial<StudioEvent>) => Promise<StudioEvent>;
+  updateEvent: (id: string, patch: Partial<StudioEvent>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
   saveService: (service: Partial<StudioService>) => Promise<StudioService>;
   updateService: (idOrSlug: string, patch: Partial<StudioService>) => Promise<StudioService>;
   deleteService: (idOrSlug: string) => Promise<void>;
@@ -288,17 +292,6 @@ export function StudioProvider({
     []
   );
 
-  const updateEventPackagesStatus = useCallback(
-    async (eventId: string, status: 'active' | 'inactive') => {
-      const nextState = await requestJson<StudioState>('/api/packages', {
-        method: 'PATCH',
-        body: JSON.stringify({ action: 'event-status', eventId, status }),
-      });
-      setState(nextState);
-    },
-    []
-  );
-
   const deletePackage = useCallback(async (id: string) => {
     const nextState = await requestJson<StudioState>(`/api/packages/${encodeURIComponent(id)}`, {
       method: 'DELETE',
@@ -306,11 +299,36 @@ export function StudioProvider({
     setState(nextState);
   }, []);
 
-  const reorderPackages = useCallback(async (orderedIds: string[]) => {
+  const reorderPackages = useCallback(async (eventId: string, orderedIds: string[]) => {
     const nextState = await requestJson<StudioState>('/api/packages/reorder', {
       method: 'POST',
-      body: JSON.stringify({ orderedIds }),
+      body: JSON.stringify({ eventId, orderedIds }),
     });
+    setState(nextState);
+  }, []);
+
+  const addEvent = useCallback(async (event: Partial<StudioEvent>): Promise<StudioEvent> => {
+    const data = await requestJson<{ state: StudioState; created: StudioEvent }>('/api/events', {
+      method: 'POST',
+      body: JSON.stringify({ resource: 'catalog-event', ...event }),
+    });
+    setState(data.state);
+    return data.created;
+  }, []);
+
+  const updateEvent = useCallback(async (id: string, patch: Partial<StudioEvent>) => {
+    const nextState = await requestJson<StudioState>(`/api/events/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resource: 'catalog-event', ...patch }),
+    });
+    setState(nextState);
+  }, []);
+
+  const deleteEvent = useCallback(async (id: string) => {
+    const nextState = await requestJson<StudioState>(
+      `/api/events/${encodeURIComponent(id)}?resource=catalog-event`,
+      { method: 'DELETE' }
+    );
     setState(nextState);
   }, []);
 
@@ -417,6 +435,7 @@ export function StudioProvider({
         state,
         isLoading,
         packages: state.packages,
+        events: state.events,
         services: state.services && state.services.length > 0 ? state.services : DEFAULT_STUDIO_SERVICES,
         portfolio: state.portfolio,
         bookings: state.bookings,
@@ -434,10 +453,12 @@ export function StudioProvider({
         deletePortfolioItem,
         addPackage,
         updatePackage,
-        updateEventPackagesStatus,
         deletePackage,
         getPackage,
         reorderPackages,
+        addEvent,
+        updateEvent,
+        deleteEvent,
         saveService,
         updateService,
         deleteService,

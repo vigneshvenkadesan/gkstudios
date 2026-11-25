@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import {
   deletePackageOnServer,
@@ -12,6 +13,15 @@ const VALID_DURATION_TIERS = ['threeHours', 'halfDay', 'fullDay'] as const;
 
 const ADMIN_COOKIE = 'gk_admin_session';
 const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
+
+function revalidateCatalogPages() {
+  revalidatePath('/');
+  revalidatePath('/packages');
+  revalidatePath('/portfolio');
+  revalidatePath('/admin');
+  revalidatePath('/admin/events');
+  revalidatePath('/admin/packages');
+}
 
 async function isAuthorizedAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -69,23 +79,34 @@ export async function PATCH(
       );
     }
     if (
-      !hasValidPackageServiceDurationTiers(patch.includedServices) ||
-      !hasValidPackageServiceDurationTiers(patch.availableAddons)
+      !hasValidPackageServiceDurationTiers(patch.includedServices)
     ) {
       return NextResponse.json(
         { error: 'Service durationTier must be threeHours, halfDay, or fullDay.' },
         { status: 400 }
       );
     }
+    if (
+      patch.price !== undefined &&
+      patch.price !== null &&
+      (!Number.isFinite(patch.price) || patch.price < 0)
+    ) {
+      return NextResponse.json({ error: 'Price must be a non-negative number or empty.' }, { status: 400 });
+    }
     const state = await updatePackageOnServer(id, patch);
+    revalidateCatalogPages();
     return NextResponse.json(state);
   } catch (error) {
     console.error('Could not update package:', error);
-    const message =
-      error instanceof Error && error.message.startsWith('Package with ID "')
-        ? error.message
-        : 'Could not update package. Please try again.';
-    return NextResponse.json({ error: message }, { status: 400 });
+    const message = error instanceof Error ? error.message : 'Could not update package.';
+    const status = message.includes('already exists')
+      ? 409
+      : message.includes('not found.')
+        ? 404
+        : /must be|slug|does not exist|non-negative/i.test(message)
+          ? 400
+          : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -106,13 +127,16 @@ export async function DELETE(
 
     const { id } = await context.params;
     const state = await deletePackageOnServer(id);
+    revalidateCatalogPages();
     return NextResponse.json(state);
   } catch (error) {
     console.error('Could not delete package:', error);
-    const message =
-      error instanceof Error && error.message.startsWith('Package with ID "')
-        ? error.message
-        : 'Could not delete package. Please try again.';
-    return NextResponse.json({ error: message }, { status: 400 });
+    const message = error instanceof Error ? error.message : 'Could not delete package.';
+    const status = message.includes('not found.')
+      ? 404
+      : message.includes('still has linked')
+        ? 409
+        : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

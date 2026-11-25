@@ -14,12 +14,12 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  Copy,
   Crown,
   Eye,
   EyeOff,
   Film,
   Filter,
-  Flame,
   Heart,
   Layers,
   LayoutGrid,
@@ -30,6 +30,7 @@ import {
   RotateCcw,
   Search,
   Settings,
+  Sparkles,
   Star,
   Trash2,
   X,
@@ -41,7 +42,6 @@ import {
   EVENT_CATEGORY_GROUPS,
   PackageCustomizer,
   PackageDeliverables,
-  PackageAvailableAddon,
   PackageIncludedFeatures,
   PackageIncludedService,
   StudioEvent,
@@ -49,6 +49,7 @@ import {
 } from '@/src/types/studio';
 import {
   calculatePackageBasePrice,
+  calculatePackageServiceCost,
   getDynamicPackageDisplaySections,
   resolveServicePrice,
   sanitizePackageDeliverables,
@@ -210,8 +211,8 @@ export function getPackageTier(pkg: StudioPackage): PackageTier {
   }
 
   // 6. Price-based fallback heuristic
-  if (pkg.price >= 70000) return 'premium';
-  if (pkg.price >= 35000) return 'signature';
+  if (typeof pkg.price === 'number' && pkg.price >= 70000) return 'premium';
+  if (typeof pkg.price === 'number' && pkg.price >= 35000) return 'signature';
   return 'essential';
 }
 
@@ -226,6 +227,17 @@ const DEFAULT_INCLUDED_FEATURES: PackageIncludedFeatures = {
   printedAlbum: true,
 };
 
+const CUSTOMIZER_OPTIONS: Array<{ key: keyof PackageIncludedFeatures; label: string }> = [
+  { key: 'traditionalPhoto', label: 'Traditional Photo' },
+  { key: 'traditionalVideo', label: 'Traditional Video' },
+  { key: 'candidPhoto', label: 'Candid Photo' },
+  { key: 'candidVideo', label: 'Candid Video' },
+  { key: 'drone', label: 'Drone' },
+  { key: 'ledWall', label: 'LED Wall' },
+  { key: 'outdoorShoot', label: 'Outdoor Shoot' },
+  { key: 'printedAlbum', label: 'Printed Album' },
+];
+
 export function AdminPackagesModule() {
   const {
     packages,
@@ -233,7 +245,7 @@ export function AdminPackagesModule() {
     addPackage,
     getPackage,
     updatePackage,
-    updateEventPackagesStatus,
+    updateEvent,
     deletePackage,
     reorderPackages,
   } = useStudio();
@@ -256,20 +268,19 @@ export function AdminPackagesModule() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newId, setNewId] = useState('');
   const [newEventId, setNewEventId] = useState('wedding');
-  const [newEventCategory, setNewEventCategory] = useState<string>('wedding');
-  const [newEventSortOrder, setNewEventSortOrder] = useState<number>(1);
   const [newTier, setNewTier] = useState<PackageTier>('signature');
   const [newName, setNewName] = useState('');
   const [newAudience, setNewAudience] = useState('');
   const [newPrice, setNewPrice] = useState<number | ''>('');
+  const [newPriceLabel, setNewPriceLabel] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [newDurationTier, setNewDurationTier] = useState<DurationTier>('halfDay');
   const [newIncludedServices, setNewIncludedServices] = useState<PackageIncludedService[]>([
     { serviceSlug: 'traditional-camera', quantity: 1 },
     { serviceSlug: 'traditional-video', quantity: 1 },
   ]);
-  const [newAvailableAddons, setNewAvailableAddons] = useState<PackageAvailableAddon[]>([]);
   const [newHighlighted, setNewHighlighted] = useState(true);
+  const [newFeatured, setNewFeatured] = useState(false);
   const [newSortOrder, setNewSortOrder] = useState<number>(2);
   const [newStatus, setNewStatus] = useState<'active' | 'inactive'>('active');
   const [newDisplayOnPortfolio, setNewDisplayOnPortfolio] = useState(true);
@@ -286,18 +297,18 @@ export function AdminPackagesModule() {
 
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
+  const [editId, setEditId] = useState('');
   const [editEventId, setEditEventId] = useState('wedding');
-  const [editEventCategory, setEditEventCategory] = useState<string>('wedding');
-  const [editEventSortOrder, setEditEventSortOrder] = useState<number>(1);
   const [editTier, setEditTier] = useState<PackageTier>('signature');
   const [editName, setEditName] = useState('');
   const [editAudience, setEditAudience] = useState('');
   const [editPrice, setEditPrice] = useState<number | ''>('');
+  const [editPriceLabel, setEditPriceLabel] = useState('');
   const [editDuration, setEditDuration] = useState('');
   const [editDurationTier, setEditDurationTier] = useState<DurationTier>('halfDay');
   const [editIncludedServices, setEditIncludedServices] = useState<PackageIncludedService[]>([]);
-  const [editAvailableAddons, setEditAvailableAddons] = useState<PackageAvailableAddon[]>([]);
   const [editHighlighted, setEditHighlighted] = useState(false);
+  const [editFeatured, setEditFeatured] = useState(false);
   const [editSortOrder, setEditSortOrder] = useState<number>(2);
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
   const [editDisplayOnPortfolio, setEditDisplayOnPortfolio] = useState(true);
@@ -347,68 +358,28 @@ export function AdminPackagesModule() {
   const highlightedCount = packages.filter((p) => p.highlighted || p.featured).length;
 
   const sortedPackages = useMemo(() => {
-    return [...packages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    return [...packages].sort(
+      (a, b) =>
+        (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
   }, [packages]);
-
-  const getNextEventSortOrder = (category: string) =>
-    Math.max(
-      0,
-      ...dynamicEvents
-        .filter((event) => event.category === category)
-        .map((event) =>
-          Number.isSafeInteger(event.sortOrder) &&
-          event.sortOrder < Number.MAX_SAFE_INTEGER
-            ? event.sortOrder
-            : 0
-        )
-    ) + 1;
 
   const openAddPackage = (eventId?: string) => {
     const selectedId =
-      eventId || (selectedEventFilter !== 'all' ? selectedEventFilter : 'wedding');
-    const selectedEvent = dynamicEvents.find((event) => event.id === selectedId);
-    const category = selectedEvent?.category || (categoryFilter !== 'all' ? categoryFilter : 'wedding');
-
+      eventId ||
+      (selectedEventFilter !== 'all' ? selectedEventFilter : dynamicEvents[0]?.id) ||
+      '';
     setNewEventId(selectedId);
-    setNewEventCategory(category);
-    setNewEventSortOrder(
-      selectedEvent?.sortOrder && selectedEvent.sortOrder < Number.MAX_SAFE_INTEGER
-        ? selectedEvent.sortOrder
-        : getNextEventSortOrder(category)
-    );
     setIsAddModalOpen(true);
   };
 
   const handleNewEventIdChange = (eventId: string) => {
     setNewEventId(eventId);
-    const selectedEvent = dynamicEvents.find((event) => event.id === eventId.trim());
-    if (selectedEvent) {
-      setNewEventCategory(selectedEvent.category);
-      setNewEventSortOrder(
-        selectedEvent.sortOrder < Number.MAX_SAFE_INTEGER
-          ? selectedEvent.sortOrder
-          : getNextEventSortOrder(selectedEvent.category)
-      );
-    } else {
-      const category = categoryFilter !== 'all' ? categoryFilter : newEventCategory;
-      setNewEventCategory(category);
-      setNewEventSortOrder(getNextEventSortOrder(category));
-    }
   };
 
   const handleEditEventIdChange = (eventId: string) => {
     setEditEventId(eventId);
-    const selectedEvent = dynamicEvents.find((event) => event.id === eventId.trim());
-    if (selectedEvent) {
-      setEditEventCategory(selectedEvent.category);
-      setEditEventSortOrder(
-        selectedEvent.sortOrder < Number.MAX_SAFE_INTEGER
-          ? selectedEvent.sortOrder
-          : getNextEventSortOrder(selectedEvent.category)
-      );
-    } else {
-      setEditEventSortOrder(getNextEventSortOrder(editEventCategory));
-    }
   };
 
   // Dynamic events available for the event filter dropdown based on categoryFilter
@@ -417,9 +388,6 @@ export function AdminPackagesModule() {
     return dynamicEvents.filter((ev) => {
       const evCat = (ev.category || '').toLowerCase();
       const fCat = categoryFilter.toLowerCase();
-      if (fCat.startsWith('corporate')) {
-        return evCat.startsWith('corporate');
-      }
       return evCat === fCat;
     });
   }, [dynamicEvents, categoryFilter]);
@@ -427,7 +395,7 @@ export function AdminPackagesModule() {
   // Filtered packages calculation
   const filteredPackages = useMemo(() => {
     return sortedPackages.filter((pkg) => {
-      const linkedEvent = dynamicEvents.find((e) => e.id === (pkg.eventId || 'wedding'));
+      const linkedEvent = dynamicEvents.find((e) => e.id === pkg.eventId);
       const eventName = linkedEvent?.name || '';
       const pkgCategory = linkedEvent?.category || pkg.category || '';
 
@@ -459,7 +427,7 @@ export function AdminPackagesModule() {
 
       // 3. Event Filter
       if (selectedEventFilter !== 'all') {
-        const pkgEventId = pkg.eventId || 'wedding';
+        const pkgEventId = pkg.eventId || '';
         if (pkgEventId !== selectedEventFilter) {
           return false;
         }
@@ -503,7 +471,7 @@ export function AdminPackagesModule() {
 
   // Distinct events represented in the current filtered packages
   const filteredEventsCount = useMemo(() => {
-    return new Set(filteredPackages.map((p) => p.eventId || 'wedding')).size;
+    return new Set(filteredPackages.map((p) => p.eventId).filter(Boolean)).size;
   }, [filteredPackages]);
 
   // Active filters check
@@ -551,7 +519,7 @@ export function AdminPackagesModule() {
       statusFilter !== 'all' ||
       visibilityFilter !== 'all'
     ) {
-      const matchingEventIds = new Set(filteredPackages.map((p) => p.eventId || 'wedding'));
+      const matchingEventIds = new Set(filteredPackages.map((p) => p.eventId).filter(Boolean));
       list = list.filter((ev) => matchingEventIds.has(ev.id));
     }
 
@@ -575,13 +543,10 @@ export function AdminPackagesModule() {
       return;
     }
 
-    const eventId = newEventId
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
-    if (!eventId || !Number.isSafeInteger(newEventSortOrder) || newEventSortOrder < 1) {
-      toast.error('Please enter a valid event ID and order.');
+    const eventId = newEventId.trim();
+    const selectedEvent = dynamicEvents.find((event) => event.id === eventId);
+    if (!selectedEvent) {
+      toast.error('Please select an event from the event list.');
       return;
     }
 
@@ -590,15 +555,9 @@ export function AdminPackagesModule() {
       return;
     }
 
-    const calculatedPrice = calculatePackageBasePrice(
-      { includedServices: newIncludedServices, durationTier: newDurationTier },
-      services,
-      newDurationTier
-    );
-
     setIsSubmitting(true);
     try {
-      const isSig = newTier === 'signature' || newHighlighted;
+      const isSig = newHighlighted;
       const order =
         typeof newSortOrder === 'number'
           ? newSortOrder
@@ -614,19 +573,19 @@ export function AdminPackagesModule() {
         tier: newTier,
         name: newName.trim(),
         audience: newAudience.trim() || 'For weddings & celebrations',
-        price: calculatedPrice,
+        price: newPrice === '' ? null : Number(newPrice),
+        priceLabel: newPriceLabel.trim() || undefined,
         duration: newDuration.trim(),
         durationTier: newDurationTier,
         includedServices: newIncludedServices,
-        availableAddons: newAvailableAddons,
-        category: newEventCategory,
-        eventSortOrder: newEventSortOrder,
+        category: selectedEvent.id,
+        eventSortOrder: selectedEvent.sortOrder,
         deliverables: sanitizePackageDeliverables(newDeliverables),
         customizer: {
           included: newCustomizerIncluded,
         },
         highlighted: isSig,
-        featured: isSig,
+        featured: newFeatured,
         status: newStatus,
         displayOnPortfolio: newDisplayOnPortfolio,
         sortOrder: order,
@@ -635,21 +594,20 @@ export function AdminPackagesModule() {
       toast.success(`Package "${newName.trim()}" created.`);
       setIsAddModalOpen(false);
       setNewId('');
-      setNewEventId('wedding');
-      setNewEventCategory('wedding');
-      setNewEventSortOrder(1);
+      setNewEventId(dynamicEvents[0]?.id || '');
       setNewName('');
       setNewAudience('');
       setNewPrice('');
+      setNewPriceLabel('');
       setNewDuration('');
       setNewDurationTier('halfDay');
       setNewIncludedServices([
         { serviceSlug: 'traditional-camera', quantity: 1 },
         { serviceSlug: 'traditional-video', quantity: 1 },
       ]);
-      setNewAvailableAddons([]);
       setNewTier('signature');
       setNewHighlighted(true);
+      setNewFeatured(false);
       setNewSortOrder(2);
       setNewStatus('active');
       setNewDisplayOnPortfolio(true);
@@ -678,26 +636,18 @@ export function AdminPackagesModule() {
   // Open edit modal
   const openEditModal = (pkg: StudioPackage) => {
     setEditingPackage(pkg);
+    setEditId(pkg.id);
     const resolvedTier = pkg.tier || getPackageTier(pkg);
     const resolvedDurationTier = getPackageDurationTier(pkg);
-    const eventId = pkg.eventId || 'wedding';
-    const eventMetadata = dynamicEvents.find((event) => event.id === eventId);
-    const category = eventMetadata?.category || pkg.category || 'wedding';
+    const eventId = pkg.eventId || '';
     setEditEventId(eventId);
-    setEditEventCategory(category);
-    setEditEventSortOrder(
-      pkg.eventSortOrder &&
-        Number.isSafeInteger(pkg.eventSortOrder) &&
-        pkg.eventSortOrder < Number.MAX_SAFE_INTEGER
-        ? pkg.eventSortOrder
-        : eventMetadata && eventMetadata.sortOrder < Number.MAX_SAFE_INTEGER
-          ? eventMetadata.sortOrder
-          : getNextEventSortOrder(category)
-    );
     setEditTier(resolvedTier);
     setEditName(pkg.name);
     setEditAudience(pkg.audience);
-    setEditPrice(pkg.price);
+    setEditPrice(
+      pkg.priceIsOverride !== false && typeof pkg.price === 'number' ? pkg.price : ''
+    );
+    setEditPriceLabel(pkg.priceLabel || '');
     setEditDuration(pkg.duration || DURATION_TIER_DISPLAY_LABELS[resolvedDurationTier]);
     setEditDurationTier(resolvedDurationTier);
     setEditIncludedServices(
@@ -705,12 +655,8 @@ export function AdminPackagesModule() {
         ? JSON.parse(JSON.stringify(pkg.includedServices))
         : []
     );
-    setEditAvailableAddons(
-      pkg.availableAddons && pkg.availableAddons.length > 0
-        ? JSON.parse(JSON.stringify(pkg.availableAddons))
-        : []
-    );
-    setEditHighlighted(Boolean(pkg.highlighted || pkg.featured));
+    setEditHighlighted(Boolean(pkg.highlighted));
+    setEditFeatured(Boolean(pkg.featured));
     setEditSortOrder(typeof pkg.sortOrder === 'number' ? pkg.sortOrder : resolvedTier === 'essential' ? 1 : resolvedTier === 'signature' ? 2 : 3);
     setEditDeliverables(normalizePackageDeliverables(pkg.deliverables));
     setEditStatus(pkg.status === 'inactive' ? 'inactive' : 'active');
@@ -723,6 +669,34 @@ export function AdminPackagesModule() {
     });
   };
 
+  const openDuplicateModal = (pkg: StudioPackage) => {
+    setNewId('');
+    setNewEventId(pkg.eventId || dynamicEvents[0]?.id || '');
+    setNewTier(pkg.tier || getPackageTier(pkg));
+    setNewName(`${pkg.name} Copy`);
+    setNewAudience(pkg.audience);
+    setNewPrice(
+      pkg.priceIsOverride !== false && typeof pkg.price === 'number' ? pkg.price : ''
+    );
+    setNewPriceLabel(pkg.priceLabel || '');
+    setNewDuration(pkg.duration);
+    setNewDurationTier(getPackageDurationTier(pkg));
+    setNewIncludedServices(
+      pkg.includedServices ? JSON.parse(JSON.stringify(pkg.includedServices)) : []
+    );
+    setNewHighlighted(Boolean(pkg.highlighted));
+    setNewFeatured(Boolean(pkg.featured));
+    setNewSortOrder((pkg.sortOrder ?? 0) + 1);
+    setNewStatus('active');
+    setNewDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
+    setNewDeliverables(normalizePackageDeliverables(pkg.deliverables));
+    setNewCustomizerIncluded({
+      ...DEFAULT_INCLUDED_FEATURES,
+      ...(pkg.customizer?.included || {}),
+    });
+    setIsAddModalOpen(true);
+  };
+
   // Submit edit package
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -732,13 +706,10 @@ export function AdminPackagesModule() {
       return;
     }
 
-    const eventId = editEventId
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
-    if (!eventId || !Number.isSafeInteger(editEventSortOrder) || editEventSortOrder < 1) {
-      toast.error('Please enter a valid event ID and order.');
+    const eventId = editEventId.trim();
+    const selectedEvent = dynamicEvents.find((event) => event.id === eventId);
+    if (!selectedEvent) {
+      toast.error('Please select an event from the event list.');
       return;
     }
 
@@ -747,15 +718,9 @@ export function AdminPackagesModule() {
       return;
     }
 
-    const calculatedPrice = calculatePackageBasePrice(
-      { includedServices: editIncludedServices, durationTier: editDurationTier },
-      services,
-      editDurationTier
-    );
-
     setIsSubmitting(true);
     try {
-      const isSig = editTier === 'signature' || editHighlighted;
+      const isSig = editHighlighted;
       const order =
         typeof editSortOrder === 'number'
           ? editSortOrder
@@ -766,23 +731,24 @@ export function AdminPackagesModule() {
           : 3;
 
       await updatePackage(editingPackage.id, {
+        id: editId.trim(),
         name: editName.trim(),
         eventId,
         tier: editTier,
         audience: editAudience.trim(),
-        price: calculatedPrice,
+        price: editPrice === '' ? null : Number(editPrice),
+        priceLabel: editPriceLabel.trim(),
         duration: editDuration.trim(),
         durationTier: editDurationTier,
         includedServices: editIncludedServices,
-        availableAddons: editAvailableAddons,
-        category: editEventCategory,
-        eventSortOrder: editEventSortOrder,
+        category: selectedEvent.id,
+        eventSortOrder: selectedEvent.sortOrder,
         deliverables: sanitizePackageDeliverables(editDeliverables),
         customizer: {
           included: editCustomizerIncluded,
         },
         highlighted: isSig,
-        featured: isSig,
+        featured: editFeatured,
         status: editStatus,
         displayOnPortfolio: editDisplayOnPortfolio,
         sortOrder: order,
@@ -834,7 +800,7 @@ export function AdminPackagesModule() {
     const nextStatus = event.status === 'active' ? 'inactive' : 'active';
     setLoadingEventId(event.id);
     try {
-      await updateEventPackagesStatus(event.id, nextStatus);
+      await updateEvent(event.id, { status: nextStatus });
       toast.success(
         `Event "${event.name}" and its packages are now ${nextStatus}.`
       );
@@ -870,8 +836,6 @@ export function AdminPackagesModule() {
     try {
       await updatePackage(pkg.id, {
         highlighted: nextHighlight,
-        featured: nextHighlight,
-        tier: nextHighlight ? 'signature' : pkg.tier === 'signature' ? 'essential' : pkg.tier,
       });
       toast.success(
         nextHighlight
@@ -886,20 +850,26 @@ export function AdminPackagesModule() {
   };
 
   // Move sort order up or down
-  const handleMoveOrder = async (index: number, direction: 'up' | 'down') => {
+  const handleMoveOrder = async (
+    pkg: StudioPackage,
+    direction: 'up' | 'down'
+  ) => {
     if (loadingActionId) return;
+    const eventId = pkg.eventId || '';
+    const eventPackages = sortedPackages.filter((item) => item.eventId === eventId);
+    const index = eventPackages.findIndex((item) => item.id === pkg.id);
     const newIdx = direction === 'up' ? index - 1 : index + 1;
-    if (newIdx < 0 || newIdx >= sortedPackages.length) return;
+    if (newIdx < 0 || newIdx >= eventPackages.length) return;
 
-    const newOrderList = [...sortedPackages];
+    const newOrderList = [...eventPackages];
     const [moved] = newOrderList.splice(index, 1);
     newOrderList.splice(newIdx, 0, moved);
 
     const orderedIds = newOrderList.map((p) => p.id);
     setLoadingActionId(`order-${moved.id}`);
     try {
-      await reorderPackages(orderedIds);
-      toast.success('Package display order updated.');
+      await reorderPackages(eventId, orderedIds);
+      toast.success('Package order updated for this event.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to reorder packages.');
     } finally {
@@ -912,26 +882,29 @@ export function AdminPackagesModule() {
     const isActive = (pkg.status ?? 'active') === 'active';
     const isDisplayed = pkg.displayOnPortfolio !== false;
     const pkgImg = pkg.imageUrl || pkg.image;
-    const linkedEvent = dynamicEvents.find((e) => e.id === (pkg.eventId || 'wedding'));
+    const linkedEvent = dynamicEvents.find((e) => e.id === pkg.eventId);
+    const eventPackages = sortedPackages.filter((item) => item.eventId === pkg.eventId);
+    const eventPackageIndex = eventPackages.findIndex((item) => item.id === pkg.id);
     const pkgTier = getPackageTier(pkg);
     const deliverablesMap = normalizePackageDeliverables(pkg.deliverables);
     const durationTier = getPackageDurationTier(pkg);
     const calculatedBasePrice = calculatePackageBasePrice(pkg, services, durationTier);
-    const displayPrice = calculatedBasePrice > 0 ? calculatedBasePrice : pkg.price;
+    const displayPrice = calculatedBasePrice;
     const dynamicSections = getDynamicPackageDisplaySections(
       pkg.includedServices,
       services,
       durationTier
     );
-    const displayDeliverables = [
-      ...(dynamicSections.coverage
-        ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
-        : []),
-      ...(dynamicSections.albums
-        ? [{ category: 'Albums', text: dynamicSections.albums }]
-        : []),
-      ...Object.entries(deliverablesMap).map(([category, text]) => ({ category, text })),
-    ];
+    const savedDeliverables = Object.values(deliverablesMap).filter(Boolean).join(' · ');
+    const deliverablesSummary = [
+      dynamicSections.coverage ? `Coverage: ${dynamicSections.coverage}` : '',
+      !/album/i.test(savedDeliverables) && dynamicSections.albums
+        ? `Album: ${dynamicSections.albums}`
+        : '',
+      savedDeliverables,
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
     return (
       <Card
@@ -978,7 +951,7 @@ export function AdminPackagesModule() {
               <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
                 {pkgTier === 'signature' && (
                   <Badge className="bg-[#C5B378] text-[#072421] font-semibold text-[10px]">
-                    ⭐ Signature · Most Popular
+                    Signature
                   </Badge>
                 )}
                 {pkgTier === 'premium' && (
@@ -1007,7 +980,7 @@ export function AdminPackagesModule() {
               <div className="flex items-center gap-1.5">
                 {pkgTier === 'signature' && (
                   <Badge className="bg-[#C5B378] text-[#072421] font-semibold text-[10px]">
-                    ⭐ Signature · Most Popular
+                    Signature
                   </Badge>
                 )}
                 {pkgTier === 'premium' && (
@@ -1025,13 +998,12 @@ export function AdminPackagesModule() {
           )}
 
           <CardContent className="p-4 space-y-3.5">
-            {/* Title & Investment */}
+            {/* Package name, event, duration, and price */}
             <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 border-b border-[#C5B378]/15 pb-2.5">
               <div>
                 <h3 className="text-lg font-serif font-bold text-white leading-tight">
                   {pkg.name}
                 </h3>
-                <p className="text-xs text-[#D8C78E]/90 mt-0.5">{pkg.audience}</p>
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <span className="inline-flex items-center gap-1 rounded bg-[#0E423E] border border-[#C5B378]/30 px-2 py-0.5 text-[10px] font-medium text-[#D8C78E]">
                     🎉 {linkedEvent ? `${linkedEvent.name}` : pkg.category || 'Wedding'}
@@ -1039,12 +1011,6 @@ export function AdminPackagesModule() {
                   {pkg.duration && (
                     <span className="text-[11px] text-[#E6ECEB]/60">⏱️ {pkg.duration}</span>
                   )}
-                    <span className="text-[10px] rounded border border-[#C5B378]/30 bg-[#072421] px-2 py-0.5 font-semibold text-[#D8C78E]">
-                      {DURATION_TIER_BADGE_LABELS[durationTier]}
-                    </span>
-                  <span className="text-[10px] text-[#E6ECEB]/50 font-mono">
-                    Order: {pkg.sortOrder ?? 1}
-                  </span>
                 </div>
               </div>
 
@@ -1052,33 +1018,19 @@ export function AdminPackagesModule() {
                 <span className="text-xl font-semibold tabular-nums text-white">
                   {formatINR(displayPrice)}
                 </span>
-                <span className="text-[10px] text-[#E6ECEB]/50 block">Investment</span>
-                {pkg.includedServices && pkg.includedServices.length > 0 && (
-                  <span className="text-[9px] text-[#E6ECEB]/40 block">
-                    {pkg.includedServices.length} master services
-                  </span>
-                )}
               </div>
             </div>
 
-            {/* Categorized Deliverables Breakdown */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#D8C78E]">
-                Deliverables & Inclusions:
+                Includes
               </p>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto text-xs pr-1">
-                {displayDeliverables.map(({ category, text: detail }) => (
-                  <div
-                    key={category}
-                    className="rounded bg-[#072421] p-1.5 border border-[#C5B378]/20 text-[11px]"
-                  >
-                    <span className="font-semibold text-[#D8C78E] block leading-snug">
-                      {category}:
-                    </span>
-                    <span className="text-[#E6ECEB]/85 leading-snug">{detail}</span>
-                  </div>
-                ))}
-              </div>
+              <p
+                title={deliverablesSummary}
+                className="line-clamp-3 text-[11px] leading-relaxed text-[#E6ECEB]/80"
+              >
+                {deliverablesSummary || 'Package details available in View.'}
+              </p>
             </div>
           </CardContent>
         </div>
@@ -1162,8 +1114,8 @@ export function AdminPackagesModule() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => handleMoveOrder(idx, 'up')}
-                disabled={idx === 0 || Boolean(loadingActionId)}
+                onClick={() => handleMoveOrder(pkg, 'up')}
+                disabled={eventPackageIndex === 0 || Boolean(loadingActionId)}
                 className="h-7 w-7 p-0 text-[#E6ECEB]/70 hover:text-white hover:bg-[#072421] disabled:opacity-20"
                 title="Move up"
               >
@@ -1177,8 +1129,8 @@ export function AdminPackagesModule() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => handleMoveOrder(idx, 'down')}
-                disabled={idx === sortedPackages.length - 1 || Boolean(loadingActionId)}
+                onClick={() => handleMoveOrder(pkg, 'down')}
+                disabled={eventPackageIndex === eventPackages.length - 1 || Boolean(loadingActionId)}
                 className="h-7 w-7 p-0 text-[#E6ECEB]/70 hover:text-white hover:bg-[#072421] disabled:opacity-20"
                 title="Move down"
               >
@@ -1206,6 +1158,16 @@ export function AdminPackagesModule() {
                 <Eye className="h-3 w-3 mr-1" />
               )}
               View
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openDuplicateModal(pkg)}
+              className="border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#072421] h-7 px-2.5 text-xs"
+            >
+              <Copy className="h-3 w-3 mr-1" />
+              Duplicate
             </Button>
             <Button
               type="button"
@@ -1402,7 +1364,7 @@ export function AdminPackagesModule() {
               </option>
               {availableEventsForFilter.map((ev) => {
                 const count = sortedPackages.filter(
-                  (p) => (p.eventId || 'wedding') === ev.id
+                  (p) => p.eventId === ev.id
                 ).length;
                 return (
                   <option key={ev.id} value={ev.id}>
@@ -1537,7 +1499,7 @@ export function AdminPackagesModule() {
         <div className="space-y-6">
           {eventsToDisplay.map((event) => {
             const eventPackages = filteredPackages.filter(
-              (p) => (p.eventId || 'wedding') === event.id
+              (p) => p.eventId === event.id
             );
             const isEventActive = (event.status ?? 'active') === 'active';
             const matchedCatGroup = EVENT_CATEGORY_GROUPS.find(
@@ -1555,12 +1517,12 @@ export function AdminPackagesModule() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#092E2B] border-b border-[#C5B378]/20 px-5 py-3.5">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-[#0E423E] border border-[#C5B378]/30 flex items-center justify-center shrink-0">
-                      {matchedCatGroup?.id === 'baby-maternity' ? (
+                      {matchedCatGroup?.id === 'baby-kids' ? (
                         <Baby className="h-4 w-4 text-[#D8C78E]" />
-                      ) : matchedCatGroup?.id === 'birthday-kids' ? (
+                      ) : matchedCatGroup?.id === 'family-milestones' ? (
                         <Cake className="h-4 w-4 text-[#D8C78E]" />
-                      ) : matchedCatGroup?.id === 'family-traditional' ? (
-                        <Flame className="h-4 w-4 text-[#D8C78E]" />
+                      ) : matchedCatGroup?.id === 'outdoor' ? (
+                        <Sparkles className="h-4 w-4 text-[#D8C78E]" />
                       ) : matchedCatGroup?.id?.startsWith('corporate') ? (
                         <Briefcase className="h-4 w-4 text-[#D8C78E]" />
                       ) : (
@@ -1860,6 +1822,16 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Package ID (slug) *</label>
+                <input
+                  type="text"
+                  required
+                  value={editId}
+                  onChange={(e) => setEditId(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Duration Display *</label>
                 <input
                   type="text"
@@ -1885,21 +1857,55 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event ID *</label>
+                <label className="text-xs font-medium text-[#D8C78E]">Price Override (₹)</label>
                 <input
-                  type="text"
-                  required
-                  list="edit-package-event-options"
-                  value={editEventId}
-                  onChange={(e) => handleEditEventIdChange(e.target.value)}
-                  placeholder="e.g. wedding or haldi-sangeet"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="Leave blank to calculate from services"
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
-                <datalist id="edit-package-event-options">
-                  {dynamicEvents.map((event) => (
-                    <option key={event.id} value={event.id}>{event.name}</option>
+                <p className="text-[10px] text-[#E6ECEB]/55">
+                  Calculated service cost: {formatINR(calculatePackageServiceCost(
+                    { includedServices: editIncludedServices, durationTier: editDurationTier },
+                    services,
+                    editDurationTier
                   ))}
-                </datalist>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Price Label (optional)</label>
+                <input
+                  type="text"
+                  value={editPriceLabel}
+                  onChange={(e) => setEditPriceLabel(e.target.value)}
+                  placeholder="Generated from the price when blank"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Event *</label>
+                <select
+                  required
+                  value={editEventId}
+                  onChange={(e) => handleEditEventIdChange(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                >
+                  <option value="" disabled>Select an event</option>
+                  {dynamicEvents.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[#E6ECEB]/55">
+                  Category and event order follow the selected event.
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -1915,42 +1921,22 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event Category *</label>
-                <select
-                  value={editEventCategory}
-                  onChange={(e) => setEditEventCategory(e.target.value)}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  {EVENT_CATEGORY_GROUPS.map((category) => (
-                    <option key={category.id} value={category.id}>{category.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event Order *</label>
+                <label className="text-xs font-medium text-[#D8C78E]">Package Sort Order (1–4)</label>
                 <input
                   type="number"
                   min={1}
+                  max={4}
                   step={1}
-                  required
-                  value={editEventSortOrder}
-                  onChange={(e) => setEditEventSortOrder(Number(e.target.value))}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Sort Order (1 = Essential, 2 = Signature, 3 = Premium)</label>
-                <input
-                  type="number"
                   value={editSortOrder}
                   onChange={(e) => setEditSortOrder(Number(e.target.value) || 1)}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
+              <p className="self-end pb-2 text-[11px] text-[#E6ECEB]/60">
+                1 Essential · 2 Signature · 3 Premium · 4 Grand
+              </p>
             </div>
 
             {/* Dynamic Master Services & Pricing Configurator */}
@@ -1960,8 +1946,6 @@ export function AdminPackagesModule() {
               onChangeDurationTier={handleEditDurationTierChange}
               includedServices={editIncludedServices}
               onChangeIncludedServices={setEditIncludedServices}
-              availableAddons={editAvailableAddons}
-              onChangeAvailableAddons={setEditAvailableAddons}
             />
 
             {/* Categorized Deliverables Builder */}
@@ -2078,6 +2062,28 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
+            <div className="space-y-2 border-t border-[#C5B378]/20 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#D8C78E]">
+                Customizer Included Services
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {CUSTOMIZER_OPTIONS.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 text-xs text-[#E6ECEB]">
+                    <input
+                      type="checkbox"
+                      checked={editCustomizerIncluded[key]}
+                      onChange={(event) => setEditCustomizerIncluded((current) => ({
+                        ...current,
+                        [key]: event.target.checked,
+                      }))}
+                      className="h-4 w-4 accent-[#C5B378]"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
               <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
@@ -2098,6 +2104,15 @@ export function AdminPackagesModule() {
                   className="h-4 w-4 rounded border-[#C5B378]/30 bg-[#092E2B] text-[#C5B378] accent-[#C5B378]"
                 />
                 <span>Mark as Signature / Most Popular (Flagship Badge)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editFeatured}
+                  onChange={(e) => setEditFeatured(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#C5B378]/30 bg-[#092E2B] text-[#C5B378] accent-[#C5B378]"
+                />
+                <span>Featured package</span>
               </label>
             </div>
 
@@ -2184,6 +2199,16 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Package ID (slug)</label>
+                <input
+                  type="text"
+                  value={newId}
+                  onChange={(e) => setNewId(e.target.value)}
+                  placeholder="Generated from the package name when blank"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Duration Display *</label>
                 <input
                   type="text"
@@ -2209,21 +2234,55 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event ID *</label>
+                <label className="text-xs font-medium text-[#D8C78E]">Price Override (₹)</label>
                 <input
-                  type="text"
-                  required
-                  list="new-package-event-options"
-                  value={newEventId}
-                  onChange={(e) => handleNewEventIdChange(e.target.value)}
-                  placeholder="e.g. wedding or haldi-sangeet"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="Leave blank to calculate from services"
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
-                <datalist id="new-package-event-options">
-                  {dynamicEvents.map((event) => (
-                    <option key={event.id} value={event.id}>{event.name}</option>
+                <p className="text-[10px] text-[#E6ECEB]/55">
+                  Calculated service cost: {formatINR(calculatePackageServiceCost(
+                    { includedServices: newIncludedServices, durationTier: newDurationTier },
+                    services,
+                    newDurationTier
                   ))}
-                </datalist>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Price Label (optional)</label>
+                <input
+                  type="text"
+                  value={newPriceLabel}
+                  onChange={(e) => setNewPriceLabel(e.target.value)}
+                  placeholder="Generated from the price when blank"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Event *</label>
+                <select
+                  required
+                  value={newEventId}
+                  onChange={(e) => handleNewEventIdChange(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                >
+                  <option value="" disabled>Select an event</option>
+                  {dynamicEvents.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[#E6ECEB]/55">
+                  Category and event order follow the selected event.
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -2239,48 +2298,22 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event Category *</label>
-                <select
-                  value={newEventCategory}
-                  onChange={(e) => {
-                    const category = e.target.value;
-                    setNewEventCategory(category);
-                    if (!dynamicEvents.some((event) => event.id === newEventId.trim())) {
-                      setNewEventSortOrder(getNextEventSortOrder(category));
-                    }
-                  }}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  {EVENT_CATEGORY_GROUPS.map((category) => (
-                    <option key={category.id} value={category.id}>{category.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event Order *</label>
+                <label className="text-xs font-medium text-[#D8C78E]">Package Sort Order (1–4)</label>
                 <input
                   type="number"
                   min={1}
+                  max={4}
                   step={1}
-                  required
-                  value={newEventSortOrder}
-                  onChange={(e) => setNewEventSortOrder(Number(e.target.value))}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Sort Order (1 = Essential, 2 = Signature, 3 = Premium)</label>
-                <input
-                  type="number"
                   value={newSortOrder}
                   onChange={(e) => setNewSortOrder(Number(e.target.value) || 1)}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white font-mono focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
+              <p className="self-end pb-2 text-[11px] text-[#E6ECEB]/60">
+                1 Essential · 2 Signature · 3 Premium · 4 Grand
+              </p>
             </div>
 
             {/* Dynamic Master Services & Pricing Configurator */}
@@ -2290,8 +2323,6 @@ export function AdminPackagesModule() {
               onChangeDurationTier={handleNewDurationTierChange}
               includedServices={newIncludedServices}
               onChangeIncludedServices={setNewIncludedServices}
-              availableAddons={newAvailableAddons}
-              onChangeAvailableAddons={setNewAvailableAddons}
             />
 
             {/* Categorized Deliverables Builder */}
@@ -2408,6 +2439,28 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
+            <div className="space-y-2 border-t border-[#C5B378]/20 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#D8C78E]">
+                Customizer Included Services
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {CUSTOMIZER_OPTIONS.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 text-xs text-[#E6ECEB]">
+                    <input
+                      type="checkbox"
+                      checked={newCustomizerIncluded[key]}
+                      onChange={(event) => setNewCustomizerIncluded((current) => ({
+                        ...current,
+                        [key]: event.target.checked,
+                      }))}
+                      className="h-4 w-4 accent-[#C5B378]"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
               <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
@@ -2428,6 +2481,15 @@ export function AdminPackagesModule() {
                   className="h-4 w-4 rounded border-[#C5B378]/30 bg-[#092E2B] text-[#C5B378] accent-[#C5B378]"
                 />
                 <span>Mark as Signature / Most Popular (Flagship Badge)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newFeatured}
+                  onChange={(e) => setNewFeatured(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#C5B378]/30 bg-[#092E2B] text-[#C5B378] accent-[#C5B378]"
+                />
+                <span>Featured package</span>
               </label>
             </div>
 

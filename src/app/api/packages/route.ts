@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import {
   createPackageOnServer,
   getPackagesFromMongo,
-  updateEventPackagesStatusOnServer,
 } from '@/src/server/studioStore';
 import { StudioPackage } from '@/src/types/studio';
 import { hasValidPackageServiceDurationTiers } from '@/src/lib/pricing';
@@ -16,6 +16,15 @@ const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
 async function isAuthorizedAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
+}
+
+function revalidateCatalogPages() {
+  revalidatePath('/');
+  revalidatePath('/packages');
+  revalidatePath('/portfolio');
+  revalidatePath('/admin');
+  revalidatePath('/admin/events');
+  revalidatePath('/admin/packages');
 }
 
 export const dynamic = 'force-dynamic';
@@ -39,9 +48,14 @@ export async function GET(request: Request) {
       } else {
         packages = packages.filter((pkg) => (pkg.status ?? 'active') === 'active');
       }
+      packages = packages.filter((pkg) => pkg.displayOnPortfolio !== false);
     }
 
-    packages.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    packages.sort(
+      (a, b) =>
+        (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
 
     return NextResponse.json(packages);
   } catch (error) {
@@ -86,8 +100,7 @@ export async function POST(request: Request) {
       );
     }
     if (
-      !hasValidPackageServiceDurationTiers(body.includedServices) ||
-      !hasValidPackageServiceDurationTiers(body.availableAddons)
+      !hasValidPackageServiceDurationTiers(body.includedServices)
     ) {
       return NextResponse.json(
         { error: 'Service durationTier must be threeHours, halfDay, or fullDay.' },
@@ -96,15 +109,17 @@ export async function POST(request: Request) {
     }
 
     const result = await createPackageOnServer(body);
+    revalidateCatalogPages();
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Could not create package:', error);
-    const message =
-      error instanceof Error &&
-      (error.message === 'Package name is required.' || error.message.startsWith('Package ID "'))
-        ? error.message
-        : 'Could not create package. Please try again.';
-    return NextResponse.json({ error: message }, { status: 400 });
+    const message = error instanceof Error ? error.message : 'Could not create package.';
+    const status = message.includes('already exists')
+      ? 409
+      : /required|must be|slug|does not exist|non-negative/i.test(message)
+        ? 400
+        : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -118,31 +133,9 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const body = (await request.json()) as {
-      action?: unknown;
-      eventId?: unknown;
-      status?: unknown;
-    };
-    if (
-      body.action !== 'event-status' ||
-      typeof body.eventId !== 'string' ||
-      !body.eventId.trim() ||
-      (body.status !== 'active' && body.status !== 'inactive')
-    ) {
-      return NextResponse.json(
-        { error: 'A valid event ID and active/inactive status are required.' },
-        { status: 400 }
-      );
-    }
-
-    const state = await updateEventPackagesStatusOnServer(body.eventId.trim(), body.status);
-    return NextResponse.json(state);
+    return NextResponse.json({ error: 'Use an event update to change event status.' }, { status: 400 });
   } catch (error) {
-    console.error('Could not update event package statuses:', error);
-    const message =
-      error instanceof Error && error.message.endsWith('has no packages.')
-        ? error.message
-        : 'Could not update event status. Please try again.';
-    return NextResponse.json({ error: message }, { status: 400 });
+    console.error('Could not handle package update:', error);
+    return NextResponse.json({ error: 'Could not update packages.' }, { status: 500 });
   }
 }

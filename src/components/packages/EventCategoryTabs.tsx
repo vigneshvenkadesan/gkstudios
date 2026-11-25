@@ -4,9 +4,7 @@ import React from 'react';
 import {
   Heart,
   Baby,
-  Cake,
   Flame,
-  Briefcase,
   Sparkles,
   ChevronRight,
 } from 'lucide-react';
@@ -26,10 +24,9 @@ interface EventCategoryTabsProps {
 
 const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
   wedding: <Heart className="h-4 w-4" />,
-  'baby-maternity': <Baby className="h-4 w-4" />,
-  'birthday-kids': <Cake className="h-4 w-4" />,
-  'family-traditional': <Flame className="h-4 w-4" />,
-  'corporate-business': <Briefcase className="h-4 w-4" />,
+  'baby-kids': <Baby className="h-4 w-4" />,
+  outdoor: <Sparkles className="h-4 w-4" />,
+  'family-milestones': <Flame className="h-4 w-4" />,
 };
 
 /**
@@ -40,28 +37,6 @@ export function matchesEventCategory(eventCategory?: string, groupId?: string): 
   const evCat = eventCategory.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
   const grp = groupId.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
   if (evCat === grp) return true;
-
-  if (grp.includes('wedding') && evCat.includes('wedding')) return true;
-  if (
-    (grp.includes('baby') || grp.includes('maternity')) &&
-    (evCat.includes('baby') || evCat.includes('maternity'))
-  )
-    return true;
-  if (
-    (grp.includes('birthday') || grp.includes('kid')) &&
-    (evCat.includes('birthday') || evCat.includes('kid'))
-  )
-    return true;
-  if (
-    (grp.includes('family') || grp.includes('traditional')) &&
-    (evCat.includes('family') || evCat.includes('traditional'))
-  )
-    return true;
-  if (
-    (grp.includes('corporate') || grp.includes('business')) &&
-    (evCat.includes('corporate') || evCat.includes('business'))
-  )
-    return true;
 
   return false;
 }
@@ -83,7 +58,7 @@ export function EventCategoryTabs({
     packages
       .filter((p) => (p.status ?? 'active') === 'active' && p.displayOnPortfolio !== false)
       .forEach((p) => {
-        const eid = (p.eventId || 'wedding').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const eid = p.eventId || '';
         map.set(eid, (map.get(eid) || 0) + 1);
       });
     return map;
@@ -172,26 +147,25 @@ export function EventCategoryTabs({
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-[#E6ECEB]/60 px-1">
             <span className="tracking-wider uppercase text-[11px] font-medium text-[#D8C78E]">
-              {showCategories ? 'Select Specific Ceremony' : 'Choose a Ceremony'}
+              {showCategories ? 'Select an Event' : 'Choose an Event'}
             </span>
             <span className="text-[11px] text-[#E6ECEB]/70">
               {visibleEvents.length}{' '}
-              {visibleEvents.length === 1 ? 'ceremony' : 'ceremonies'} available
+              {visibleEvents.length === 1 ? 'event' : 'events'} available
             </span>
           </div>
 
           {visibleEvents.length === 0 ? (
             <div className="rounded-sm border border-[#C5B378]/15 bg-[#092E2B]/50 p-4 text-center text-xs text-[#E6ECEB]/60">
               {showCategories
-                ? 'No ceremonies listed under this category yet.'
-                : 'No ceremonies available yet.'}
+                ? 'No events listed under this category yet.'
+                : 'No events available yet.'}
             </div>
           ) : (
             <div className="flex flex-wrap gap-2.5 pt-1">
               {visibleEvents.map((ev) => {
                 const isSelected = selectedEventId === ev.id;
-                const normalizedEventId = ev.id.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const count = packageCountByEvent.get(normalizedEventId) || 0;
+                const count = packageCountByEvent.get(ev.id) || 0;
 
                 return (
                   <button
@@ -204,7 +178,7 @@ export function EventCategoryTabs({
                         : 'bg-[#092E2B] text-[#E6ECEB]/85 border border-[#C5B378]/25 hover:border-[#D8C78E]/60 hover:text-white hover:bg-[#0E423E]'
                     }`}
                   >
-                    <span className="leading-snug">{ev.name}</span>
+                    <span>{ev.name}</span>
 
                     {count > 0 && (
                       <span

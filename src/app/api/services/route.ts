@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import {
   getServicesFromMongo,
@@ -8,6 +9,13 @@ import { StudioService } from '@/src/types/studio';
 
 const ADMIN_COOKIE = 'gk_admin_session';
 const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
+
+function revalidateCatalogPages() {
+  revalidatePath('/');
+  revalidatePath('/packages');
+  revalidatePath('/portfolio');
+  revalidatePath('/admin/packages');
+}
 
 async function isAuthorizedAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -62,6 +70,7 @@ export async function POST(request: Request) {
     }
 
     const result = await saveServiceOnServer(body);
+    revalidateCatalogPages();
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Could not save service:', error);

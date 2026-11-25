@@ -100,7 +100,8 @@ export function AdvisorEventSelector({
     packages
       .filter((p) => (p.status ?? 'active') === 'active' && p.displayOnPortfolio !== false)
       .forEach((p) => {
-        const eid = p.eventId || 'wedding';
+        const eid = p.eventId;
+        if (!eid) return;
         const currentMin = map.get(eid);
         if (currentMin === undefined || p.price < currentMin) {
           map.set(eid, p.price);

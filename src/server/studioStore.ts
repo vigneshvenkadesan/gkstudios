@@ -22,9 +22,9 @@ import {
   StudioBill,
   DurationTier,
   OptedServiceSnapshot,
-  PackageAvailableAddon,
   PackageIncludedService,
   StudioEvent,
+  StudioEventCategory,
   StudioService,
   StudioPackage,
   StudioState,
@@ -36,6 +36,7 @@ import {
   getBookingModel,
   getCalendarScheduleModel,
   getEventProjectModel,
+  getStudioEventModel,
   getPackageModel,
   getServiceModel,
 } from './mongodb';
@@ -44,12 +45,12 @@ import {
   DEFAULT_STUDIO_PACKAGES,
   DEFAULT_STUDIO_SERVICES,
   calculatePackageBasePrice,
+  calculatePackageServiceCost,
   formatServiceLineItem,
   hasValidPackageServiceDurationTiers,
   sanitizePackageDeliverables,
 } from '../lib/pricing';
 import { englishOnlyName } from '../lib/englishOnlyName';
-import { getPackageEvents } from '../lib/packageEvents';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 const DURATION_TIER_LABELS: Record<DurationTier, string> = {
@@ -110,6 +111,14 @@ async function requireEventProjectModel() {
   return projects;
 }
 
+async function requireStudioEventModel() {
+  const events = await getStudioEventModel();
+  if (!events) {
+    throw new Error('Event storage is unavailable.');
+  }
+  return events;
+}
+
 async function requirePackageModel() {
   const packages = await getPackageModel();
   if (!packages) {
@@ -150,6 +159,7 @@ function normalizeState(raw: Partial<StudioState>): StudioState {
 
   return {
     portfolio,
+    events: [],
     packages: [],
     bookings: [],
     calendarEntries: [],
@@ -201,6 +211,7 @@ async function writeToDisk(nextState: StudioState): Promise<void> {
     JSON.stringify(
       {
         portfolio: nextState.portfolio,
+        events: nextState.events,
         bookings: [],
         calendarEntries: [],
         ...(legacyEventProjects ? { eventProjects: legacyEventProjects } : {}),
@@ -246,7 +257,7 @@ export async function getServicesFromMongo(): Promise<StudioService[]> {
     if (!serviceModel) {
       return DEFAULT_STUDIO_SERVICES;
     }
-    const docs = await serviceModel.find({}).sort({ displayOrder: 1, createdAt: 1 }).lean().exec();
+    let docs = await serviceModel.find({}).sort({ displayOrder: 1, createdAt: 1 }).lean().exec();
     if (!docs || docs.length === 0) {
       // Seed default master services
       try {
@@ -258,11 +269,71 @@ export async function getServicesFromMongo(): Promise<StudioService[]> {
         return DEFAULT_STUDIO_SERVICES;
       }
     }
+    const newAlbumSlugs = new Set([
+      'photo-album-8x12',
+      'photo-album-10x30',
+      'photo-album-16x24',
+      'photo-album-12x36',
+      'photo-album-18x24',
+      'photo-album-18x24-combo-box',
+    ]);
+    const existingSlugs = new Set(docs.map((service) => String(service.slug || '')));
+    const missingAlbumServices = DEFAULT_STUDIO_SERVICES.filter(
+      (service) => newAlbumSlugs.has(service.slug) && !existingSlugs.has(service.slug)
+    );
+    if (missingAlbumServices.length > 0) {
+      try {
+        await serviceModel.insertMany(missingAlbumServices, { ordered: false });
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) throw error;
+      }
+      docs = await serviceModel.find({}).sort({ displayOrder: 1, createdAt: 1 }).lean().exec();
+    }
     return docs.map(toPlainService);
   } catch (err) {
     console.warn('Error fetching services from Mongo, using defaults:', err);
     return DEFAULT_STUDIO_SERVICES;
   }
+}
+
+function normalizeStudioEventCategory(
+  value: unknown,
+  eventId = ''
+): StudioEventCategory {
+  const category = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (
+    category === 'wedding' ||
+    category === 'baby-kids' ||
+    category === 'outdoor' ||
+    category === 'family-milestones'
+  ) {
+    return category;
+  }
+  if (/(baby|matern|newborn|birthday|kaathu|naming)/.test(`${category} ${eventId}`.toLowerCase())) {
+    return 'baby-kids';
+  }
+  if (/(outdoor|pre-wedding|commercial|portrait)/.test(`${category} ${eventId}`.toLowerCase())) {
+    return 'outdoor';
+  }
+  if (/(wedding|engagement|reception)/.test(`${category} ${eventId}`.toLowerCase())) {
+    return 'wedding';
+  }
+  return 'family-milestones';
+}
+
+function toPlainEvent(doc: unknown): StudioEvent {
+  const event = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
+    ? (doc as { toObject: () => Record<string, unknown> }).toObject()
+    : doc) as Record<string, unknown> || {};
+  const id = String(event.id || event._id || '');
+  return {
+    id,
+    name: String(event.name || id.replace(/[-_]+/g, ' ')),
+    tamilName: String(event.tamilName || ''),
+    category: normalizeStudioEventCategory(event.category, id),
+    status: event.status === 'inactive' ? 'inactive' : 'active',
+    sortOrder: Number.isInteger(event.sortOrder) ? Number(event.sortOrder) : 1,
+  };
 }
 
 export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT_STUDIO_SERVICES): StudioPackage {
@@ -279,44 +350,36 @@ export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT
         : 'halfDay';
 
   // Dynamically resolve package price from services collection
-  const dynamicPrice = calculatePackageBasePrice(
+  const calculatedPrice = calculatePackageServiceCost(
     { ...(p as Partial<StudioPackage>), durationTier: resolvedDurationTier },
     services,
     resolvedDurationTier
   );
+  const hasPriceOverride = typeof p.price === 'number' && Number.isFinite(p.price);
+  const price = hasPriceOverride ? Number(p.price) : undefined;
+  const displayPrice = price ?? calculatedPrice;
 
-  // Legacy migration / backward compatibility:
-  // If eventId is missing, resolve gracefully from category or default to 'wedding'
-  let resolvedEventId = p.eventId ? String(p.eventId) : undefined;
-  if (!resolvedEventId && p.category) {
-    const cat = String(p.category).toLowerCase();
-    if (cat.includes('wedding')) resolvedEventId = 'wedding';
-    else if (cat.includes('reception')) resolvedEventId = 'reception';
-    else if (cat.includes('engagement')) resolvedEventId = 'engagement';
-    else if (cat.includes('baby') || cat.includes('maternity') || cat.includes('seemantham')) resolvedEventId = 'valai-kaapu';
-    else if (cat.includes('birthday') || cat.includes('milestone')) resolvedEventId = 'birthday';
-    else if (cat.includes('corporate')) resolvedEventId = 'corporate-event';
-    else resolvedEventId = 'wedding';
-  } else if (!resolvedEventId) {
-    resolvedEventId = 'wedding';
-  }
+  const resolvedEventId = String(p.eventId || 'wedding');
 
   return {
     id: String(p.id || p._id || ''),
     eventId: resolvedEventId,
+    category: resolvedEventId,
     tier:
       p.tier === 'essential' || p.tier === 'signature' || p.tier === 'premium'
         ? p.tier
         : undefined,
     name: String(p.name || ''),
     audience: String(p.audience || ''),
-    price: dynamicPrice,
+    price: displayPrice,
+    priceIsOverride: hasPriceOverride,
     currency: String(p.currency || 'INR'),
-    priceLabel: formatINR(dynamicPrice),
+    priceLabel: hasPriceOverride && typeof p.priceLabel === 'string' && p.priceLabel.trim()
+      ? p.priceLabel
+      : formatINR(displayPrice),
     duration: String(p.duration || ''),
     durationTier: resolvedDurationTier,
     includedServices: Array.isArray(p.includedServices) ? p.includedServices : undefined,
-    availableAddons: Array.isArray(p.availableAddons) ? p.availableAddons : undefined,
     highlighted: Boolean(p.highlighted),
     featured: Boolean(p.featured),
     deliverables: sanitizePackageDeliverables(p.deliverables),
@@ -326,7 +389,6 @@ export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT
         : undefined,
     imageUrl: p.imageUrl ? String(p.imageUrl) : p.image ? String(p.image) : '',
     image: p.image ? String(p.image) : p.imageUrl ? String(p.imageUrl) : '',
-    category: p.category ? String(p.category) : resolvedEventId,
     status: p.status === 'inactive' ? 'inactive' : 'active',
     displayOnPortfolio: p.displayOnPortfolio !== false,
     sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
@@ -348,7 +410,7 @@ export async function getPackagesFromMongo(services?: StudioService[]): Promise<
   const effectiveServices = services || (await getServicesFromMongo());
   let mongoPackages = await packageModel
     .find({})
-    .sort({ sortOrder: 1, createdAt: 1 })
+    .sort({ eventSortOrder: 1, sortOrder: 1, createdAt: 1 })
     .lean()
     .exec();
 
@@ -362,7 +424,7 @@ export async function getPackagesFromMongo(services?: StudioService[]): Promise<
       );
       mongoPackages = await packageModel
         .find({})
-        .sort({ sortOrder: 1, createdAt: 1 })
+        .sort({ eventSortOrder: 1, sortOrder: 1, createdAt: 1 })
         .lean()
         .exec();
     } catch (seedErr) {
@@ -373,11 +435,23 @@ export async function getPackagesFromMongo(services?: StudioService[]): Promise<
 
   const deliverableMigrationOps = mongoPackages.flatMap((pkg) => {
     const deliverables = sanitizePackageDeliverables(pkg.deliverables);
-    if (JSON.stringify(deliverables) === JSON.stringify(pkg.deliverables || {})) return [];
+    const category = String(pkg.eventId || 'wedding');
+    const needsDeliverablesUpdate =
+      JSON.stringify(deliverables) !== JSON.stringify(pkg.deliverables || {});
+    const needsCategoryUpdate = pkg.category !== category;
+    const needsAddonRemoval =
+      (pkg as unknown as Record<string, unknown>).availableAddons !== undefined;
+    if (!needsDeliverablesUpdate && !needsCategoryUpdate && !needsAddonRemoval) return [];
+    const set: Record<string, unknown> = {};
+    if (needsDeliverablesUpdate) set.deliverables = deliverables;
+    if (needsCategoryUpdate) set.category = category;
     return [{
       updateOne: {
         filter: { _id: pkg._id },
-        update: { $set: { deliverables } },
+        update: {
+          ...(Object.keys(set).length > 0 ? { $set: set } : {}),
+          ...(needsAddonRemoval ? { $unset: { availableAddons: 1 } } : {}),
+        },
       },
     }];
   });
@@ -388,11 +462,53 @@ export async function getPackagesFromMongo(services?: StudioService[]): Promise<
   return mongoPackages.map((pkg) => toPlainPackage(pkg, effectiveServices));
 }
 
-export async function getEventsFromPackages(options: {
+export async function getEventsFromMongo(options: {
   includeInactive?: boolean;
   category?: string;
 } = {}): Promise<StudioEvent[]> {
-  return getPackageEvents(await getPackagesFromMongo(), options);
+  const eventModel = await requireStudioEventModel();
+  let docs = await eventModel.find({}).sort({ sortOrder: 1, name: 1 }).lean().exec();
+
+  if (docs.length === 0) {
+    const packages = await getPackagesFromMongo();
+    const grouped = new Map<string, StudioPackage[]>();
+    packages.forEach((pkg) => {
+      const eventId = pkg.eventId || 'wedding';
+      const group = grouped.get(eventId) || [];
+      group.push(pkg);
+      grouped.set(eventId, group);
+    });
+    const initialEvents = Array.from(grouped.entries()).map(([id, linkedPackages], index) => ({
+      id,
+      name: id
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b[a-z]/g, (letter) => letter.toUpperCase()),
+      tamilName: '',
+      category: normalizeStudioEventCategory(linkedPackages[0]?.category, id),
+      status: linkedPackages.some((pkg) => pkg.status !== 'inactive') ? 'active' as const : 'inactive' as const,
+      sortOrder: Math.min(
+        ...linkedPackages
+          .map((pkg) => pkg.eventSortOrder)
+          .filter((order): order is number => Number.isInteger(order) && order > 0),
+        index + 1
+      ),
+    }));
+    if (initialEvents.length > 0) {
+      try {
+        await eventModel.insertMany(initialEvents, { ordered: false });
+        docs = await eventModel.find({}).sort({ sortOrder: 1, name: 1 }).lean().exec();
+      } catch (error) {
+        if ((error as { code?: number }).code !== 11000) throw error;
+        docs = await eventModel.find({}).sort({ sortOrder: 1, name: 1 }).lean().exec();
+      }
+    }
+  }
+
+  return docs
+    .map(toPlainEvent)
+    .filter((event) => options.includeInactive || event.status === 'active')
+    .filter((event) => !options.category || event.category === options.category)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
 
 export async function getPackageFromMongo(
@@ -407,10 +523,20 @@ export async function getPackageFromMongo(
   if (!pkg) return null;
   const services = await getServicesFromMongo();
   const deliverables = sanitizePackageDeliverables(pkg.deliverables);
+  const category = String(pkg.eventId || 'wedding');
+  const needsAddonRemoval =
+    (pkg as unknown as Record<string, unknown>).availableAddons !== undefined;
+  const update: Record<string, unknown> = {};
   if (JSON.stringify(deliverables) !== JSON.stringify(pkg.deliverables || {})) {
-    await packageModel.updateOne({ _id: pkg._id }, { $set: { deliverables } });
+    update.$set = { deliverables, category };
+  } else if (pkg.category !== category) {
+    update.$set = { category };
   }
-  return toPlainPackage({ ...pkg, deliverables }, services);
+  if (needsAddonRemoval) update.$unset = { availableAddons: 1 };
+  if (Object.keys(update).length > 0) {
+    await packageModel.updateOne({ _id: pkg._id }, update);
+  }
+  return toPlainPackage({ ...pkg, deliverables, category }, services);
 }
 
 function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; packageSnapshot?: unknown }): BookingRequest {
@@ -763,9 +889,11 @@ export async function getStudioState(): Promise<StudioState> {
   }
 
   const plainPackages = await getPackagesFromMongo(plainServices);
+  const plainEvents = await getEventsFromMongo({ includeInactive: true });
 
   memoryCache = {
     ...memoryCache,
+    events: plainEvents,
     services: plainServices,
     packages: plainPackages,
     bookings: plainBookings,
@@ -830,7 +958,9 @@ export async function createBookingOnServer(input: {
   const resolvedQuotedAmount =
     typeof input.quotedAmount === 'number' && !isNaN(input.quotedAmount)
       ? input.quotedAmount
-      : selectedPkg?.price || 0;
+      : selectedPkg
+        ? calculatePackageBasePrice(selectedPkg, state.services || DEFAULT_STUDIO_SERVICES)
+        : 0;
 
   const newBooking: BookingRequest = {
     id: `bk-${Date.now()}`,
@@ -1943,6 +2073,183 @@ export async function deleteEventProjectOnServer(projectId: string): Promise<Stu
   return getStudioState();
 }
 
+function validateEventSlug(id: string): string {
+  const slug = id.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    throw new Error('Event ID must be a lowercase slug using letters, numbers, and hyphens.');
+  }
+  return slug;
+}
+
+function validatePackageSlug(id: string): string {
+  const slug = id.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    throw new Error('Package ID must be a lowercase slug using letters, numbers, and hyphens.');
+  }
+  return slug;
+}
+
+function validateStudioEventCategory(value: unknown): StudioEventCategory {
+  if (
+    value === 'wedding' ||
+    value === 'baby-kids' ||
+    value === 'outdoor' ||
+    value === 'family-milestones'
+  ) {
+    return value;
+  }
+  throw new Error('Event category must be wedding, baby-kids, outdoor, or family-milestones.');
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 11000);
+}
+
+function updateCachedEvents(events: StudioEvent[]): void {
+  if (memoryCache) {
+    memoryCache = {
+      ...memoryCache,
+      events: [...events].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    };
+  }
+}
+
+export async function createEventOnServer(
+  input: Partial<StudioEvent>
+): Promise<{ state: StudioState; created: StudioEvent }> {
+  const name = input.name?.trim();
+  if (!name) throw new Error('Event name is required.');
+  const id = validateEventSlug(
+    input.id?.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  );
+  const sortOrder = Number(input.sortOrder);
+  if (!Number.isInteger(sortOrder) || sortOrder < 1 || sortOrder > 10) {
+    throw new Error('Event sort order must be a whole number from 1 to 10.');
+  }
+  if (input.status !== undefined && input.status !== 'active' && input.status !== 'inactive') {
+    throw new Error('Event status must be active or inactive.');
+  }
+  const category = validateStudioEventCategory(input.category);
+  const created: StudioEvent = {
+    id,
+    name,
+    tamilName: input.tamilName?.trim() || '',
+    category,
+    status: input.status === 'inactive' ? 'inactive' : 'active',
+    sortOrder,
+  };
+  const eventModel = await requireStudioEventModel();
+  try {
+    await eventModel.create(created);
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error(`Event ID "${id}" already exists.`);
+    }
+    throw error;
+  }
+  const state = await getStudioState();
+  const events = [...state.events.filter((event) => event.id !== id), created];
+  updateCachedEvents(events);
+  return { state: { ...state, events }, created };
+}
+
+export async function updateEventOnServer(
+  id: string,
+  patch: Partial<StudioEvent>
+): Promise<StudioState> {
+  const state = await getStudioState();
+  const existing = state.events.find((event) => event.id === id);
+  if (!existing) throw new Error(`Event with ID "${id}" not found.`);
+
+  const nextId = patch.id !== undefined ? validateEventSlug(patch.id) : existing.id;
+  const name = patch.name !== undefined ? patch.name.trim() : existing.name;
+  if (!name) throw new Error('Event name is required.');
+  const sortOrder = patch.sortOrder !== undefined ? Number(patch.sortOrder) : existing.sortOrder;
+  if (!Number.isInteger(sortOrder) || sortOrder < 1 || sortOrder > 10) {
+    throw new Error('Event sort order must be a whole number from 1 to 10.');
+  }
+  const category =
+    patch.category !== undefined
+      ? validateStudioEventCategory(patch.category)
+      : existing.category;
+  if (patch.status !== undefined && patch.status !== 'active' && patch.status !== 'inactive') {
+    throw new Error('Event status must be active or inactive.');
+  }
+  const updated: StudioEvent = {
+    ...existing,
+    ...patch,
+    id: nextId,
+    name,
+    tamilName: patch.tamilName !== undefined ? patch.tamilName.trim() : existing.tamilName,
+    category,
+    status: patch.status === undefined ? existing.status : patch.status,
+    sortOrder,
+  };
+  const eventModel = await requireStudioEventModel();
+  const packageModel = await requirePackageModel();
+  const updateAt = new Date().toISOString();
+  try {
+    const result = await eventModel.updateOne({ id }, { $set: updated });
+    if (result.matchedCount === 0) throw new Error(`Event with ID "${id}" not found.`);
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error(`Event ID "${nextId}" already exists.`);
+    }
+    throw error;
+  }
+
+  const packagePatch: Record<string, unknown> = {
+    category: nextId,
+    eventSortOrder: sortOrder,
+    updatedAt: updateAt,
+  };
+  if (nextId !== id) packagePatch.eventId = nextId;
+  if (patch.status !== undefined) packagePatch.status = updated.status;
+  await packageModel.updateMany({ eventId: id }, { $set: packagePatch });
+
+  const events = state.events
+    .map((event) => (event.id === id ? updated : event))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const packages = state.packages
+    .map((pkg) =>
+      pkg.eventId === id
+        ? {
+            ...pkg,
+            eventId: nextId,
+            category: nextId,
+            eventSortOrder: sortOrder,
+            ...(patch.status !== undefined ? { status: updated.status } : {}),
+            updatedAt: updateAt,
+          }
+        : pkg
+    )
+    .sort(
+      (a, b) =>
+        (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
+  memoryCache = { ...state, events, packages };
+  return memoryCache;
+}
+
+export async function deleteEventOnServer(id: string): Promise<StudioState> {
+  const state = await getStudioState();
+  if (!state.events.some((event) => event.id === id)) {
+    throw new Error(`Event with ID "${id}" not found.`);
+  }
+  const packageModel = await requirePackageModel();
+  if (await packageModel.exists({ eventId: id })) {
+    throw new Error(`Event "${id}" still has linked packages and cannot be deleted.`);
+  }
+  const eventModel = await requireStudioEventModel();
+  const result = await eventModel.deleteOne({ id });
+  if (result.deletedCount === 0) throw new Error(`Event with ID "${id}" not found.`);
+  const events = state.events.filter((event) => event.id !== id);
+  memoryCache = { ...state, events };
+  return memoryCache;
+}
+
 export async function createPackageOnServer(
   input: Partial<StudioPackage>
 ): Promise<{ state: StudioState; created: StudioPackage }> {
@@ -1952,24 +2259,25 @@ export async function createPackageOnServer(
   if (!name) {
     throw new Error('Package name is required.');
   }
-  if (
-    input.eventSortOrder !== undefined &&
-    (!Number.isInteger(input.eventSortOrder) || input.eventSortOrder < 1)
-  ) {
-    throw new Error('eventSortOrder must be a positive whole number.');
-  }
 
   const rawId =
     input.id?.trim() ||
     'pkg-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const id = rawId.startsWith('pkg-') ? rawId : `pkg-${rawId}`;
+  const id = validatePackageSlug(rawId.startsWith('pkg-') ? rawId : `pkg-${rawId}`);
 
   if (state.packages.some((p) => p.id === id)) {
-    throw new Error(`Package ID "${id}" already exists. Please choose a different ID or name.`);
+    throw new Error(`Package ID "${id}" already exists.`);
   }
 
+  const eventId = input.eventId?.trim();
+  if (!eventId) throw new Error('An event must be selected for this package.');
+  const linkedEvent = state.events.find((event) => event.id === eventId);
+  if (!linkedEvent) throw new Error(`Event "${eventId}" does not exist.`);
+
   const services = state.services || (await getServicesFromMongo());
-  const maxSort = state.packages.reduce((max, p) => Math.max(max, p.sortOrder ?? 0), 0);
+  const maxSort = state.packages
+    .filter((pkg) => pkg.eventId === eventId)
+    .reduce((max, pkg) => Math.max(max, pkg.sortOrder ?? 0), 0);
   const durationTier: DurationTier =
     input.durationTier === 'threeHours' ||
     input.durationTier === 'halfDay' ||
@@ -1977,77 +2285,74 @@ export async function createPackageOnServer(
       ? input.durationTier
       : 'halfDay';
   const includedServices = Array.isArray(input.includedServices) ? input.includedServices : undefined;
-  const availableAddons = Array.isArray(input.availableAddons) ? input.availableAddons : undefined;
-  if (
-    !hasValidPackageServiceDurationTiers(input.includedServices) ||
-    !hasValidPackageServiceDurationTiers(input.availableAddons)
-  ) {
+  if (!hasValidPackageServiceDurationTiers(includedServices)) {
     throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
   }
+  if (
+    input.price !== undefined &&
+    input.price !== null &&
+    (!Number.isFinite(input.price) || input.price < 0)
+  ) {
+    throw new Error('Price must be a non-negative number or empty.');
+  }
 
-  const dynamicPrice = calculatePackageBasePrice(
+  const calculatedPrice = calculatePackageServiceCost(
     {
       includedServices,
       durationTier,
-      sortOrder: typeof input.sortOrder === 'number' ? input.sortOrder : maxSort + 1,
     },
     services,
     durationTier
   );
-  const price = dynamicPrice > 0 ? dynamicPrice : (typeof input.price === 'number' ? input.price : Number(input.price) || 0);
-
-  const eventId = input.eventId?.trim() || 'wedding';
-  const existingEvent = getPackageEvents(state.packages, { includeInactive: true }).find(
-    (event) => event.id === eventId
-  );
-  const category = input.category?.trim() || existingEvent?.category || 'wedding';
-  const nextEventSortOrder =
-    Math.max(
-      0,
-      ...getPackageEvents(state.packages, { includeInactive: true })
-        .filter((event) => event.category === category)
-        .filter((event) => event.sortOrder < Number.MAX_SAFE_INTEGER)
-        .map((event) => event.sortOrder)
-    ) + 1;
-  const eventSortOrder =
-    typeof input.eventSortOrder === 'number' &&
-    Number.isInteger(input.eventSortOrder) &&
-    input.eventSortOrder > 0
-      ? input.eventSortOrder
-      : existingEvent?.sortOrder || nextEventSortOrder;
+  const hasPriceOverride = typeof input.price === 'number' && Number.isFinite(input.price);
+  const price = hasPriceOverride ? Number(input.price) : calculatedPrice;
 
   const newPackage: StudioPackage = {
     id,
     eventId,
+    category: eventId,
     tier: input.tier,
     name,
     audience: input.audience?.trim() || 'For weddings and celebrations',
     price,
+    priceIsOverride: hasPriceOverride,
     currency: input.currency?.trim() || 'INR',
-    priceLabel: formatINR(price),
+    priceLabel: hasPriceOverride && input.priceLabel?.trim()
+      ? input.priceLabel.trim()
+      : formatINR(price),
     duration: normalizeDurationLabel(input.duration, durationTier),
     durationTier,
     includedServices,
-    availableAddons,
     highlighted: Boolean(input.highlighted || input.featured),
     featured: Boolean(input.featured || input.highlighted),
     deliverables: sanitizePackageDeliverables(input.deliverables),
     customizer: input.customizer,
     imageUrl: input.imageUrl?.trim() || input.image?.trim() || '',
-    category,
     status: input.status === 'inactive' ? 'inactive' : 'active',
     displayOnPortfolio: input.displayOnPortfolio !== false,
-    sortOrder: typeof input.sortOrder === 'number' ? input.sortOrder : maxSort + 1,
-    eventSortOrder,
+    sortOrder: Number.isInteger(input.sortOrder) && Number(input.sortOrder) > 0
+      ? Number(input.sortOrder)
+      : maxSort + 1,
+    eventSortOrder: linkedEvent.sortOrder,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
   const packageModel = await requirePackageModel();
-  await packageModel.updateOne({ id }, { $set: newPackage }, { upsert: true });
+  const persistedPackage = { ...newPackage };
+  if (!hasPriceOverride) delete persistedPackage.price;
+  delete persistedPackage.priceIsOverride;
+  try {
+    await packageModel.create(persistedPackage);
+  } catch (error) {
+    if (isDuplicateKeyError(error)) throw new Error(`Package ID "${id}" already exists.`);
+    throw error;
+  }
 
   const nextPackages = [...state.packages, newPackage].sort(
-    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    (a, b) =>
+      (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+      (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
   );
 
   memoryCache = {
@@ -2071,18 +2376,23 @@ export async function updatePackageOnServer(
 
   const services = state.services || (await getServicesFromMongo());
   if (
+    patch.price !== undefined &&
+    patch.price !== null &&
+    (!Number.isFinite(patch.price) || patch.price < 0)
+  ) {
+    throw new Error('Price must be a non-negative number or empty.');
+  }
+  const nextId = patch.id !== undefined ? validatePackageSlug(patch.id) : existing.id;
+  if (state.packages.some((pkg) => pkg.id === nextId && pkg.id !== existing.id)) {
+    throw new Error(`Package ID "${nextId}" already exists.`);
+  }
+  if (
     patch.durationTier !== undefined &&
     patch.durationTier !== 'threeHours' &&
     patch.durationTier !== 'halfDay' &&
     patch.durationTier !== 'fullDay'
   ) {
     throw new Error('durationTier must be one of: threeHours, halfDay, fullDay.');
-  }
-  if (
-    patch.eventSortOrder !== undefined &&
-    (!Number.isInteger(patch.eventSortOrder) || patch.eventSortOrder < 1)
-  ) {
-    throw new Error('eventSortOrder must be a positive whole number.');
   }
   const durationTier: DurationTier =
     patch.durationTier !== undefined
@@ -2093,51 +2403,52 @@ export async function updatePackageOnServer(
         ? existing.durationTier
         : 'halfDay';
   const includedServices = patch.includedServices !== undefined ? patch.includedServices : existing.includedServices;
-  const availableAddons = patch.availableAddons !== undefined ? patch.availableAddons : existing.availableAddons;
-  if (
-    !hasValidPackageServiceDurationTiers(includedServices) ||
-    !hasValidPackageServiceDurationTiers(availableAddons)
-  ) {
+  if (!hasValidPackageServiceDurationTiers(includedServices)) {
     throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
   }
 
-  const dynamicPrice = calculatePackageBasePrice(
-    {
-      ...existing,
-      ...patch,
-      includedServices,
-      durationTier,
-    },
+  const eventId = patch.eventId !== undefined ? patch.eventId.trim() : existing.eventId || '';
+  const linkedEvent = state.events.find((event) => event.id === eventId);
+  if (!linkedEvent) throw new Error(`Event "${eventId}" does not exist.`);
+  const calculatedPrice = calculatePackageServiceCost(
+    { ...existing, ...patch, includedServices, durationTier, price: undefined },
     services,
-    durationTier || 'halfDay'
+    durationTier
   );
-  const price = dynamicPrice > 0 ? dynamicPrice : (patch.price !== undefined ? (Number(patch.price) || 0) : existing.price);
+  const packageModel = await requirePackageModel();
+  const storedPackage = await packageModel.findOne({ id }).select({ price: 1 }).lean().exec();
+  const hasStoredPrice = typeof storedPackage?.price === 'number' && Number.isFinite(storedPackage.price);
+  const hasPriceOverride = patch.price === null
+    ? false
+    : typeof patch.price === 'number' && Number.isFinite(patch.price)
+      ? true
+      : hasStoredPrice;
+  const price = hasPriceOverride
+    ? typeof patch.price === 'number' ? patch.price : Number(storedPackage?.price)
+    : calculatedPrice;
   const nextDuration = normalizeDurationLabel(
     patch.duration !== undefined ? patch.duration : existing.duration,
     durationTier
   );
 
-  const eventId = patch.eventId !== undefined ? patch.eventId.trim() : existing.eventId || 'wedding';
-  const eventMetadata = getPackageEvents(state.packages, { includeInactive: true }).find(
-    (event) => event.id === eventId
-  );
   const updatedPackage: StudioPackage = {
     ...existing,
     ...patch,
-    id: existing.id,
+    id: nextId,
     eventId,
-    category: patch.category !== undefined ? patch.category.trim() : existing.category || 'wedding',
-    eventSortOrder:
-      patch.eventSortOrder !== undefined
-        ? Number(patch.eventSortOrder)
-        : existing.eventSortOrder ?? eventMetadata?.sortOrder ?? 1,
+    category: eventId,
+    eventSortOrder: linkedEvent.sortOrder,
     price,
+    priceIsOverride: hasPriceOverride,
     currency: patch.currency || existing.currency || 'INR',
-    priceLabel: formatINR(price),
+    priceLabel: hasPriceOverride
+      ? patch.priceLabel !== undefined
+        ? patch.priceLabel.trim() || formatINR(price)
+        : existing.priceLabel || formatINR(price)
+      : formatINR(price),
     duration: nextDuration,
     durationTier,
     includedServices,
-    availableAddons,
     highlighted:
       patch.highlighted !== undefined
         ? Boolean(patch.highlighted)
@@ -2164,72 +2475,46 @@ export async function updatePackageOnServer(
     updatedAt: new Date().toISOString(),
   };
 
-  const packageModel = await requirePackageModel();
-  const updateResult = await packageModel.updateOne({ id }, { $set: updatedPackage });
+  const persistedPackage = { ...updatedPackage };
+  if (hasPriceOverride) persistedPackage.price = price;
+  else delete persistedPackage.price;
+  delete persistedPackage.priceIsOverride;
+  let updateResult;
+  try {
+    updateResult = await packageModel.updateOne(
+      { id },
+      {
+        $set: persistedPackage,
+        ...(hasPriceOverride ? {} : { $unset: { price: 1 } }),
+      }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error(`Package ID "${nextId}" already exists.`);
+    }
+    throw error;
+  }
   if (updateResult.matchedCount === 0) {
     throw new Error(`Package with ID "${idOrObjectId}" not found.`);
-  }
-
-  const eventMetadataPatch = {
-    ...(patch.category !== undefined ? { category: updatedPackage.category } : {}),
-    ...(patch.eventSortOrder !== undefined
-      ? { eventSortOrder: updatedPackage.eventSortOrder }
-      : {}),
-  };
-  if (Object.keys(eventMetadataPatch).length > 0) {
-    await packageModel.updateMany(
-      { eventId: updatedPackage.eventId, id: { $ne: id } },
-      { $set: { ...eventMetadataPatch, updatedAt: updatedPackage.updatedAt } }
-    );
   }
 
   const nextPackages = state.packages
     .map((pkg) =>
       pkg.id === id
         ? updatedPackage
-        : pkg.eventId === updatedPackage.eventId
-        ? { ...pkg, ...eventMetadataPatch }
         : pkg
     )
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    .sort(
+      (a, b) =>
+        (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
 
   memoryCache = {
     ...state,
     packages: nextPackages,
   };
 
-  return memoryCache;
-}
-
-export async function updateEventPackagesStatusOnServer(
-  eventId: string,
-  status: 'active' | 'inactive'
-): Promise<StudioState> {
-  const state = await getStudioState();
-  const packageIds = state.packages
-    .filter((pkg) => (pkg.eventId || 'wedding') === eventId)
-    .map((pkg) => pkg.id);
-  if (packageIds.length === 0) {
-    throw new Error(`Event "${eventId}" has no packages.`);
-  }
-
-  const packageModel = await requirePackageModel();
-  const updatedAt = new Date().toISOString();
-  const result = await packageModel.updateMany(
-    { id: { $in: packageIds } },
-    { $set: { status, updatedAt } }
-  );
-  if (result.matchedCount === 0) {
-    throw new Error(`Event "${eventId}" has no packages.`);
-  }
-
-  const packageIdSet = new Set(packageIds);
-  memoryCache = {
-    ...state,
-    packages: state.packages.map((pkg) =>
-      packageIdSet.has(pkg.id) ? { ...pkg, status, updatedAt } : pkg
-    ),
-  };
   return memoryCache;
 }
 
@@ -2256,15 +2541,23 @@ export async function deletePackageOnServer(id: string): Promise<StudioState> {
   return memoryCache;
 }
 
-export async function reorderPackagesOnServer(orderedIds: string[]): Promise<StudioState> {
+export async function reorderPackagesOnServer(
+  eventId: string,
+  orderedIds: string[]
+): Promise<StudioState> {
   const state = await getStudioState();
   const packageModel = await requirePackageModel();
+  const eventPackages = state.packages.filter((pkg) => pkg.eventId === eventId);
+  const validIds = new Set(eventPackages.map((pkg) => pkg.id));
+  if (!eventId || orderedIds.some((id) => !validIds.has(id))) {
+    throw new Error('All reordered packages must belong to the selected event.');
+  }
 
   const idToOrder = new Map(orderedIds.map((id, index) => [id, index + 1]));
 
   const bulkOps = orderedIds.map((id, index) => ({
     updateOne: {
-      filter: { id },
+      filter: { id, eventId },
       update: { $set: { sortOrder: index + 1, updatedAt: new Date().toISOString() } },
     },
   }));
@@ -2277,7 +2570,11 @@ export async function reorderPackagesOnServer(orderedIds: string[]): Promise<Stu
       const nextOrder = idToOrder.get(pkg.id);
       return nextOrder !== undefined ? { ...pkg, sortOrder: nextOrder } : pkg;
     })
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    .sort(
+      (a, b) =>
+        (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
 
   memoryCache = {
     ...state,

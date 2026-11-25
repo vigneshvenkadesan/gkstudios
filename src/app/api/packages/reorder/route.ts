@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { reorderPackagesOnServer } from '@/src/server/studioStore';
@@ -20,21 +21,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const { orderedIds } = (await request.json()) as { orderedIds?: string[] };
-    if (!Array.isArray(orderedIds)) {
+    const { eventId, orderedIds } = (await request.json()) as {
+      eventId?: string;
+      orderedIds?: string[];
+    };
+    if (typeof eventId !== 'string' || !Array.isArray(orderedIds)) {
       return NextResponse.json(
-        { error: 'orderedIds array is required' },
+        { error: 'eventId and orderedIds array are required.' },
         { status: 400 }
       );
     }
 
-    const state = await reorderPackagesOnServer(orderedIds);
+    const state = await reorderPackagesOnServer(eventId, orderedIds);
+    revalidatePath('/');
+    revalidatePath('/packages');
+    revalidatePath('/portfolio');
+    revalidatePath('/admin');
+    revalidatePath('/admin/events');
+    revalidatePath('/admin/packages');
     return NextResponse.json(state);
   } catch (error) {
     console.error('Could not reorder packages:', error);
+    const message = error instanceof Error ? error.message : 'Could not reorder packages.';
     return NextResponse.json(
-      { error: 'Could not reorder packages. Please try again.' },
-      { status: 400 }
+      { error: message },
+      { status: message.includes('must belong') ? 400 : 500 }
     );
   }
 }

@@ -3,6 +3,7 @@ import type {
   BookingRequest,
   CalendarDayEntry,
   EventProject,
+  StudioEvent,
   StudioBill,
   StudioPackage,
   StudioService,
@@ -89,6 +90,32 @@ async function ensureMongoConnection(): Promise<boolean> {
   }
 }
 
+interface StudioEventDocument extends StudioEvent, mongoose.Document {}
+
+const StudioEventSchema = new Schema<StudioEventDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    tamilName: { type: String, required: true, default: '' },
+    category: {
+      type: String,
+      required: true,
+      enum: ['wedding', 'baby-kids', 'outdoor', 'family-milestones'],
+    },
+    status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    sortOrder: { type: Number, required: true, default: 1 },
+  },
+  { collection: 'events', strict: true, timestamps: false }
+);
+
+export async function getStudioEventModel(): Promise<Model<StudioEventDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    mongoose.models.StudioEvent as Model<StudioEventDocument> | undefined
+  ) || mongoose.model<StudioEventDocument>('StudioEvent', StudioEventSchema);
+}
+
 export async function getBookingModel(): Promise<Model<BookingRequestDocument> | null> {
   if (!(await ensureMongoConnection())) return null;
 
@@ -99,27 +126,55 @@ export async function getBookingModel(): Promise<Model<BookingRequestDocument> |
 
 interface StudioPackageDocument extends Omit<StudioPackage, '_id'>, mongoose.Document {}
 
+const IncludedPackageServiceSchema = new Schema(
+  {
+    serviceSlug: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 0 },
+    durationTier: { type: String, enum: ['threeHours', 'halfDay', 'fullDay'] },
+  },
+  { _id: false }
+);
+
+const PackageCustomizerSchema = new Schema(
+  {
+    included: {
+      traditionalPhoto: { type: Boolean, default: false },
+      traditionalVideo: { type: Boolean, default: false },
+      candidPhoto: { type: Boolean, default: false },
+      candidVideo: { type: Boolean, default: false },
+      drone: { type: Boolean, default: false },
+      ledWall: { type: Boolean, default: false },
+      outdoorShoot: { type: Boolean, default: false },
+      printedAlbum: { type: Boolean, default: false },
+    },
+    addons: { type: [Schema.Types.Mixed], default: undefined },
+    features: { type: [String], default: undefined },
+  },
+  { _id: false, strict: false }
+);
+
 const PackageSchema = new Schema<StudioPackageDocument>(
   {
     id: { type: String, required: true, unique: true },
-    eventId: { type: String, index: true },
+    eventId: { type: String, required: true, index: true },
+    category: { type: String, required: true },
     tier: { type: String, enum: ['essential', 'signature', 'premium'] },
     name: { type: String, required: true },
     audience: { type: String, required: true },
-    price: { type: Number, required: true },
+    price: { type: Number, default: undefined },
     currency: { type: String, default: 'INR' },
     priceLabel: String,
     duration: { type: String, required: true },
     durationTier: { type: String, enum: ['threeHours', 'halfDay', 'fullDay'] },
-    includedServices: { type: Schema.Types.Mixed, default: [] },
-    availableAddons: { type: Schema.Types.Mixed, default: [] },
+    includedServices: { type: [IncludedPackageServiceSchema], default: [] },
     highlighted: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
-    deliverables: { type: Schema.Types.Mixed, default: {} },
-    customizer: { type: Schema.Types.Mixed, default: undefined },
+    deliverables: {
+      Deliverables: { type: String, default: '' },
+    },
+    customizer: { type: PackageCustomizerSchema, default: undefined },
     imageUrl: String,
     image: String,
-    category: String,
     status: { type: String, default: 'active' },
     displayOnPortfolio: { type: Boolean, default: true },
     sortOrder: { type: Number, default: 0 },

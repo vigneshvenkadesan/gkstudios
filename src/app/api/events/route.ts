@@ -1,25 +1,47 @@
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import {
+  createEventOnServer,
   createEventProjectOnServer,
-  getEventsFromPackages,
+  getEventsFromMongo,
 } from '@/src/server/studioStore';
-import { CUSTOM_PACKAGE_NAME, EventCategory } from '@/src/types/studio';
+import { CUSTOM_PACKAGE_NAME, EventCategory, StudioEvent } from '@/src/types/studio';
 
 export const dynamic = 'force-dynamic';
+const ADMIN_COOKIE = 'gk_admin_session';
+const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
+
+async function isAuthorizedAdmin(): Promise<boolean> {
+  const cookieStore = await cookies();
+  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
+}
+
+function revalidateCatalogPages() {
+  revalidatePath('/');
+  revalidatePath('/packages');
+  revalidatePath('/portfolio');
+  revalidatePath('/admin');
+  revalidatePath('/admin/events');
+  revalidatePath('/admin/packages');
+}
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const all = searchParams.get('all') === 'true';
-
-    const events = await getEventsFromPackages({
-      includeInactive: all,
+    const requestedStatus = searchParams.get('status');
+    let events = await getEventsFromMongo({
+      includeInactive: all || requestedStatus === 'inactive',
       category: category || undefined,
     });
+    if (!all && requestedStatus === 'inactive') {
+      events = events.filter((event) => event.status === 'inactive');
+    }
     return NextResponse.json(events);
   } catch (error) {
-    console.error('Failed to derive events from packages:', error);
+    console.error('Failed to load events:', error);
     return NextResponse.json(
       { error: 'Event data is currently unavailable.' },
       { status: 500 }
@@ -29,7 +51,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as {
+    const body = (await request.json()) as Partial<StudioEvent> & {
+      resource?: string;
       // EventProject creation fields
       clientName?: string;
       phone?: string;
@@ -43,6 +66,18 @@ export async function POST(request: Request) {
       initialAdvance?: number;
       deliveryNotes?: string;
     };
+
+    if (body.resource === 'catalog-event') {
+      if (!(await isAuthorizedAdmin())) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Studio staff authentication required.' },
+          { status: 401 }
+        );
+      }
+      const result = await createEventOnServer(body);
+      revalidateCatalogPages();
+      return NextResponse.json(result, { status: 201 });
+    }
 
     if (!body.clientName?.trim() || !body.phone?.trim() || !body.venue?.trim() || !body.eventDate) {
       return NextResponse.json(
@@ -68,9 +103,15 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Failed to process event POST:', error);
+    const message = error instanceof Error ? error.message : 'Unable to process event request.';
+    const status = message.includes('already exists')
+      ? 409
+      : /required|must be|slug|does not exist/i.test(message)
+        ? 400
+        : 500;
     return NextResponse.json(
-      { error: 'Unable to process event request.' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

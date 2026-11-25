@@ -100,6 +100,12 @@ export function PackagesSection({
     }
   }, [preselectedEventId, events]);
 
+  useEffect(() => {
+    if (!activeEvents.length || activeEvents.some((event) => event.id === selectedEventId)) return;
+    setSelectedEventId(activeEvents[0].id);
+    setSelectedCategoryId(activeEvents[0].category);
+  }, [activeEvents, selectedEventId]);
+
   // Current selected event object
   const currentEvent = useMemo(() => {
     return (
@@ -119,14 +125,9 @@ export function PackagesSection({
 
   // Show packages for the selected ceremony.
   const matchingPackages = useMemo(() => {
-    const normalizedSelectedEventId = selectedEventId.toLowerCase().replace(/[^a-z0-9]/g, '');
-
     return packages
       .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
-      .filter((pkg) => {
-        const packageEventId = (pkg.eventId || 'wedding').toLowerCase().replace(/[^a-z0-9]/g, '');
-        return packageEventId === normalizedSelectedEventId;
-      })
+      .filter((pkg) => pkg.eventId === selectedEventId)
       .map((pkg) => {
         const dynamicPrice = calculatePackageBasePrice(pkg, services);
         return {
@@ -135,7 +136,11 @@ export function PackagesSection({
           priceLabel: formatINR(dynamicPrice),
         };
       })
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      .sort(
+        (a, b) =>
+          (a.eventSortOrder ?? Number.MAX_SAFE_INTEGER) - (b.eventSortOrder ?? Number.MAX_SAFE_INTEGER) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
   }, [packages, services, selectedEventId]);
 
   const whatsappUrl = buildWhatsAppUrl(
@@ -266,10 +271,10 @@ export function PackagesSection({
 
                 <div className="space-y-2">
                   <h4 className="font-serif text-2xl font-semibold text-white">
-                    Bespoke Collections for {currentEvent?.name || 'This Ceremony'}
+                    Bespoke Collections for {currentEvent?.name || 'This Event'}
                   </h4>
                   <p className="text-sm text-[#E6ECEB]/70 max-w-lg mx-auto leading-relaxed">
-                    Every {currentEvent?.name || 'ceremony'} is unique. We provide tailored photography and 4K cinematic video services designed around your exact venue and schedule.
+                    Every {currentEvent?.name || 'event'} is unique. We provide tailored photography and 4K cinematic video services designed around your exact venue and schedule.
                   </p>
                 </div>
 
@@ -288,12 +293,16 @@ export function PackagesSection({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setSelectedCategoryId('wedding');
-                      setSelectedEventId('wedding');
+                      const weddingEvent = activeEvents.find((event) => event.category === 'wedding');
+                      const firstEvent = weddingEvent || activeEvents[0];
+                      if (firstEvent) {
+                        setSelectedCategoryId(firstEvent.category);
+                        setSelectedEventId(firstEvent.id);
+                      }
                     }}
                     className="border-[#C5B378]/40 text-[#D8C78E] hover:bg-[#C5B378]/10"
                   >
-                    Browse Wedding Collections
+                    Browse Events
                   </Button>
                 </div>
               </div>
@@ -347,7 +356,7 @@ export function PackagesSection({
                         delay: idx * 0.08,
                         ease: [0.16, 1, 0.3, 1],
                       }}
-                      className={`group relative flex flex-col justify-between overflow-hidden rounded-sm border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1.5 motion-reduce:hover:translate-y-0 w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[340px] max-w-[380px] ${
+                      className={`group relative flex flex-col justify-between overflow-hidden rounded-sm border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1.5 motion-reduce:hover:translate-y-0 w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] max-w-[380px] ${
                         isSelected
                           ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_18px_45px_rgba(4,20,18,0.45)] ring-2 ring-[#D8C78E]'
                           : isSignature

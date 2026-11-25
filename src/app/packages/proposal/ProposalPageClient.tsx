@@ -180,7 +180,15 @@ const FEATURE_SERVICE_SLUGS: Record<keyof PackageIncludedFeatures, string[]> = {
   traditionalVideo: ['traditional-video'],
   candidPhoto: ['candid-photography'],
   candidVideo: ['candid-cinematography'],
-  printedAlbum: ['photo-album'],
+  printedAlbum: [
+    'photo-album',
+    'photo-album-8x12',
+    'photo-album-10x30',
+    'photo-album-16x24',
+    'photo-album-12x36',
+    'photo-album-18x24',
+    'photo-album-18x24-combo-box',
+  ],
   drone: ['drone-aerial-coverage'],
   ledWall: ['led-wall', 'led-tv'],
   outdoorShoot: ['outdoor-shoot'],
@@ -638,7 +646,7 @@ export function ProposalPageClient() {
   const eventPackages = useMemo(() => {
     return packages
       .filter((p) => (p.status ?? 'active') === 'active' && p.displayOnPortfolio !== false)
-      .filter((p) => (p.eventId || 'wedding') === (currentEvent?.id || 'wedding'))
+      .filter((p) => p.eventId === currentEvent?.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages, currentEvent]);
 
@@ -707,12 +715,17 @@ export function ProposalPageClient() {
 
   const defaultSheetsForTier = useMemo(() => {
     const includedAlbum = basePackage?.includedServices?.find(
-      (item) => item.serviceSlug === 'photo-album'
+      (item) => item.serviceSlug.startsWith('photo-album')
     );
     return includedAlbum?.quantity || (
       selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35
     );
   }, [basePackage, selectedTierOrder]);
+  const albumServiceSlug =
+    basePackage?.includedServices?.find((item) => item.serviceSlug.startsWith('photo-album'))
+      ?.serviceSlug ||
+    services.find((service) => service.isActive && service.slug.startsWith('photo-album'))?.slug ||
+    'photo-album';
 
   useEffect(() => {
     if (skipNextAlbumDefault.current) {
@@ -827,20 +840,17 @@ export function ProposalPageClient() {
     return services
       .filter((service) => service.isActive && !includedSlugs.has(service.slug))
       .map((service) => {
-        const configuredAddon = basePackage.availableAddons?.find(
-          (addon) => addon.serviceSlug === service.slug
-        );
+        const isAlbumService = service.slug.startsWith('photo-album');
         const defaultQuantity =
           service.pricingType === 'per_unit'
             ? Math.max(
                 service.minQuantity || 1,
-                service.slug === 'photo-album' ? defaultSheetsForTier : 1
+                isAlbumService ? defaultSheetsForTier : 1
               )
             : 1;
-        const quantity = configuredAddon?.defaultQuantity ?? defaultQuantity;
+        const quantity = defaultQuantity;
         const itemTier =
           serviceDurationOverrides[service.slug] ??
-          configuredAddon?.durationTier ??
           basePackage.durationTier ??
           durationTier;
         const priceDelta = resolveServicePrice(service, itemTier, quantity).total;
@@ -853,7 +863,7 @@ export function ProposalPageClient() {
           serviceSlug: service.slug,
           quantity,
           durationTier: itemTier,
-          label: configuredAddon?.label || service.name,
+          label: service.name,
           description: `${quantityDescription}${service.description || `Add ${service.name} to your package.`}`,
           isBaseIncluded: false,
           priceDelta,
@@ -887,8 +897,8 @@ export function ProposalPageClient() {
       return 0;
     }
     return (
-      getServiceCost('photo-album', customAlbumSheets) -
-      getServiceCost('photo-album', defaultSheetsForTier)
+      getServiceCost(albumServiceSlug, customAlbumSheets) -
+      getServiceCost(albumServiceSlug, defaultSheetsForTier)
     );
   }, [
     baseIncludedElements,
@@ -896,6 +906,7 @@ export function ProposalPageClient() {
     customAlbumSheets,
     defaultSheetsForTier,
     getServiceCost,
+    albumServiceSlug,
   ]);
 
   const { finalPrice, totalDelta, customizedModifications } = useMemo(() => {
@@ -1159,7 +1170,7 @@ export function ProposalPageClient() {
               basePackage.durationTier ??
               durationTier,
             quantity:
-              item.serviceSlug === 'photo-album' && activeFeatures.printedAlbum
+              item.serviceSlug.startsWith('photo-album') && activeFeatures.printedAlbum
                 ? customAlbumSheets
                 : item.quantity,
           });

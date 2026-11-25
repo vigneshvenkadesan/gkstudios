@@ -29,7 +29,7 @@ export function EventSelector({
   includeInactive = false,
   groupByCategory = true,
   label,
-  placeholder = 'Select ceremony / event',
+  placeholder = 'Select event',
   required = false,
   disabled = false,
   className = '',
@@ -41,21 +41,11 @@ export function EventSelector({
   const filteredEvents = useMemo(() => {
     return eventList
       .filter((e) => (includeInactive ? true : (e.status ?? 'active') === 'active'))
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }, [eventList, includeInactive]);
 
   const resolvedValue = useMemo(() => {
-    if (!value) return '';
-    const norm = value.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const matched = filteredEvents.find(
-      (e) =>
-        e.id.toLowerCase() === value.toLowerCase() ||
-        e.id.toLowerCase().replace(/[^a-z0-9]/g, '') === norm ||
-        e.name.toLowerCase() === value.toLowerCase() ||
-        e.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm ||
-        (norm.includes('wedding') && e.id.toLowerCase().includes('wedding'))
-    );
-    return matched ? matched.id : value;
+    return filteredEvents.some((event) => event.id === value) ? value : '';
   }, [filteredEvents, value]);
 
   const categories = useMemo(() => {
@@ -111,7 +101,7 @@ export function EventSelector({
         required={required}
       >
         <option value="" disabled className="bg-[#072421] text-stone-400">
-          {isLoading && filteredEvents.length === 0 ? 'Loading ceremonies...' : placeholder}
+          {isLoading && filteredEvents.length === 0 ? 'Loading events...' : placeholder}
         </option>
 
         {groupByCategory ? (

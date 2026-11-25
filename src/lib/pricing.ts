@@ -1,7 +1,6 @@
 import {
   DurationTier,
   OptedServiceSnapshot,
-  PackageAvailableAddon,
   PackageIncludedService,
   StudioPackage,
   StudioService,
@@ -76,20 +75,14 @@ export function sanitizePackageDeliverables(raw: unknown): Record<string, string
     entries.push(...Object.entries(raw as Record<string, unknown>));
   }
 
-  const result: Record<string, string> = {};
+  const deliverables: string[] = [];
   for (const [rawKey, rawValue] of entries) {
     if (typeof rawValue !== 'string' || !rawValue.trim()) continue;
     const key = rawKey.trim();
-    const lowerKey = key.toLowerCase();
     if (isDerivedDeliverableKey(key)) continue;
-    const displayKey = lowerKey === 'digital deliverables' || lowerKey === 'inclusions'
-      ? 'Deliverables'
-      : key;
-    result[displayKey] = result[displayKey]
-      ? `${result[displayKey]} + ${rawValue.trim()}`
-      : rawValue.trim();
+    deliverables.push(rawValue.trim());
   }
-  return result;
+  return { Deliverables: deliverables.join(' + ') };
 }
 
 const COVERAGE_SERVICE_LABELS: Record<string, string> = {
@@ -109,9 +102,9 @@ export function getDynamicPackageDisplaySections(
   packageDurationTier?: DurationTier
 ): { coverage: string | null; albums: string | null } {
   const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
-  const album = items.find((item) => item.serviceSlug === 'photo-album');
+  const album = items.find((item) => item.serviceSlug.startsWith('photo-album'));
   const coverageItems = items
-    .filter((item) => item.serviceSlug !== 'photo-album')
+    .filter((item) => !item.serviceSlug.startsWith('photo-album'))
     .map((item) => {
       const label =
         COVERAGE_SERVICE_LABELS[item.serviceSlug] ||
@@ -296,6 +289,84 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     isActive: true,
     displayOrder: 9,
   },
+  {
+    name: 'Photo Album 8×12 in',
+    slug: 'photo-album-8x12',
+    category: 'Deliverables',
+    description: 'Photo album sheets in 8×12 inch size',
+    pricingType: 'per_unit',
+    unitLabel: 'sheets',
+    unitPrice: null,
+    minQuantity: 1,
+    pricing: null,
+    isActive: false,
+    displayOrder: 10,
+  },
+  {
+    name: 'Photo Album 10×30 in',
+    slug: 'photo-album-10x30',
+    category: 'Deliverables',
+    description: 'Photo album sheets in 10×30 inch size',
+    pricingType: 'per_unit',
+    unitLabel: 'sheets',
+    unitPrice: null,
+    minQuantity: 1,
+    pricing: null,
+    isActive: false,
+    displayOrder: 11,
+  },
+  {
+    name: 'Photo Album 16×24 in',
+    slug: 'photo-album-16x24',
+    category: 'Deliverables',
+    description: 'Photo album sheets in 16×24 inch size',
+    pricingType: 'per_unit',
+    unitLabel: 'sheets',
+    unitPrice: null,
+    minQuantity: 1,
+    pricing: null,
+    isActive: false,
+    displayOrder: 12,
+  },
+  {
+    name: 'Photo Album 12×36 in',
+    slug: 'photo-album-12x36',
+    category: 'Deliverables',
+    description: 'Photo album sheets in 12×36 inch size',
+    pricingType: 'per_unit',
+    unitLabel: 'sheets',
+    unitPrice: null,
+    minQuantity: 1,
+    pricing: null,
+    isActive: false,
+    displayOrder: 13,
+  },
+  {
+    name: 'Photo Album 18×24 in',
+    slug: 'photo-album-18x24',
+    category: 'Deliverables',
+    description: 'Photo album sheets in 18×24 inch size',
+    pricingType: 'per_unit',
+    unitLabel: 'sheets',
+    unitPrice: null,
+    minQuantity: 1,
+    pricing: null,
+    isActive: false,
+    displayOrder: 14,
+  },
+  {
+    name: 'Photo Album 18×24 in Combo Box',
+    slug: 'photo-album-18x24-combo-box',
+    category: 'Deliverables',
+    description: 'Photo album sheets with combo box in 18×24 inch size',
+    pricingType: 'per_unit',
+    unitLabel: 'sheets',
+    unitPrice: null,
+    minQuantity: 1,
+    pricing: null,
+    isActive: false,
+    displayOrder: 15,
+  },
 ];
 
 /**
@@ -310,10 +381,9 @@ export function resolveServicePrice(
 
   if (service.pricingType === 'per_unit') {
     const unitPrice = service.unitPrice || 0;
-    const billedQty = Math.max(safeQty, service.minQuantity || 1);
     return {
       unitPrice,
-      total: unitPrice * billedQty,
+      total: unitPrice * safeQty,
     };
   }
 
@@ -329,7 +399,7 @@ export function resolveServicePrice(
 /**
  * Calculates package base price dynamically resolved strictly from the services collection.
  */
-export function calculatePackageBasePrice(
+export function calculatePackageServiceCost(
   pkg: Partial<StudioPackage>,
   services: StudioService[] = DEFAULT_STUDIO_SERVICES,
   overrideDurationTier?: DurationTier
@@ -361,7 +431,8 @@ export function calculatePackageBasePrice(
   const candidCam = serviceBySlug.get('candid-photography');
   const candidCin = serviceBySlug.get('candid-cinematography');
   const drone = serviceBySlug.get('drone-aerial-coverage');
-  const album = serviceBySlug.get('photo-album');
+  const album = serviceBySlug.get('photo-album') ||
+    services.find((service) => service.slug.startsWith('photo-album'));
   const outdoor = serviceBySlug.get('outdoor-shoot');
 
   if (sortOrder === 1) {
@@ -390,22 +461,19 @@ export function calculatePackageBasePrice(
   return Math.max(0, basePrice - 1);
 }
 
-export function calculatePackageAddonPrice(
-  addon: PackageAvailableAddon,
+export function calculatePackageBasePrice(
   pkg: Partial<StudioPackage>,
   services: StudioService[] = DEFAULT_STUDIO_SERVICES,
   overrideDurationTier?: DurationTier
-): { unitPrice: number; total: number; durationTier: DurationTier } {
-  const service = services.find((entry) => entry.slug === addon.serviceSlug);
-  const durationTier =
-    addon.durationTier ?? overrideDurationTier ?? pkg.durationTier ?? 'fullDay';
-  if (!service) return { unitPrice: 0, total: 0, durationTier };
-  const { unitPrice, total } = resolveServicePrice(
-    service,
-    durationTier,
-    addon.defaultQuantity ?? 1
-  );
-  return { unitPrice, total, durationTier };
+): number {
+  if (
+    pkg.priceIsOverride !== false &&
+    typeof pkg.price === 'number' &&
+    Number.isFinite(pkg.price)
+  ) {
+    return pkg.price;
+  }
+  return calculatePackageServiceCost(pkg, services, overrideDurationTier);
 }
 
 /**
@@ -539,12 +607,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
       { serviceSlug: 'traditional-video', quantity: 1 },
       { serviceSlug: 'candid-photography', quantity: 1 },
     ],
-    availableAddons: [
-      { serviceSlug: 'candid-cinematography', defaultQuantity: 1, label: 'Add 3-Min Cinematic Teaser & Film' },
-      { serviceSlug: 'drone-aerial-coverage', defaultQuantity: 1, label: 'Add Aerial Drone Coverage' },
-      { serviceSlug: 'led-tv', defaultQuantity: 1, label: 'Add 55" LED TV Stand' },
-      { serviceSlug: 'photo-album', defaultQuantity: 30, label: '30-Sheet Karizma Layflat Album' },
-    ],
     highlighted: false,
     featured: false,
     deliverables: {
@@ -570,7 +632,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'High-Res Curated Digital Gallery',
       ],
     },
-    category: 'Weddings',
+    category: 'wedding',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 1,
@@ -592,12 +654,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
       { serviceSlug: 'traditional-video', quantity: 1 },
       { serviceSlug: 'candid-photography', quantity: 1 },
       { serviceSlug: 'candid-cinematography', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'drone-aerial-coverage', defaultQuantity: 1, label: 'Add Drone Aerial Coverage' },
-      { serviceSlug: 'led-wall', defaultQuantity: 1, label: 'Add 8×12 ft Live LED Wall' },
-      { serviceSlug: 'outdoor-shoot', defaultQuantity: 1, label: 'Add Pre/Post-Wedding Session' },
-      { serviceSlug: 'photo-album', defaultQuantity: 40, label: '40-Sheet Premium Layflat Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '1 Traditional Photographer + 1 Traditional Videographer + 1 Candid Photographer + 1 Cinematographer',
@@ -622,7 +678,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Complete Ceremony Video & Raw Footage Drive',
       ],
     },
-    category: 'Weddings',
+    category: 'wedding',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 2,
@@ -645,11 +701,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
       { serviceSlug: 'candid-photography', quantity: 1 },
       { serviceSlug: 'candid-cinematography', quantity: 1 },
       { serviceSlug: 'drone-aerial-coverage', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'led-wall', defaultQuantity: 1, label: 'Add 8×12 ft Live LED Wall' },
-      { serviceSlug: 'outdoor-shoot', defaultQuantity: 1, label: 'Add Outdoor Pre-Wedding Couple Session' },
-      { serviceSlug: 'photo-album', defaultQuantity: 50, label: '50-Sheet Signature Velvet Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '2 Traditional Photographers + 1 Traditional Videographer + 1 Candid Photographer + 1 Cinematographer + 1 Drone Operator',
@@ -674,7 +725,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Complete High-Res Digital Delivery',
       ],
     },
-    category: 'Weddings',
+    category: 'wedding',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 3,
@@ -692,11 +743,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
     includedServices: [
       { serviceSlug: 'traditional-camera', quantity: 1 },
       { serviceSlug: 'traditional-video', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'candid-photography', defaultQuantity: 1, label: 'Add Candid Photographer' },
-      { serviceSlug: 'led-tv', defaultQuantity: 1, label: 'Add 55" LED TV Stand' },
-      { serviceSlug: 'photo-album', defaultQuantity: 25, label: '25-Sheet Karizma Album' },
     ],
     highlighted: false,
     featured: false,
@@ -722,7 +768,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Digital High-Res Photo Delivery',
       ],
     },
-    category: 'Weddings',
+    category: 'wedding',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 1,
@@ -743,11 +789,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
       { serviceSlug: 'traditional-camera', quantity: 1 },
       { serviceSlug: 'traditional-video', quantity: 1 },
       { serviceSlug: 'candid-photography', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'candid-cinematography', defaultQuantity: 1, label: 'Add Candid Cinema Teaser' },
-      { serviceSlug: 'drone-aerial-coverage', defaultQuantity: 1, label: 'Add Drone Aerial View' },
-      { serviceSlug: 'photo-album', defaultQuantity: 30, label: '30-Sheet Layflat Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '1 Traditional Photographer + 1 Traditional Videographer + 1 Candid Photographer',
@@ -772,7 +813,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Curated Digital Photo Delivery',
       ],
     },
-    category: 'Weddings',
+    category: 'wedding',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 2,
@@ -794,11 +835,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
       { serviceSlug: 'traditional-video', quantity: 1 },
       { serviceSlug: 'candid-photography', quantity: 1 },
       { serviceSlug: 'candid-cinematography', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'drone-aerial-coverage', defaultQuantity: 1, label: 'Add Drone Aerial Coverage' },
-      { serviceSlug: 'led-wall', defaultQuantity: 1, label: 'Add 8×12 ft Live LED Wall' },
-      { serviceSlug: 'photo-album', defaultQuantity: 35, label: '35-Sheet Karizma Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '1 Traditional Photographer + 1 Traditional Videographer + 1 Candid Photographer + 1 Cinematographer',
@@ -822,7 +858,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         '4K Cinematic Reception Highlight Reel',
       ],
     },
-    category: 'Weddings',
+    category: 'wedding',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 1,
@@ -840,10 +876,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
     includedServices: [
       { serviceSlug: 'traditional-camera', quantity: 1 },
       { serviceSlug: 'traditional-video', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'candid-photography', defaultQuantity: 1, label: 'Add Candid Photographer' },
-      { serviceSlug: 'photo-album', defaultQuantity: 25, label: '25-Sheet Karizma Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '1 Traditional Photographer + 1 Traditional Videographer',
@@ -867,7 +899,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Digital High-Res Photo Delivery',
       ],
     },
-    category: 'Baby & Maternity',
+    category: 'baby-kids',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 1,
@@ -885,10 +917,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
     includedServices: [
       { serviceSlug: 'traditional-camera', quantity: 1 },
       { serviceSlug: 'candid-photography', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'traditional-video', defaultQuantity: 1, label: 'Add Traditional Video' },
-      { serviceSlug: 'photo-album', defaultQuantity: 20, label: '20-Sheet Photo Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '1 Traditional Photographer + 1 Candid Photographer',
@@ -912,7 +940,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Digital High-Res Delivery',
       ],
     },
-    category: 'Birthday & Kids',
+    category: 'baby-kids',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 1,
@@ -932,11 +960,6 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
     includedServices: [
       { serviceSlug: 'outdoor-shoot', quantity: 1 },
       { serviceSlug: 'candid-photography', quantity: 1 },
-    ],
-    availableAddons: [
-      { serviceSlug: 'candid-cinematography', defaultQuantity: 1, label: 'Add Cinematic Couple Reel & Film' },
-      { serviceSlug: 'drone-aerial-coverage', defaultQuantity: 1, label: 'Add Scenic Drone Perspectives' },
-      { serviceSlug: 'photo-album', defaultQuantity: 25, label: '25-Sheet Premium Couple Album' },
     ],
     deliverables: {
       'Event Coverage & Crew': '1 Lead Portrait Photographer + Lighting Assistant',
@@ -960,7 +983,7 @@ export const DEFAULT_STUDIO_PACKAGES: StudioPackage[] = [
         'Online Cloud Gallery Access',
       ],
     },
-    category: 'Weddings',
+    category: 'outdoor',
     status: 'active',
     displayOnPortfolio: true,
     sortOrder: 1,
