@@ -335,6 +335,7 @@ export function calculatePackageBasePrice(
   overrideDurationTier?: DurationTier
 ): number {
   const tier: DurationTier = overrideDurationTier || pkg.durationTier || 'fullDay';
+  // Apply a one-rupee reduction to every positive package base price.
   
   if (Array.isArray(pkg.includedServices) && pkg.includedServices.length > 0) {
     let total = 0;
@@ -346,7 +347,7 @@ export function calculatePackageBasePrice(
         total += itemTotal;
       }
     }
-    return total;
+    return total > 0 ? Math.max(0, total - 1) : total;
   }
 
   // Synthesize from customizer or sort order if legacy package document lacks includedServices
@@ -385,7 +386,8 @@ export function calculatePackageBasePrice(
     if (album) total += resolveServicePrice(album, 'fullDay', 35).total;
   }
 
-  return total > 0 ? total : (pkg.price || 45000);
+  const basePrice = total > 0 ? total : (pkg.price || 45000);
+  return Math.max(0, basePrice - 1);
 }
 
 export function calculatePackageAddonPrice(

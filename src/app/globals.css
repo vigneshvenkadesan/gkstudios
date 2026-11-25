@@ -445,3 +445,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   contain-intrinsic-size: auto 380px;
 }
 
+@media screen and (max-width: 39.999rem) {
+  #printable-bill-content [class~="text-xs"] {
+    font-size: 0.875rem;
+  }
+
+  #printable-bill-content [class~="text-[11px]"] {
+    font-size: 0.8125rem;
+  }
+
+  #printable-bill-content [class~="text-[10px]"],
+  #printable-bill-content [class~="text-[9px]"] {
+    font-size: 0.75rem;
+  }
+}

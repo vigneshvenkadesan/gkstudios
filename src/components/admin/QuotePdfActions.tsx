@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import {
+  getQuotePdfFileName,
   generateQuotePdfBlob,
   shareQuotePdf,
   type StudioQuotePdfData,
@@ -23,14 +24,6 @@ interface QuotePdfActionsProps {
 }
 
 type QuoteAction = 'view' | 'download' | 'share' | null;
-
-function getQuoteFileName(quote: StudioQuotePdfData): string {
-  const safeQuoteNumber =
-    quote.quoteNumber.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'quotation';
-  const safeClientName =
-    quote.clientName.replace(/[<>:"/\\|?*]+/g, '_').trim().replace(/\s+/g, '_') || 'client';
-  return `${safeQuoteNumber}-${safeClientName}.pdf`;
-}
 
 export function QuotePdfActions({ quote, disabled = false }: QuotePdfActionsProps) {
   const [activeAction, setActiveAction] = useState<QuoteAction>(null);
@@ -62,7 +55,7 @@ export function QuotePdfActions({ quote, disabled = false }: QuotePdfActionsProp
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = getQuoteFileName(quote);
+      link.download = getQuotePdfFileName(quote);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -155,9 +148,11 @@ export function QuotePdfActions({ quote, disabled = false }: QuotePdfActionsProp
           if (!open) setPreviewUrl(null);
         }}
       >
-        <DialogContent className="flex h-[90dvh] max-w-5xl flex-col bg-[#092E2B] text-[#E6ECEB]">
+        <DialogContent className="flex h-[90dvh] w-[96vw] max-w-5xl flex-col gap-3 overflow-hidden bg-[#092E2B] p-3 text-[#E6ECEB] sm:gap-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="text-white">Quote PDF Preview</DialogTitle>
+            <DialogTitle className="text-sm text-white sm:text-base">
+              Quotation · {quote.packageName}
+            </DialogTitle>
             <DialogDescription className="text-[#E6ECEB]/75">
               {quote.quoteNumber} · {quote.clientName}
             </DialogDescription>

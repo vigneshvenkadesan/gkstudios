@@ -72,6 +72,31 @@ function escapeHtml(value: string): string {
   });
 }
 
+function safeFileNamePart(value: string, fallback: string): string {
+  return value
+    .replace(/[<>:"/\\|?*]+/g, '_')
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_') || fallback;
+}
+
+export function getQuotePdfFileName(quote: StudioQuotePdfData): string {
+  return [
+    'GK-STUDIOS_Quotation',
+    safeFileNamePart(quote.packageName, 'Package'),
+    safeFileNamePart(quote.quoteNumber, 'Quote'),
+    safeFileNamePart(quote.clientName, 'Client'),
+  ].join('_') + '.pdf';
+}
+
+function increasePdfTextSize(page: HTMLElement): void {
+  page.querySelectorAll<HTMLElement>('[style*="font-size"]').forEach((element) => {
+    const fontSize = Number.parseFloat(element.style.fontSize);
+    if (!Number.isFinite(fontSize) || fontSize >= 14) return;
+    element.style.fontSize = `${Math.ceil(fontSize * 1.4)}px`;
+  });
+}
+
 /**
  * Builds off-screen DOM nodes for Page 1 (Invoice & Payment Ledger) and Page 2 (Full Bilingual Terms & Conditions).
  * Uses html2canvas to capture both pages at 2x print resolution so all Tamil Unicode text, ligatures,
@@ -475,6 +500,8 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
     </div>
   `;
 
+  increasePdfTextSize(page1);
+  increasePdfTextSize(page2);
   container.appendChild(page1);
   container.appendChild(page2);
   document.body.appendChild(container);
@@ -725,6 +752,9 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
     </div>
   `;
 
+  increasePdfTextSize(page1);
+  increasePdfTextSize(page2);
+  increasePdfTextSize(termsPage);
   container.append(page1, page2, termsPage);
   document.body.appendChild(container);
 
@@ -748,6 +778,11 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
       logging: false,
     });
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    doc.setProperties({
+      title: `GK STUDIOS Quotation - ${quote.packageName}`,
+      subject: `${quote.quoteNumber} - ${quote.clientName}`,
+      author: 'GK STUDIOS',
+    });
     doc.addImage(canvas1.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, 210, 297);
     doc.addPage();
     doc.addImage(canvas2.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, 210, 297);
@@ -766,11 +801,7 @@ export async function shareQuotePdf(
   recipientPhone: string
 ): Promise<boolean> {
   const blob = await generateQuotePdfBlob(quote);
-  const safeQuoteNumber =
-    quote.quoteNumber.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'quotation';
-  const safeClientName =
-    quote.clientName.replace(/[<>:"/\\|?*]+/g, '_').trim().replace(/\s+/g, '_') || 'client';
-  const file = new File([blob], `${safeQuoteNumber}-${safeClientName}.pdf`, {
+  const file = new File([blob], getQuotePdfFileName(quote), {
     type: 'application/pdf',
   });
   const message = [
@@ -785,7 +816,7 @@ export async function shareQuotePdf(
     try {
       await navigator.share({
         files: [file],
-        title: `GK STUDIOS Quotation ${quote.quoteNumber}`,
+        title: `GK STUDIOS Quotation - ${quote.packageName}`,
         text: message,
       });
       return true;
