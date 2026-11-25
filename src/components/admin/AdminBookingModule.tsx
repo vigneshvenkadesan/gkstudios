@@ -33,6 +33,7 @@ import {
   StudioEvent,
 } from '@/src/types/studio';
 import { EventSelector } from '@/src/components/common/EventSelector';
+import { useEvents } from '@/src/hooks/useEvents';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
@@ -199,7 +200,6 @@ export function AdminBookingModule() {
   const {
     bookings,
     packages,
-    events,
     services,
     submitBooking,
     processBookingAction,
@@ -207,11 +207,7 @@ export function AdminBookingModule() {
     refreshStudio,
   } = useStudio();
 
-  const activeEvents = useMemo(() => {
-    return (events || [])
-      .filter((e) => (e.status ?? 'active') === 'active')
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [events]);
+  const { activeEvents } = useEvents();
 
   const activePackages = useMemo(() => {
     return (packages || [])

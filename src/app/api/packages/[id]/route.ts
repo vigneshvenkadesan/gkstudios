@@ -60,6 +60,15 @@ export async function PATCH(
       );
     }
     if (
+      patch.eventSortOrder !== undefined &&
+      (!Number.isInteger(patch.eventSortOrder) || patch.eventSortOrder < 1)
+    ) {
+      return NextResponse.json(
+        { error: 'eventSortOrder must be a positive whole number.' },
+        { status: 400 }
+      );
+    }
+    if (
       !hasValidPackageServiceDurationTiers(patch.includedServices) ||
       !hasValidPackageServiceDurationTiers(patch.availableAddons)
     ) {

@@ -109,13 +109,23 @@ export function PackagesSection({
     );
   }, [events, selectedEventId]);
 
-  // Filter packages based on selected eventId for standard grid with dynamically resolved prices
+  const handleSelectEvent = (eventId: string) => {
+    setSelectedEventId(eventId);
+    const selectedEvent = activeEvents.find((event) => event.id === eventId);
+    if (selectedEvent?.category) {
+      setSelectedCategoryId(selectedEvent.category);
+    }
+  };
+
+  // Show packages for the selected ceremony.
   const matchingPackages = useMemo(() => {
+    const normalizedSelectedEventId = selectedEventId.toLowerCase().replace(/[^a-z0-9]/g, '');
+
     return packages
       .filter((pkg) => (pkg.status ?? 'active') === 'active' && pkg.displayOnPortfolio !== false)
       .filter((pkg) => {
-        const pkgEventId = pkg.eventId || 'wedding';
-        return pkgEventId === selectedEventId;
+        const packageEventId = (pkg.eventId || 'wedding').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return packageEventId === normalizedSelectedEventId;
       })
       .map((pkg) => {
         const dynamicPrice = calculatePackageBasePrice(pkg, services);
@@ -238,8 +248,10 @@ export function PackagesSection({
               selectedCategoryId={selectedCategoryId}
               onSelectCategory={setSelectedCategoryId}
               selectedEventId={selectedEventId}
-              onSelectEvent={setSelectedEventId}
+              onSelectEvent={handleSelectEvent}
               isLoading={isEventsLoading}
+              showCategories={false}
+              showEvents
             />
 
             {/* Loading Skeletons */}
@@ -513,7 +525,7 @@ export function PackagesSection({
                             aria-busy={pendingPackageId === pkg.id}
                             onClick={() => {
                               setPendingPackageId(pkg.id);
-                              onSelectPackage(pkg, selectedEventId);
+                              onSelectPackage(pkg, pkg.eventId || selectedEventId);
                             }}
                           >
                             {pendingPackageId === pkg.id ? (

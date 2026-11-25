@@ -3,12 +3,10 @@ import {
   addEventPaymentOnServer,
   deleteEventPaymentOnServer,
   deleteEventProjectOnServer,
-  toPlainEvent,
   updateEventFinancialsOnServer,
   updateEventStageOnServer,
 } from '@/src/server/studioStore';
-import { getEventModel } from '@/src/server/mongodb';
-import { EventStage, PaymentRecord, StudioEvent } from '@/src/types/studio';
+import { EventStage, PaymentRecord } from '@/src/types/studio';
 
 export async function PATCH(
   request: Request,
@@ -28,52 +26,8 @@ export async function PATCH(
       assignedCrew?: string;
       payment?: Omit<PaymentRecord, 'id'>;
       paymentId?: string;
-
-      // StudioEvent properties
-      name?: string;
-      tamilName?: string;
-      category?: string;
-      status?: 'active' | 'inactive';
-      sortOrder?: number;
     };
 
-    // 1. Check if this is a StudioEvent update (editing ceremony definition)
-    if (
-      body.name !== undefined ||
-      body.tamilName !== undefined ||
-      body.category !== undefined ||
-      body.status !== undefined ||
-      body.sortOrder !== undefined
-    ) {
-      const eventModel = await getEventModel();
-      if (!eventModel) {
-        return NextResponse.json(
-          { error: 'Event storage is unavailable.' },
-          { status: 503 }
-        );
-      }
-
-      const updateFields: Partial<StudioEvent> = {
-        updatedAt: new Date().toISOString(),
-      };
-      if (body.name !== undefined) updateFields.name = body.name.trim();
-      if (body.tamilName !== undefined) updateFields.tamilName = body.tamilName.trim() || undefined;
-      if (body.category !== undefined) updateFields.category = body.category.trim();
-      if (body.status !== undefined) updateFields.status = body.status;
-      if (body.sortOrder !== undefined) updateFields.sortOrder = Number(body.sortOrder);
-
-      const updated = await eventModel.findOneAndUpdate(
-        { id },
-        { $set: updateFields },
-        { new: true }
-      );
-
-      if (updated) {
-        return NextResponse.json(toPlainEvent(updated));
-      }
-    }
-
-    // 2. Otherwise handle EventProject workflows
     if (body.action === 'stage' && body.stage) {
       const state = await updateEventStageOnServer(id, body.stage, body.note);
       return NextResponse.json(state);
@@ -117,16 +71,6 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
-    // Check and delete from events collection if present
-    const eventModel = await getEventModel();
-    if (eventModel) {
-      const deleteEventResult = await eventModel.deleteOne({ id });
-      if (deleteEventResult.deletedCount > 0) {
-        return NextResponse.json({ success: true, deletedEventId: id });
-      }
-    }
-
-    // Otherwise attempt deleting event project
     const state = await deleteEventProjectOnServer(id);
     return NextResponse.json(state);
   } catch (error) {

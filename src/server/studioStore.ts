@@ -24,8 +24,8 @@ import {
   OptedServiceSnapshot,
   PackageAvailableAddon,
   PackageIncludedService,
-  StudioService,
   StudioEvent,
+  StudioService,
   StudioPackage,
   StudioState,
 } from '../types/studio';
@@ -35,7 +35,6 @@ import {
   getBillModel,
   getBookingModel,
   getCalendarScheduleModel,
-  getEventModel,
   getEventProjectModel,
   getPackageModel,
   getServiceModel,
@@ -50,6 +49,7 @@ import {
   sanitizePackageDeliverables,
 } from '../lib/pricing';
 import { englishOnlyName } from '../lib/englishOnlyName';
+import { getPackageEvents } from '../lib/packageEvents';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 const DURATION_TIER_LABELS: Record<DurationTier, string> = {
@@ -212,214 +212,6 @@ async function writeToDisk(nextState: StudioState): Promise<void> {
   );
 }
 
-export const DEFAULT_EVENTS: StudioEvent[] = [
-  // Wedding Category
-  {
-    id: 'wedding',
-    name: 'Wedding',
-    tamilName: 'திருமணம் & முகூர்த்தம்',
-    category: 'wedding',
-    status: 'active',
-    sortOrder: 1,
-  },
-  {
-    id: 'engagement',
-    name: 'Engagement',
-    tamilName: 'நிச்சயதார்த்தம்',
-    category: 'wedding',
-    status: 'active',
-    sortOrder: 2,
-  },
-  {
-    id: 'reception',
-    name: 'Wedding Reception',
-    tamilName: 'திருமண வரவேற்பு',
-    category: 'wedding',
-    status: 'active',
-    sortOrder: 3,
-  },
-  {
-    id: 'pre-wedding',
-    name: 'Pre & Post Wedding Shoot',
-    tamilName: 'பிரீ & போஸ்ட் வெடிங் ஷூட்',
-    category: 'wedding',
-    status: 'active',
-    sortOrder: 4,
-  },
-
-  // Baby & Maternity Category
-  {
-    id: 'valai-kaapu',
-    name: 'Maternity Ceremony',
-    tamilName: 'வளைகாப்பு / சீமந்தம்',
-    category: 'baby-maternity',
-    status: 'active',
-    sortOrder: 5,
-  },
-  {
-    id: 'maternity',
-    name: 'Maternity Portraits',
-    tamilName: 'தாய்மைப் புகைப்படங்கள்',
-    category: 'baby-maternity',
-    status: 'active',
-    sortOrder: 6,
-  },
-  {
-    id: 'baby-shower',
-    name: 'Baby Shower & Welcoming',
-    tamilName: 'பேபி ஷவர் & தொட்டில் வரவேற்பு',
-    category: 'baby-maternity',
-    status: 'active',
-    sortOrder: 7,
-  },
-  {
-    id: 'newborn',
-    name: 'Newborn & Infant Portraits',
-    tamilName: 'பச்சிளம் குழந்தை புகைப்படம்',
-    category: 'baby-maternity',
-    status: 'active',
-    sortOrder: 8,
-  },
-
-  // Birthday & Kids Category
-  {
-    id: 'birthday',
-    name: 'Birthday & Milestone Party',
-    tamilName: 'பிறந்தநாள் விழா',
-    category: 'birthday-kids',
-    status: 'active',
-    sortOrder: 9,
-  },
-  {
-    id: 'first-birthday',
-    name: 'First Birthday Celebration',
-    tamilName: 'முதல் பிறந்தநாள் / ஆயுஷ் ஹோமம்',
-    category: 'birthday-kids',
-    status: 'active',
-    sortOrder: 10,
-  },
-  {
-    id: 'naming-ceremony',
-    name: 'Naming Ceremony',
-    tamilName: 'பெயர் சூட்டு விழா (தொட்டில்)',
-    category: 'birthday-kids',
-    status: 'active',
-    sortOrder: 11,
-  },
-  {
-    id: 'kaathu-kuthi',
-    name: 'Ear Piercing',
-    tamilName: 'காது குத்து விழா',
-    category: 'birthday-kids',
-    status: 'active',
-    sortOrder: 12,
-  },
-
-  // Family & Traditional Category
-  {
-    id: 'puberty-ceremony',
-    name: 'Puberty Ceremony',
-    tamilName: 'மஞ்சள் நீராட்டு விழா',
-    category: 'family-traditional',
-    status: 'active',
-    sortOrder: 13,
-  },
-  {
-    id: 'housewarming',
-    name: 'Housewarming Ceremony',
-    tamilName: 'கிரகப்பிரவேசம் (புதுமனை புகுவிழா)',
-    category: 'family-traditional',
-    status: 'active',
-    sortOrder: 14,
-  },
-  {
-    id: 'upanayanam',
-    name: 'Sacred Thread Ceremony',
-    tamilName: 'உபநயனம் / பூணூல் விழா',
-    category: 'family-traditional',
-    status: 'active',
-    sortOrder: 15,
-  },
-  {
-    id: 'sashtiapthapoorthi',
-    name: 'Milestone Ceremony',
-    tamilName: 'சஷ்டியப்தபூர்த்தி (மணிவிழா / சதாபிஷேகம்)',
-    category: 'family-traditional',
-    status: 'active',
-    sortOrder: 16,
-  },
-
-  // Corporate & Business Category
-  {
-    id: 'corporate-event',
-    name: 'Corporate & Business Summit',
-    tamilName: 'வணிக & நிறுவன மாநாடு',
-    category: 'corporate-business',
-    status: 'active',
-    sortOrder: 17,
-  },
-  {
-    id: 'commercial-shoot',
-    name: 'Product & Brand Commercial Shoot',
-    tamilName: 'தயாரிப்பு & விளம்பரப் படம்',
-    category: 'corporate-business',
-    status: 'active',
-    sortOrder: 18,
-  },
-];
-
-export function toPlainEvent(doc: unknown): StudioEvent {
-  const e = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
-    ? (doc as { toObject: () => Record<string, unknown> }).toObject()
-    : doc) as Record<string, unknown> || {};
-
-  return {
-    id: String(e.id || e._id || ''),
-    name: englishOnlyName(String(e.name || '')),
-    tamilName: e.tamilName ? String(e.tamilName) : undefined,
-    category: String(e.category || 'wedding'),
-    status: e.status === 'inactive' ? 'inactive' : 'active',
-    sortOrder: typeof e.sortOrder === 'number' ? e.sortOrder : 0,
-    createdAt: e.createdAt ? String(e.createdAt) : undefined,
-    updatedAt: e.updatedAt ? String(e.updatedAt) : undefined,
-  };
-}
-
-export async function getEventsFromMongo(): Promise<StudioEvent[]> {
-  try {
-    const eventModel = await getEventModel();
-    if (!eventModel) {
-      return DEFAULT_EVENTS;
-    }
-
-    let mongoEvents = await eventModel
-      .find({})
-      .sort({ sortOrder: 1, createdAt: 1 })
-      .lean()
-      .exec();
-
-    // Auto-seed if collection is empty
-    if (!mongoEvents || mongoEvents.length === 0) {
-      try {
-        await eventModel.insertMany(DEFAULT_EVENTS);
-        mongoEvents = await eventModel
-          .find({})
-          .sort({ sortOrder: 1, createdAt: 1 })
-          .lean()
-          .exec();
-      } catch (seedErr) {
-        console.warn('Auto-seed events failed, using fallback:', seedErr);
-        return DEFAULT_EVENTS;
-      }
-    }
-
-    return mongoEvents.map(toPlainEvent);
-  } catch (error) {
-    console.warn('Failed to load events from Mongo, using default list:', error);
-    return DEFAULT_EVENTS;
-  }
-}
-
 export function normalizePackageDeliverables(raw: unknown): PackageDeliverables {
   return sanitizePackageDeliverables(raw);
 }
@@ -538,6 +330,10 @@ export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT
     status: p.status === 'inactive' ? 'inactive' : 'active',
     displayOnPortfolio: p.displayOnPortfolio !== false,
     sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
+    eventSortOrder:
+      typeof p.eventSortOrder === 'number' && Number.isInteger(p.eventSortOrder)
+        ? p.eventSortOrder
+        : undefined,
     createdAt: p.createdAt ? String(p.createdAt) : undefined,
     updatedAt: p.updatedAt ? String(p.updatedAt) : undefined,
   };
@@ -590,6 +386,13 @@ export async function getPackagesFromMongo(services?: StudioService[]): Promise<
   }
 
   return mongoPackages.map((pkg) => toPlainPackage(pkg, effectiveServices));
+}
+
+export async function getEventsFromPackages(options: {
+  includeInactive?: boolean;
+  category?: string;
+} = {}): Promise<StudioEvent[]> {
+  return getPackageEvents(await getPackagesFromMongo(), options);
 }
 
 export async function getPackageFromMongo(
@@ -960,13 +763,11 @@ export async function getStudioState(): Promise<StudioState> {
   }
 
   const plainPackages = await getPackagesFromMongo(plainServices);
-  const plainEvents = await getEventsFromMongo();
 
   memoryCache = {
     ...memoryCache,
     services: plainServices,
     packages: plainPackages,
-    events: plainEvents,
     bookings: plainBookings,
     calendarEntries: plainSchedule,
     bills: plainBills,
@@ -1712,15 +1513,8 @@ export async function addEventPaymentOnServer(
     (b) => b.id === project.bookingId || b.referenceCode === project.referenceCode
   );
 
-  // Find matching event
-  const matchingEvent = state.events?.find(
-    (e) =>
-      e.name.toLowerCase() === project.eventType.toLowerCase() ||
-      e.id.toLowerCase() === project.eventType.toLowerCase()
-  );
-
   const eventName = project.eventType || matchingBooking?.eventType || 'Celebration';
-  let tamilEventName = matchingEvent?.tamilName || '';
+  let tamilEventName = '';
   if (!tamilEventName) {
     const lower = eventName.toLowerCase();
     if (lower.includes('wedding')) tamilEventName = 'திருமணம்';
@@ -2158,6 +1952,12 @@ export async function createPackageOnServer(
   if (!name) {
     throw new Error('Package name is required.');
   }
+  if (
+    input.eventSortOrder !== undefined &&
+    (!Number.isInteger(input.eventSortOrder) || input.eventSortOrder < 1)
+  ) {
+    throw new Error('eventSortOrder must be a positive whole number.');
+  }
 
   const rawId =
     input.id?.trim() ||
@@ -2196,9 +1996,29 @@ export async function createPackageOnServer(
   );
   const price = dynamicPrice > 0 ? dynamicPrice : (typeof input.price === 'number' ? input.price : Number(input.price) || 0);
 
+  const eventId = input.eventId?.trim() || 'wedding';
+  const existingEvent = getPackageEvents(state.packages, { includeInactive: true }).find(
+    (event) => event.id === eventId
+  );
+  const category = input.category?.trim() || existingEvent?.category || 'wedding';
+  const nextEventSortOrder =
+    Math.max(
+      0,
+      ...getPackageEvents(state.packages, { includeInactive: true })
+        .filter((event) => event.category === category)
+        .filter((event) => event.sortOrder < Number.MAX_SAFE_INTEGER)
+        .map((event) => event.sortOrder)
+    ) + 1;
+  const eventSortOrder =
+    typeof input.eventSortOrder === 'number' &&
+    Number.isInteger(input.eventSortOrder) &&
+    input.eventSortOrder > 0
+      ? input.eventSortOrder
+      : existingEvent?.sortOrder || nextEventSortOrder;
+
   const newPackage: StudioPackage = {
     id,
-    eventId: input.eventId?.trim() || 'wedding',
+    eventId,
     tier: input.tier,
     name,
     audience: input.audience?.trim() || 'For weddings and celebrations',
@@ -2214,10 +2034,11 @@ export async function createPackageOnServer(
     deliverables: sanitizePackageDeliverables(input.deliverables),
     customizer: input.customizer,
     imageUrl: input.imageUrl?.trim() || input.image?.trim() || '',
-    category: input.category?.trim() || 'Weddings',
+    category,
     status: input.status === 'inactive' ? 'inactive' : 'active',
     displayOnPortfolio: input.displayOnPortfolio !== false,
     sortOrder: typeof input.sortOrder === 'number' ? input.sortOrder : maxSort + 1,
+    eventSortOrder,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -2257,6 +2078,12 @@ export async function updatePackageOnServer(
   ) {
     throw new Error('durationTier must be one of: threeHours, halfDay, fullDay.');
   }
+  if (
+    patch.eventSortOrder !== undefined &&
+    (!Number.isInteger(patch.eventSortOrder) || patch.eventSortOrder < 1)
+  ) {
+    throw new Error('eventSortOrder must be a positive whole number.');
+  }
   const durationTier: DurationTier =
     patch.durationTier !== undefined
       ? patch.durationTier
@@ -2290,11 +2117,20 @@ export async function updatePackageOnServer(
     durationTier
   );
 
+  const eventId = patch.eventId !== undefined ? patch.eventId.trim() : existing.eventId || 'wedding';
+  const eventMetadata = getPackageEvents(state.packages, { includeInactive: true }).find(
+    (event) => event.id === eventId
+  );
   const updatedPackage: StudioPackage = {
     ...existing,
     ...patch,
     id: existing.id,
-    eventId: patch.eventId !== undefined ? patch.eventId.trim() : existing.eventId || 'wedding',
+    eventId,
+    category: patch.category !== undefined ? patch.category.trim() : existing.category || 'wedding',
+    eventSortOrder:
+      patch.eventSortOrder !== undefined
+        ? Number(patch.eventSortOrder)
+        : existing.eventSortOrder ?? eventMetadata?.sortOrder ?? 1,
     price,
     currency: patch.currency || existing.currency || 'INR',
     priceLabel: formatINR(price),
@@ -2334,8 +2170,27 @@ export async function updatePackageOnServer(
     throw new Error(`Package with ID "${idOrObjectId}" not found.`);
   }
 
+  const eventMetadataPatch = {
+    ...(patch.category !== undefined ? { category: updatedPackage.category } : {}),
+    ...(patch.eventSortOrder !== undefined
+      ? { eventSortOrder: updatedPackage.eventSortOrder }
+      : {}),
+  };
+  if (Object.keys(eventMetadataPatch).length > 0) {
+    await packageModel.updateMany(
+      { eventId: updatedPackage.eventId, id: { $ne: id } },
+      { $set: { ...eventMetadataPatch, updatedAt: updatedPackage.updatedAt } }
+    );
+  }
+
   const nextPackages = state.packages
-    .map((p) => (p.id === id ? updatedPackage : p))
+    .map((pkg) =>
+      pkg.id === id
+        ? updatedPackage
+        : pkg.eventId === updatedPackage.eventId
+        ? { ...pkg, ...eventMetadataPatch }
+        : pkg
+    )
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   memoryCache = {
@@ -2343,6 +2198,38 @@ export async function updatePackageOnServer(
     packages: nextPackages,
   };
 
+  return memoryCache;
+}
+
+export async function updateEventPackagesStatusOnServer(
+  eventId: string,
+  status: 'active' | 'inactive'
+): Promise<StudioState> {
+  const state = await getStudioState();
+  const packageIds = state.packages
+    .filter((pkg) => (pkg.eventId || 'wedding') === eventId)
+    .map((pkg) => pkg.id);
+  if (packageIds.length === 0) {
+    throw new Error(`Event "${eventId}" has no packages.`);
+  }
+
+  const packageModel = await requirePackageModel();
+  const updatedAt = new Date().toISOString();
+  const result = await packageModel.updateMany(
+    { id: { $in: packageIds } },
+    { $set: { status, updatedAt } }
+  );
+  if (result.matchedCount === 0) {
+    throw new Error(`Event "${eventId}" has no packages.`);
+  }
+
+  const packageIdSet = new Set(packageIds);
+  memoryCache = {
+    ...state,
+    packages: state.packages.map((pkg) =>
+      packageIdSet.has(pkg.id) ? { ...pkg, status, updatedAt } : pkg
+    ),
+  };
   return memoryCache;
 }
 

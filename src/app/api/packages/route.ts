@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import {
   createPackageOnServer,
   getPackagesFromMongo,
+  updateEventPackagesStatusOnServer,
 } from '@/src/server/studioStore';
 import { StudioPackage } from '@/src/types/studio';
 import { hasValidPackageServiceDurationTiers } from '@/src/lib/pricing';
@@ -76,6 +77,15 @@ export async function POST(request: Request) {
       );
     }
     if (
+      body.eventSortOrder !== undefined &&
+      (!Number.isInteger(body.eventSortOrder) || body.eventSortOrder < 1)
+    ) {
+      return NextResponse.json(
+        { error: 'eventSortOrder must be a positive whole number.' },
+        { status: 400 }
+      );
+    }
+    if (
       !hasValidPackageServiceDurationTiers(body.includedServices) ||
       !hasValidPackageServiceDurationTiers(body.availableAddons)
     ) {
@@ -94,6 +104,45 @@ export async function POST(request: Request) {
       (error.message === 'Package name is required.' || error.message.startsWith('Package ID "'))
         ? error.message
         : 'Could not create package. Please try again.';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const isAdmin = await isAuthorizedAdmin();
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      action?: unknown;
+      eventId?: unknown;
+      status?: unknown;
+    };
+    if (
+      body.action !== 'event-status' ||
+      typeof body.eventId !== 'string' ||
+      !body.eventId.trim() ||
+      (body.status !== 'active' && body.status !== 'inactive')
+    ) {
+      return NextResponse.json(
+        { error: 'A valid event ID and active/inactive status are required.' },
+        { status: 400 }
+      );
+    }
+
+    const state = await updateEventPackagesStatusOnServer(body.eventId.trim(), body.status);
+    return NextResponse.json(state);
+  } catch (error) {
+    console.error('Could not update event package statuses:', error);
+    const message =
+      error instanceof Error && error.message.endsWith('has no packages.')
+        ? error.message
+        : 'Could not update event status. Please try again.';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

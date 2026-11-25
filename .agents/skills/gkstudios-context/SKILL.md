@@ -44,7 +44,7 @@ src/app/
     studio/                        Combined studio state
     bookings/                      Inquiry CRUD and booking actions
     schedule/                      Calendar upsert/delete
-    events/                        Event definitions and production projects
+    events/                        Package-derived ceremonies and production projects
     services/                      Master service pricing
     packages/                      Package CRUD/reorder
     bills/                         Bill lookup
@@ -89,7 +89,11 @@ MongoDB collection names and Mongoose models:
 | `bills` | `Bill` | Generated historical bill snapshots |
 | `packages` | `Package` | Package tiers and service links |
 | `services` | `Service` | Master pricing catalog |
-| `events` | `Event` | Dynamic ceremony/event definitions |
+
+Ceremonies are derived from `packages.eventId`, `category`, and `eventSortOrder` rather than a
+separate events collection. The `/api/events` route remains for event-project workflows and returns
+the derived ceremony list for its GET request. The application does not drop an existing MongoDB
+`events` collection automatically.
 
 `portfolio` is not currently a MongoDB collection. Portfolio items come from `data/studio-db.json`, `INITIAL_STUDIO_STATE`, and in-memory/disk state mutations. It does not have a Mongoose schema. There is no Mongo-backed `users`, `admins`, or `settings` collection. Admin authentication uses an HTTP-only application cookie with a fixed value plus server-side `ADMIN_PIN` verification.
 
@@ -287,7 +291,7 @@ Default/fallback services include traditional/candid photography and videography
 | Field | Type | Notes |
 |---|---|---|
 | `id` | string | Unique, normally `pkg-*` |
-| `eventId` | string | Event definition ID or legacy category mapping |
+| `eventId` | string | Stable ceremony ID; the source for ceremony grouping |
 | `tier` | string | `essential`, `signature`, `premium` |
 | `name` | string | Required |
 | `audience` | string | Required in UI schema |
@@ -304,10 +308,11 @@ Default/fallback services include traditional/candid photography and videography
 | `customizer` | mixed | Legacy/customizer data |
 | `imageUrl` | string | Public image URL |
 | `image` | string | Legacy alias |
-| `category` | string | Category text |
+| `category` | string | Ceremony category group ID |
 | `status` | `active \| inactive` | Default active |
 | `displayOnPortfolio` | boolean | Public package visibility |
 | `sortOrder` | number | 1, 2, 3 convention |
+| `eventSortOrder` | number | Ceremony order, shared by packages with the same `eventId` |
 | `createdAt` | string | Optional |
 | `updatedAt` | string | Optional |
 
@@ -336,22 +341,19 @@ Example:
   },
   "status": "active",
   "displayOnPortfolio": true,
-  "sortOrder": 2
+  "sortOrder": 2,
+  "eventSortOrder": 1
 }
 ```
 
-### `events`
+### Derived ceremonies
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | string | Stable event identifier |
-| `name` | string | Display name |
-| `tamilName` | string | Optional |
-| `category` | string | Group ID such as `wedding` or `birthday-kids` |
-| `status` | `active \| inactive` | |
-| `sortOrder` | number | |
-| `createdAt` | string | |
-| `updatedAt` | string | |
+The application groups package documents by `eventId`. Ceremony category and ordering come from
+the matching packages' `category` and `eventSortOrder`; a ceremony is active when at least one of
+its packages is active. Known legacy IDs retain their English display labels, while new IDs are
+humanized for display. Creating or editing ceremony metadata is done through a package, and
+category/order changes are shared across packages with the same `eventId`. The Package Manager's
+event status control updates the status of every package under that event.
 
 ### Portfolio fallback structure
 

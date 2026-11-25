@@ -377,6 +377,7 @@ export interface StudioPackage {
   status?: 'active' | 'inactive';
   displayOnPortfolio?: boolean;
   sortOrder?: number; // 1 = Essential, 2 = Signature, 3 = Premium
+  eventSortOrder?: number; // Ceremony order shared by packages with the same eventId
   featured?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -498,7 +499,6 @@ export interface StudioState {
   portfolio: PortfolioItem[];
   packages: StudioPackage[];
   services?: StudioService[];
-  events?: StudioEvent[];
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
   eventProjects: EventProject[];

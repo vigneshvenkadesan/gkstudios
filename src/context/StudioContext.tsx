@@ -15,7 +15,6 @@ import {
   PaymentRecord,
   PortfolioItem,
   StudioBill,
-  StudioEvent,
   StudioPackage,
   StudioService,
   StudioState,
@@ -78,7 +77,6 @@ interface StudioContextValue {
   isLoading: boolean;
   packages: StudioPackage[];
   services: StudioService[];
-  events: StudioEvent[];
   portfolio: PortfolioItem[];
   bookings: BookingRequest[];
   calendarEntries: CalendarDayEntry[];
@@ -95,6 +93,7 @@ interface StudioContextValue {
   deletePortfolioItem: (id: string) => Promise<void>;
   addPackage: (item: Partial<StudioPackage>) => Promise<StudioPackage>;
   updatePackage: (id: string, patch: Partial<StudioPackage>) => Promise<void>;
+  updateEventPackagesStatus: (eventId: string, status: 'active' | 'inactive') => Promise<void>;
   deletePackage: (id: string) => Promise<void>;
   getPackage: (id: string) => Promise<StudioPackage>;
   reorderPackages: (orderedIds: string[]) => Promise<void>;
@@ -289,6 +288,17 @@ export function StudioProvider({
     []
   );
 
+  const updateEventPackagesStatus = useCallback(
+    async (eventId: string, status: 'active' | 'inactive') => {
+      const nextState = await requestJson<StudioState>('/api/packages', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'event-status', eventId, status }),
+      });
+      setState(nextState);
+    },
+    []
+  );
+
   const deletePackage = useCallback(async (id: string) => {
     const nextState = await requestJson<StudioState>(`/api/packages/${encodeURIComponent(id)}`, {
       method: 'DELETE',
@@ -408,7 +418,6 @@ export function StudioProvider({
         isLoading,
         packages: state.packages,
         services: state.services && state.services.length > 0 ? state.services : DEFAULT_STUDIO_SERVICES,
-        events: state.events ?? [],
         portfolio: state.portfolio,
         bookings: state.bookings,
         calendarEntries: state.calendarEntries,
@@ -425,6 +434,7 @@ export function StudioProvider({
         deletePortfolioItem,
         addPackage,
         updatePackage,
+        updateEventPackagesStatus,
         deletePackage,
         getPackage,
         reorderPackages,

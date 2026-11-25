@@ -20,7 +20,6 @@ import {
   Film,
   Filter,
   Flame,
-  FolderPlus,
   Heart,
   Layers,
   LayoutGrid,
@@ -39,9 +38,7 @@ import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import {
   DurationTier,
-  EVENT_CATEGORIES,
   EVENT_CATEGORY_GROUPS,
-  EventCategory,
   PackageCustomizer,
   PackageDeliverables,
   PackageAvailableAddon,
@@ -52,7 +49,6 @@ import {
 } from '@/src/types/studio';
 import {
   calculatePackageBasePrice,
-  calculatePackageAddonPrice,
   getDynamicPackageDisplaySections,
   resolveServicePrice,
   sanitizePackageDeliverables,
@@ -61,7 +57,6 @@ import { DynamicPackageServicesConfigurator } from './DynamicPackageServicesConf
 import { formatINR } from '@/src/lib/utils';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { useEvents } from '@/src/hooks/useEvents';
-import { EventSelector } from '@/src/components/common/EventSelector';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
 import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
@@ -238,17 +233,15 @@ export function AdminPackagesModule() {
     addPackage,
     getPackage,
     updatePackage,
+    updateEventPackagesStatus,
     deletePackage,
     reorderPackages,
   } = useStudio();
   const {
     events: dynamicEvents,
-    createEvent,
-    updateEvent,
-    deleteEvent,
   } = useEvents({ all: true });
 
-  // View Mode: 'grouped' by ceremony or 'grid' (flat)
+  // View Mode: 'grouped' by event or 'grid' (flat)
   const [viewMode, setViewMode] = useState<'grouped' | 'grid'>('grouped');
 
   // Filter States - exactly 3 tiers with 'all'
@@ -259,31 +252,12 @@ export function AdminPackagesModule() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'portfolio' | 'hidden'>('all');
 
-  // New Event Modal State
-  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
-  const [newEventName, setNewEventName] = useState('');
-  const [newEventCategory, setNewEventCategory] = useState<string>('wedding');
-  const [newEventCustomId, setNewEventCustomId] = useState('');
-  const [newEventSortOrder, setNewEventSortOrder] = useState<number | ''>(10);
-  const [newEventStatus, setNewEventStatus] = useState<'active' | 'inactive'>('active');
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
-
-  // Edit Event Modal State
-  const [editingEvent, setEditingEvent] = useState<StudioEvent | null>(null);
-  const [editEventName, setEditEventName] = useState('');
-  const [editEventCategory, setEditEventCategory] = useState<string>('wedding');
-  const [editEventSortOrder, setEditEventSortOrder] = useState<number | ''>(10);
-  const [editEventStatus, setEditEventStatus] = useState<'active' | 'inactive'>('active');
-  const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
-
-  // Delete Event Confirmation State
-  const [deletingEvent, setDeletingEvent] = useState<StudioEvent | null>(null);
-  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
-
   // New package modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newId, setNewId] = useState('');
   const [newEventId, setNewEventId] = useState('wedding');
+  const [newEventCategory, setNewEventCategory] = useState<string>('wedding');
+  const [newEventSortOrder, setNewEventSortOrder] = useState<number>(1);
   const [newTier, setNewTier] = useState<PackageTier>('signature');
   const [newName, setNewName] = useState('');
   const [newAudience, setNewAudience] = useState('');
@@ -313,6 +287,8 @@ export function AdminPackagesModule() {
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
   const [editEventId, setEditEventId] = useState('wedding');
+  const [editEventCategory, setEditEventCategory] = useState<string>('wedding');
+  const [editEventSortOrder, setEditEventSortOrder] = useState<number>(1);
   const [editTier, setEditTier] = useState<PackageTier>('signature');
   const [editName, setEditName] = useState('');
   const [editAudience, setEditAudience] = useState('');
@@ -342,6 +318,7 @@ export function AdminPackagesModule() {
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+  const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
 
   const handleNewDurationTierChange = (tier: DurationTier) => {
     setNewDurationTier(tier);
@@ -373,7 +350,68 @@ export function AdminPackagesModule() {
     return [...packages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [packages]);
 
-  // Dynamic events available for the ceremony filter dropdown based on categoryFilter
+  const getNextEventSortOrder = (category: string) =>
+    Math.max(
+      0,
+      ...dynamicEvents
+        .filter((event) => event.category === category)
+        .map((event) =>
+          Number.isSafeInteger(event.sortOrder) &&
+          event.sortOrder < Number.MAX_SAFE_INTEGER
+            ? event.sortOrder
+            : 0
+        )
+    ) + 1;
+
+  const openAddPackage = (eventId?: string) => {
+    const selectedId =
+      eventId || (selectedEventFilter !== 'all' ? selectedEventFilter : 'wedding');
+    const selectedEvent = dynamicEvents.find((event) => event.id === selectedId);
+    const category = selectedEvent?.category || (categoryFilter !== 'all' ? categoryFilter : 'wedding');
+
+    setNewEventId(selectedId);
+    setNewEventCategory(category);
+    setNewEventSortOrder(
+      selectedEvent?.sortOrder && selectedEvent.sortOrder < Number.MAX_SAFE_INTEGER
+        ? selectedEvent.sortOrder
+        : getNextEventSortOrder(category)
+    );
+    setIsAddModalOpen(true);
+  };
+
+  const handleNewEventIdChange = (eventId: string) => {
+    setNewEventId(eventId);
+    const selectedEvent = dynamicEvents.find((event) => event.id === eventId.trim());
+    if (selectedEvent) {
+      setNewEventCategory(selectedEvent.category);
+      setNewEventSortOrder(
+        selectedEvent.sortOrder < Number.MAX_SAFE_INTEGER
+          ? selectedEvent.sortOrder
+          : getNextEventSortOrder(selectedEvent.category)
+      );
+    } else {
+      const category = categoryFilter !== 'all' ? categoryFilter : newEventCategory;
+      setNewEventCategory(category);
+      setNewEventSortOrder(getNextEventSortOrder(category));
+    }
+  };
+
+  const handleEditEventIdChange = (eventId: string) => {
+    setEditEventId(eventId);
+    const selectedEvent = dynamicEvents.find((event) => event.id === eventId.trim());
+    if (selectedEvent) {
+      setEditEventCategory(selectedEvent.category);
+      setEditEventSortOrder(
+        selectedEvent.sortOrder < Number.MAX_SAFE_INTEGER
+          ? selectedEvent.sortOrder
+          : getNextEventSortOrder(selectedEvent.category)
+      );
+    } else {
+      setEditEventSortOrder(getNextEventSortOrder(editEventCategory));
+    }
+  };
+
+  // Dynamic events available for the event filter dropdown based on categoryFilter
   const availableEventsForFilter = useMemo(() => {
     if (categoryFilter === 'all') return dynamicEvents;
     return dynamicEvents.filter((ev) => {
@@ -419,7 +457,7 @@ export function AdminPackagesModule() {
         }
       }
 
-      // 3. Event / Ceremony Filter
+      // 3. Event Filter
       if (selectedEventFilter !== 'all') {
         const pkgEventId = pkg.eventId || 'wedding';
         if (pkgEventId !== selectedEventFilter) {
@@ -463,8 +501,8 @@ export function AdminPackagesModule() {
     visibilityFilter,
   ]);
 
-  // Distinct ceremonies represented in the current filtered packages
-  const filteredCeremoniesCount = useMemo(() => {
+  // Distinct events represented in the current filtered packages
+  const filteredEventsCount = useMemo(() => {
     return new Set(filteredPackages.map((p) => p.eventId || 'wedding')).size;
   }, [filteredPackages]);
 
@@ -487,8 +525,8 @@ export function AdminPackagesModule() {
     setVisibilityFilter('all');
   };
 
-  // Ceremonies to display in "Grouped by Ceremony" view
-  const ceremoniesToDisplay = useMemo(() => {
+  // Events to display in "Grouped by Event" view
+  const eventsToDisplay = useMemo(() => {
     let list = dynamicEvents;
 
     // If specific event is chosen
@@ -506,7 +544,7 @@ export function AdminPackagesModule() {
       });
     }
 
-    // If search, tier, status, or visibility is active, only show ceremonies with matching packages
+    // If search, tier, status, or visibility is active, only show events with matching packages
     if (
       searchQuery.trim() ||
       tierFilter !== 'all' ||
@@ -529,101 +567,21 @@ export function AdminPackagesModule() {
     filteredPackages,
   ]);
 
-  // Event Handlers
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEventName.trim()) {
-      toast.error('Ceremony name is required.');
-      return;
-    }
-
-    setIsCreatingEvent(true);
-    try {
-      const generatedSlug =
-        newEventCustomId.trim() ||
-        newEventName
-          .toLowerCase()
-          .trim()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '');
-
-      const created = await createEvent({
-        id: generatedSlug,
-        name: newEventName.trim(),
-        category: newEventCategory,
-        status: newEventStatus,
-        sortOrder: typeof newEventSortOrder === 'number' ? newEventSortOrder : 10,
-      });
-
-      toast.success(`Ceremony "${created.name}" created.`);
-      setSelectedEventFilter(created.id);
-      setIsAddEventModalOpen(false);
-
-      // Reset fields
-      setNewEventName('');
-      setNewEventCategory('wedding');
-      setNewEventCustomId('');
-      setNewEventSortOrder(10);
-      setNewEventStatus('active');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create ceremony.');
-    } finally {
-      setIsCreatingEvent(false);
-    }
-  };
-
-  const handleOpenEditEvent = (ev: StudioEvent) => {
-    setEditingEvent(ev);
-    setEditEventName(ev.name);
-    setEditEventCategory(ev.category || 'wedding');
-    setEditEventSortOrder(ev.sortOrder ?? 10);
-    setEditEventStatus(ev.status === 'inactive' ? 'inactive' : 'active');
-  };
-
-  const handleSaveEditEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingEvent || !editEventName.trim()) return;
-
-    setIsUpdatingEvent(true);
-    try {
-      await updateEvent(editingEvent.id, {
-        name: editEventName.trim(),
-        category: editEventCategory,
-        status: editEventStatus,
-        sortOrder: typeof editEventSortOrder === 'number' ? editEventSortOrder : 10,
-      });
-
-      toast.success(`Ceremony "${editEventName.trim()}" updated.`);
-      setEditingEvent(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update ceremony.');
-    } finally {
-      setIsUpdatingEvent(false);
-    }
-  };
-
-  const handleConfirmDeleteEvent = async () => {
-    if (!deletingEvent) return;
-    setIsDeletingEvent(true);
-    try {
-      await deleteEvent(deletingEvent.id);
-      toast.success(`Ceremony "${deletingEvent.name}" deleted.`);
-      if (selectedEventFilter === deletingEvent.id) {
-        setSelectedEventFilter('all');
-      }
-      setDeletingEvent(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete ceremony.');
-    } finally {
-      setIsDeletingEvent(false);
-    }
-  };
-
   // Submit new package
   const handleCreatePackage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newDuration.trim()) {
       toast.error('Please enter package name and duration.');
+      return;
+    }
+
+    const eventId = newEventId
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    if (!eventId || !Number.isSafeInteger(newEventSortOrder) || newEventSortOrder < 1) {
+      toast.error('Please enter a valid event ID and order.');
       return;
     }
 
@@ -652,7 +610,7 @@ export function AdminPackagesModule() {
 
       await addPackage({
         id: newId.trim() || undefined,
-        eventId: newEventId,
+        eventId,
         tier: newTier,
         name: newName.trim(),
         audience: newAudience.trim() || 'For weddings & celebrations',
@@ -661,7 +619,8 @@ export function AdminPackagesModule() {
         durationTier: newDurationTier,
         includedServices: newIncludedServices,
         availableAddons: newAvailableAddons,
-        category: newEventId, // Matches eventId per schema requirement
+        category: newEventCategory,
+        eventSortOrder: newEventSortOrder,
         deliverables: sanitizePackageDeliverables(newDeliverables),
         customizer: {
           included: newCustomizerIncluded,
@@ -676,6 +635,9 @@ export function AdminPackagesModule() {
       toast.success(`Package "${newName.trim()}" created.`);
       setIsAddModalOpen(false);
       setNewId('');
+      setNewEventId('wedding');
+      setNewEventCategory('wedding');
+      setNewEventSortOrder(1);
       setNewName('');
       setNewAudience('');
       setNewPrice('');
@@ -718,7 +680,20 @@ export function AdminPackagesModule() {
     setEditingPackage(pkg);
     const resolvedTier = pkg.tier || getPackageTier(pkg);
     const resolvedDurationTier = getPackageDurationTier(pkg);
-    setEditEventId(pkg.eventId || 'wedding');
+    const eventId = pkg.eventId || 'wedding';
+    const eventMetadata = dynamicEvents.find((event) => event.id === eventId);
+    const category = eventMetadata?.category || pkg.category || 'wedding';
+    setEditEventId(eventId);
+    setEditEventCategory(category);
+    setEditEventSortOrder(
+      pkg.eventSortOrder &&
+        Number.isSafeInteger(pkg.eventSortOrder) &&
+        pkg.eventSortOrder < Number.MAX_SAFE_INTEGER
+        ? pkg.eventSortOrder
+        : eventMetadata && eventMetadata.sortOrder < Number.MAX_SAFE_INTEGER
+          ? eventMetadata.sortOrder
+          : getNextEventSortOrder(category)
+    );
     setEditTier(resolvedTier);
     setEditName(pkg.name);
     setEditAudience(pkg.audience);
@@ -757,6 +732,16 @@ export function AdminPackagesModule() {
       return;
     }
 
+    const eventId = editEventId
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    if (!eventId || !Number.isSafeInteger(editEventSortOrder) || editEventSortOrder < 1) {
+      toast.error('Please enter a valid event ID and order.');
+      return;
+    }
+
     if (editIncludedServices.length === 0) {
       toast.error('Please select at least one included service from the services catalog.');
       return;
@@ -782,7 +767,7 @@ export function AdminPackagesModule() {
 
       await updatePackage(editingPackage.id, {
         name: editName.trim(),
-        eventId: editEventId,
+        eventId,
         tier: editTier,
         audience: editAudience.trim(),
         price: calculatedPrice,
@@ -790,7 +775,8 @@ export function AdminPackagesModule() {
         durationTier: editDurationTier,
         includedServices: editIncludedServices,
         availableAddons: editAvailableAddons,
-        category: editEventId, // Matches eventId per schema requirement
+        category: editEventCategory,
+        eventSortOrder: editEventSortOrder,
         deliverables: sanitizePackageDeliverables(editDeliverables),
         customizer: {
           included: editCustomizerIncluded,
@@ -840,6 +826,22 @@ export function AdminPackagesModule() {
       toast.error(err instanceof Error ? err.message : 'Failed to toggle package status.');
     } finally {
       setLoadingActionId(null);
+    }
+  };
+
+  const handleToggleEventStatus = async (event: StudioEvent) => {
+    if (loadingEventId) return;
+    const nextStatus = event.status === 'active' ? 'inactive' : 'active';
+    setLoadingEventId(event.id);
+    try {
+      await updateEventPackagesStatus(event.id, nextStatus);
+      toast.success(
+        `Event "${event.name}" and its packages are now ${nextStatus}.`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update event status.');
+    } finally {
+      setLoadingEventId(null);
     }
   };
 
@@ -1047,7 +1049,7 @@ export function AdminPackagesModule() {
               </div>
 
               <div className="text-right sm:shrink-0 pt-1 sm:pt-0">
-                <span className="text-xl font-serif font-bold text-white font-mono">
+                <span className="text-xl font-semibold tabular-nums text-white">
                   {formatINR(displayPrice)}
                 </span>
                 <span className="text-[10px] text-[#E6ECEB]/50 block">Investment</span>
@@ -1241,7 +1243,7 @@ export function AdminPackagesModule() {
             <CardTitle className="text-2xl font-bold font-mono text-white">{totalCount}</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3 pt-0 text-[11px] text-[#E6ECEB]/70">
-            Across {dynamicEvents.length} ceremonies
+            Across {dynamicEvents.length} events
           </CardContent>
         </Card>
 
@@ -1285,32 +1287,18 @@ export function AdminPackagesModule() {
         <div>
           <h2 className="text-base font-semibold text-white flex items-center gap-2">
             <PackageIcon className="h-4 w-4 text-[#D8C78E]" />
-            Photography Packages Catalog & Event Manager
+            Photography Packages Catalog
           </h2>
           <p className="text-xs text-[#E6ECEB]/70 mt-0.5">
-            Organize collections dynamically by ceremony, category, and investment tiers.
+            Events and their order come from package IDs, categories, and event order.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {/* Add Event Button */}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setIsAddEventModalOpen(true)}
-            className="border-[#C5B378]/40 bg-[#0E423E] text-[#D8C78E] hover:bg-[#C5B378]/20 font-semibold shadow-sm"
-          >
-            <FolderPlus className="h-4 w-4 mr-1.5" />
-            + Add Event / Ceremony
-          </Button>
-
           {/* Add Package Button */}
           <Button
             type="button"
-            onClick={() => {
-              setNewEventId(selectedEventFilter !== 'all' ? selectedEventFilter : 'wedding');
-              setIsAddModalOpen(true);
-            }}
+            onClick={() => openAddPackage()}
             className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E] shadow-sm"
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -1330,7 +1318,7 @@ export function AdminPackagesModule() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by package name, ceremony, deliverables, audience, or ID..."
+              placeholder="Search by package name, event, deliverables, audience, or ID..."
               className="h-10 w-full rounded-lg border border-[#C5B378]/30 bg-[#092E2B] pl-9 pr-8 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
             />
             {searchQuery && (
@@ -1356,7 +1344,7 @@ export function AdminPackagesModule() {
               }`}
             >
               <Layers className="h-3.5 w-3.5" />
-              Grouped by Ceremony
+              Grouped by Event
             </button>
             <button
               type="button"
@@ -1398,11 +1386,11 @@ export function AdminPackagesModule() {
             </select>
           </div>
 
-          {/* Ceremony Filter (dynamically limited by Category) */}
+          {/* Event Filter (dynamically limited by Category) */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-[#D8C78E] flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              Ceremony
+              Event
             </label>
             <select
               value={selectedEventFilter}
@@ -1410,7 +1398,7 @@ export function AdminPackagesModule() {
               className="h-8 w-full rounded border border-[#C5B378]/30 bg-[#092E2B] px-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
             >
               <option value="all">
-                All Ceremonies ({availableEventsForFilter.length})
+                All Events ({availableEventsForFilter.length})
               </option>
               {availableEventsForFilter.map((ev) => {
                 const count = sortedPackages.filter(
@@ -1485,8 +1473,8 @@ export function AdminPackagesModule() {
           <div className="flex items-center gap-2 text-[#E6ECEB]/80 flex-wrap">
             <span>
               Showing <strong className="text-white">{filteredPackages.length}</strong> matching
-              packages across <strong className="text-white">{filteredCeremoniesCount}</strong>{' '}
-              ceremonies.
+              packages across <strong className="text-white">{filteredEventsCount}</strong>{' '}
+              events.
             </span>
             {tierFilter !== 'all' && (
               <span className="inline-flex items-center gap-1 text-[11px] text-[#D8C78E] bg-[#0E423E] px-2 py-0.5 rounded border border-[#C5B378]/30 capitalize">
@@ -1516,13 +1504,13 @@ export function AdminPackagesModule() {
       </div>
 
       {/* Main Content Area */}
-      {filteredPackages.length === 0 && ceremoniesToDisplay.length === 0 ? (
+      {filteredPackages.length === 0 && eventsToDisplay.length === 0 ? (
         <div className="rounded-xl border border-[#C5B378]/25 bg-[#092E2B] p-10 text-center space-y-3">
-          <p className="font-serif text-lg text-white">No packages or ceremonies match your filter</p>
+          <p className="font-serif text-lg text-white">No packages or events match your filter</p>
           <p className="text-xs text-[#E6ECEB]/70 max-w-md mx-auto">
             {tierFilter !== 'all'
               ? `No packages found for tier "${tierFilter}". Try switching tier or resetting filters.`
-              : 'Try resetting your active search or filters, or add a new package under your selected ceremony.'}
+              : 'Try resetting your active search or filters, or add a new package under your selected event.'}
           </p>
           <div className="pt-2 flex justify-center gap-2">
             <Button
@@ -1536,10 +1524,7 @@ export function AdminPackagesModule() {
             </Button>
             <Button
               type="button"
-              onClick={() => {
-                setNewEventId(selectedEventFilter !== 'all' ? selectedEventFilter : 'wedding');
-                setIsAddModalOpen(true);
-              }}
+              onClick={() => openAddPackage()}
               className="bg-[#C5B378] text-[#072421] text-xs font-semibold hover:bg-[#D8C78E]"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
@@ -1548,25 +1533,25 @@ export function AdminPackagesModule() {
           </div>
         </div>
       ) : viewMode === 'grouped' ? (
-        /* Grouped by Ceremony View */
+        /* Grouped by Event View */
         <div className="space-y-6">
-          {ceremoniesToDisplay.map((ceremony) => {
-            const ceremonyPackages = filteredPackages.filter(
-              (p) => (p.eventId || 'wedding') === ceremony.id
+          {eventsToDisplay.map((event) => {
+            const eventPackages = filteredPackages.filter(
+              (p) => (p.eventId || 'wedding') === event.id
             );
-            const isCeremonyActive = (ceremony.status ?? 'active') === 'active';
+            const isEventActive = (event.status ?? 'active') === 'active';
             const matchedCatGroup = EVENT_CATEGORY_GROUPS.find(
               (g) =>
-                g.id === ceremony.category ||
-                (g.id.startsWith('corporate') && ceremony.category?.startsWith('corporate'))
+                g.id === event.category ||
+                (g.id.startsWith('corporate') && event.category?.startsWith('corporate'))
             );
 
             return (
               <div
-                key={ceremony.id}
+                key={event.id}
                 className="rounded-xl border border-[#C5B378]/25 bg-[#072421]/90 overflow-hidden shadow-md"
               >
-                {/* Ceremony Header Banner */}
+                {/* Event Header Banner */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#092E2B] border-b border-[#C5B378]/20 px-5 py-3.5">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-[#0E423E] border border-[#C5B378]/30 flex items-center justify-center shrink-0">
@@ -1586,57 +1571,61 @@ export function AdminPackagesModule() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base font-serif font-bold text-white leading-tight">
-                          {ceremony.name}
+                          {event.name}
                         </h3>
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${
-                            isCeremonyActive
+                            isEventActive
                               ? 'bg-[#25D366]/15 border-[#25D366]/30 text-[#25D366]'
                               : 'bg-zinc-800 border-zinc-700 text-zinc-400'
                           }`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${
-                              isCeremonyActive ? 'bg-[#25D366]' : 'bg-zinc-500'
+                              isEventActive ? 'bg-[#25D366]' : 'bg-zinc-500'
                             }`}
                           />
-                          {isCeremonyActive ? 'Active' : 'Disabled'}
+                          {isEventActive ? 'Active' : 'Inactive'}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-[#E6ECEB]/65 mt-0.5">
-                        <span>Category: {matchedCatGroup?.label || ceremony.category}</span>
+                        <span>Category: {matchedCatGroup?.label || event.category}</span>
                         <span>•</span>
-                        <span>ID: <code className="font-mono text-[#D8C78E]">{ceremony.id}</code></span>
+                        <span>ID: <code className="font-mono text-[#D8C78E]">{event.id}</code></span>
                         <span>•</span>
                         <span>
-                          <strong>{ceremonyPackages.length}</strong> package
-                          {ceremonyPackages.length === 1 ? '' : 's'}
+                          <strong>{eventPackages.length}</strong> package
+                          {eventPackages.length === 1 ? '' : 's'}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Ceremony Action Buttons */}
+                  {/* Event Action Buttons */}
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleOpenEditEvent(ceremony)}
-                      className="border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#072421] h-8 text-xs"
+                      disabled={Boolean(loadingEventId)}
+                      onClick={() => void handleToggleEventStatus(event)}
+                      title="Changes the status of every package under this event."
+                      className="border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#072421] h-8 text-xs disabled:opacity-60"
                     >
-                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                      Edit Ceremony
+                      {loadingEventId === event.id ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      ) : isEventActive ? (
+                        <EyeOff className="h-3.5 w-3.5 mr-1" />
+                      ) : (
+                        <Eye className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      {isEventActive ? 'Deactivate Event' : 'Activate Event'}
                     </Button>
-
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => {
-                        setNewEventId(ceremony.id);
-                        setIsAddModalOpen(true);
-                      }}
+                      onClick={() => openAddPackage(event.id)}
                       className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E] h-8 text-xs"
                     >
                       <Plus className="h-3.5 w-3.5 mr-1" />
@@ -1645,31 +1634,28 @@ export function AdminPackagesModule() {
                   </div>
                 </div>
 
-                {/* Ceremony Packages Grid */}
+                {/* Event Packages Grid */}
                 <div className="p-5">
-                  {ceremonyPackages.length === 0 ? (
+                  {eventPackages.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-[#C5B378]/25 p-6 text-center space-y-2">
                       <p className="text-xs text-[#E6ECEB]/70">
-                        No packages configured under <strong>{ceremony.name}</strong>
+                        No packages configured under <strong>{event.name}</strong>
                         {tierFilter !== 'all' ? ` for tier "${tierFilter}".` : '.'}
                       </p>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setNewEventId(ceremony.id);
-                          setIsAddModalOpen(true);
-                        }}
+                        onClick={() => openAddPackage(event.id)}
                         className="border-[#C5B378]/30 text-[#D8C78E] text-xs"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Create package for this ceremony
+                        Create package for this event
                       </Button>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {ceremonyPackages.map((pkg, idx) => renderPackageCard(pkg, idx))}
+                      {eventPackages.map((pkg, idx) => renderPackageCard(pkg, idx))}
                     </div>
                   )}
                 </div>
@@ -1683,284 +1669,6 @@ export function AdminPackagesModule() {
           {filteredPackages.map((pkg, idx) => renderPackageCard(pkg, idx))}
         </div>
       )}
-
-      {/* Add New Event Dialog */}
-      <Dialog open={isAddEventModalOpen} onOpenChange={(open) => { if (!open && !isCreatingEvent) setIsAddEventModalOpen(false); }}>
-        <DialogContent
-          onPointerDownOutside={(e) => { if (isCreatingEvent) e.preventDefault(); }}
-          onEscapeKeyDown={(e) => { if (isCreatingEvent) e.preventDefault(); }}
-          className="max-h-[92dvh] w-[95vw] max-w-xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
-        >
-          <DialogHeader>
-            <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
-              <FolderPlus className="h-5 w-5 text-[#D8C78E]" />
-              Add New Event / Ceremony
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#E6ECEB]/70">
-              Create a new event ceremony. Packages can then be assigned and displayed dynamically.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateEvent} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[#D8C78E]">Ceremony Name (English) *</label>
-              <input
-                type="text"
-                required
-                value={newEventName}
-                onChange={(e) => {
-                  setNewEventName(e.target.value);
-                  if (!newEventCustomId) {
-                    const previewSlug = e.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, '-')
-                      .replace(/(^-|-$)/g, '');
-                    setNewEventCustomId(previewSlug);
-                  }
-                }}
-                placeholder="e.g. Haldi & Sangeet Night"
-                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event Category *</label>
-                <select
-                  value={newEventCategory}
-                  onChange={(e) => setNewEventCategory(e.target.value)}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  {EVENT_CATEGORY_GROUPS.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Status</label>
-                <select
-                  value={newEventStatus}
-                  onChange={(e) => setNewEventStatus(e.target.value as 'active' | 'inactive')}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  <option value="active">Active (Visible)</option>
-                  <option value="inactive">Inactive (Disabled)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Unique Event Slug / ID</label>
-                <input
-                  type="text"
-                  value={newEventCustomId}
-                  onChange={(e) => setNewEventCustomId(e.target.value)}
-                  placeholder="e.g. haldi-sangeet"
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Sort Order</label>
-                <input
-                  type="number"
-                  value={newEventSortOrder}
-                  onChange={(e) =>
-                    setNewEventSortOrder(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="border-t border-[#C5B378]/20 pt-4 flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isCreatingEvent}
-                onClick={() => setIsAddEventModalOpen(false)}
-                className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
-              >
-                Cancel
-              </Button>
-              <SubmitButton
-                isLoading={isCreatingEvent}
-                loadingText="Creating Ceremony..."
-                className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
-              >
-                Create Event
-              </SubmitButton>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Event Dialog */}
-      <Dialog open={!!editingEvent} onOpenChange={(open) => { if (!open && !isUpdatingEvent) setEditingEvent(null); }}>
-        <DialogContent
-          onPointerDownOutside={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
-          onEscapeKeyDown={(e) => { if (isUpdatingEvent) e.preventDefault(); }}
-          className="max-h-[92dvh] w-[95vw] max-w-xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
-        >
-          <DialogHeader>
-            <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
-              <Pencil className="h-5 w-5 text-[#D8C78E]" />
-              Edit Ceremony: {editingEvent?.name}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#E6ECEB]/70">
-              Update ceremony title, category, or status.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSaveEditEvent} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[#D8C78E]">Ceremony Name (English) *</label>
-              <input
-                type="text"
-                required
-                value={editEventName}
-                onChange={(e) => setEditEventName(e.target.value)}
-                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Category</label>
-                <select
-                  value={editEventCategory}
-                  onChange={(e) => setEditEventCategory(e.target.value)}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  {EVENT_CATEGORY_GROUPS.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Status</label>
-                <select
-                  value={editEventStatus}
-                  onChange={(e) => setEditEventStatus(e.target.value as 'active' | 'inactive')}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  <option value="active">Active (Visible)</option>
-                  <option value="inactive">Inactive (Disabled)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Event ID</label>
-                <input
-                  type="text"
-                  disabled
-                  value={editingEvent?.id || ''}
-                  className="h-10 w-full rounded-md border border-white/10 bg-black/40 px-3 text-xs text-zinc-400 font-mono cursor-not-allowed"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-[#D8C78E]">Sort Order</label>
-                <input
-                  type="number"
-                  value={editEventSortOrder}
-                  onChange={(e) =>
-                    setEditEventSortOrder(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-xs text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="border-t border-[#C5B378]/20 pt-4 flex items-center justify-between">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={isUpdatingEvent}
-                onClick={() => {
-                  setDeletingEvent(editingEvent);
-                  setEditingEvent(null);
-                }}
-                className="text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 text-xs"
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                Delete Ceremony
-              </Button>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isUpdatingEvent}
-                  onClick={() => setEditingEvent(null)}
-                  className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
-                >
-                  Cancel
-                </Button>
-                <SubmitButton
-                  isLoading={isUpdatingEvent}
-                  loadingText="Saving Ceremony..."
-                  className="bg-[#C5B378] text-[#072421] font-semibold hover:bg-[#D8C78E]"
-                >
-                  Save Changes
-                </SubmitButton>
-              </div>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Event Confirmation Dialog */}
-      <Dialog open={!!deletingEvent} onOpenChange={(open) => { if (!open && !isDeletingEvent) setDeletingEvent(null); }}>
-        <DialogContent
-          onPointerDownOutside={(e) => { if (isDeletingEvent) e.preventDefault(); }}
-          onEscapeKeyDown={(e) => { if (isDeletingEvent) e.preventDefault(); }}
-          className="w-[95vw] max-h-[92dvh] border-rose-500/30 bg-[#072421] text-[#E6ECEB] max-w-lg p-6"
-        >
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-rose-300 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-rose-400" />
-              Confirm Ceremony Deletion
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#E6ECEB]/80 pt-2">
-              Are you sure you want to permanently delete ceremony{' '}
-              <strong className="text-white">&quot;{deletingEvent?.name}&quot;</strong> (
-              {deletingEvent?.id})? Packages currently tagged to this event will retain their
-              packages, but the ceremony header will be removed.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter className="mt-4 flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isDeletingEvent}
-              onClick={() => setDeletingEvent(null)}
-              className="border-[#C5B378]/30 text-[#E6ECEB] hover:bg-[#092E2B]"
-            >
-              Cancel
-            </Button>
-            <SubmitButton
-              variant="destructive"
-              isLoading={isDeletingEvent}
-              loadingText="Deleting Ceremony..."
-              onClick={handleConfirmDeleteEvent}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
-            >
-              Delete Ceremony
-            </SubmitButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Package Preview Modal */}
       <Dialog
@@ -2017,7 +1725,7 @@ export function AdminPackagesModule() {
                         Featured
                       </Badge>
                     )}
-                    <span className="ml-auto font-mono text-lg font-bold text-white">
+                    <span className="ml-auto text-lg font-semibold tabular-nums text-white">
                       {formatINR(price)}
                     </span>
                   </div>
@@ -2068,41 +1776,6 @@ export function AdminPackagesModule() {
                     )}
                   </section>
 
-                  {viewingPackage.availableAddons?.length ? (
-                    <section className="space-y-2">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                        Available add-ons
-                      </h3>
-                      <div className="divide-y divide-[#C5B378]/15 rounded-lg border border-[#C5B378]/20 bg-[#051C1A] px-3">
-                        {viewingPackage.availableAddons.map((addon) => {
-                          const service = services.find((entry) => entry.slug === addon.serviceSlug);
-                          if (!service) return null;
-                          const { unitPrice, total, durationTier: itemTier } = calculatePackageAddonPrice(
-                            addon,
-                            viewingPackage,
-                            services
-                          );
-                          return (
-                            <div key={addon.serviceSlug} className="flex items-center justify-between gap-3 py-2 text-sm">
-                              <span className="flex flex-wrap items-center gap-2">
-                                {englishOnlyName(addon.label || service.name)} × {addon.defaultQuantity ?? 1}
-                                {service.pricingType === 'tiered' && (
-                                  <Badge className="border border-[#C5B378]/30 bg-[#072421] text-[10px] text-[#D8C78E]">
-                                    {DURATION_TIER_BADGE_LABELS[itemTier]}
-                                  </Badge>
-                                )}
-                              </span>
-                              <span className="text-right font-mono text-[#D8C78E]">
-                                +{formatINR(total)}
-                                {service.pricingType === 'per_unit' && ` · ${formatINR(unitPrice)} / ${service.unitLabel}`}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  ) : null}
-
                   <section className="space-y-2">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
                       Deliverables & inclusions
@@ -2132,7 +1805,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
-          className="max-h-[92dvh] w-[95vw] max-w-3xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-5xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-4 sm:p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -2212,13 +1885,21 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <EventSelector
-                  id="edit-package-event"
-                  label="Linked Ceremony / Event"
+                <label className="text-xs font-medium text-[#D8C78E]">Event ID *</label>
+                <input
+                  type="text"
+                  required
+                  list="edit-package-event-options"
                   value={editEventId}
-                  onChange={(selectedId) => setEditEventId(selectedId)}
-                  includeInactive={true}
+                  onChange={(e) => handleEditEventIdChange(e.target.value)}
+                  placeholder="e.g. wedding or haldi-sangeet"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
+                <datalist id="edit-package-event-options">
+                  {dynamicEvents.map((event) => (
+                    <option key={event.id} value={event.id}>{event.name}</option>
+                  ))}
+                </datalist>
               </div>
 
               <div className="space-y-1">
@@ -2234,7 +1915,33 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Event Category *</label>
+                <select
+                  value={editEventCategory}
+                  onChange={(e) => setEditEventCategory(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                >
+                  {EVENT_CATEGORY_GROUPS.map((category) => (
+                    <option key={category.id} value={category.id}>{category.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Event Order *</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  value={editEventSortOrder}
+                  onChange={(e) => setEditEventSortOrder(Number(e.target.value))}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Sort Order (1 = Essential, 2 = Signature, 3 = Premium)</label>
                 <input
@@ -2274,8 +1981,8 @@ export function AdminPackagesModule() {
                     <Film className="h-3.5 w-3.5 text-[#D8C78E]" />
                     Deliverables
                   </label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={4}
                     value={editDeliverables.Deliverables || ''}
                     onChange={(e) =>
                       setEditDeliverables((prev) => ({
@@ -2284,7 +1991,7 @@ export function AdminPackagesModule() {
                       }))
                     }
                     placeholder="e.g. Edited film, USB drive, framed prints"
-                    className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                    className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
                   />
                 </div>
 
@@ -2310,8 +2017,8 @@ export function AdminPackagesModule() {
                           Remove
                         </button>
                       </div>
-                      <input
-                        type="text"
+                      <textarea
+                      rows={4}
                         value={customValue || ''}
                         onChange={(e) =>
                           setEditDeliverables((prev) => ({
@@ -2319,7 +2026,7 @@ export function AdminPackagesModule() {
                             [customKey]: e.target.value,
                           }))
                         }
-                        className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
                       />
                     </div>
                   ))}
@@ -2329,7 +2036,7 @@ export function AdminPackagesModule() {
                   <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
                     + Add Dynamic Category
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <input
                       type="text"
                       value={editCustomCategoryInput}
@@ -2337,12 +2044,12 @@ export function AdminPackagesModule() {
                       placeholder="Category name (e.g. Drone & Aerial)"
                       className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                     />
-                    <input
-                      type="text"
+                    <textarea
+                      rows={2}
                       value={editCustomDetailInput}
                       onChange={(e) => setEditCustomDetailInput(e.target.value)}
                       placeholder="Details / Inclusions"
-                      className="h-8 flex-[2] rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                     />
                     <Button
                       type="button"
@@ -2421,7 +2128,7 @@ export function AdminPackagesModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault(); }}
-          className="max-h-[92dvh] w-[95vw] max-w-3xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-6 space-y-4"
+          className="max-h-[92dvh] w-[95vw] max-w-5xl overflow-y-auto border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] p-4 sm:p-6 space-y-4"
         >
           <DialogHeader>
             <DialogTitle className="font-serif text-xl font-bold text-white flex items-center gap-2">
@@ -2429,7 +2136,7 @@ export function AdminPackagesModule() {
               Add New Photography Package
             </DialogTitle>
             <DialogDescription className="text-xs text-[#E6ECEB]/70">
-              Add a photography package under a selected ceremony and tier.
+              Add a photography package under a selected event and tier.
             </DialogDescription>
           </DialogHeader>
 
@@ -2502,13 +2209,21 @@ export function AdminPackagesModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <EventSelector
-                  id="new-package-event"
-                  label="Linked Ceremony / Event"
+                <label className="text-xs font-medium text-[#D8C78E]">Event ID *</label>
+                <input
+                  type="text"
+                  required
+                  list="new-package-event-options"
                   value={newEventId}
-                  onChange={(selectedId) => setNewEventId(selectedId)}
-                  includeInactive={true}
+                  onChange={(e) => handleNewEventIdChange(e.target.value)}
+                  placeholder="e.g. wedding or haldi-sangeet"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
+                <datalist id="new-package-event-options">
+                  {dynamicEvents.map((event) => (
+                    <option key={event.id} value={event.id}>{event.name}</option>
+                  ))}
+                </datalist>
               </div>
 
               <div className="space-y-1">
@@ -2524,7 +2239,39 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Event Category *</label>
+                <select
+                  value={newEventCategory}
+                  onChange={(e) => {
+                    const category = e.target.value;
+                    setNewEventCategory(category);
+                    if (!dynamicEvents.some((event) => event.id === newEventId.trim())) {
+                      setNewEventSortOrder(getNextEventSortOrder(category));
+                    }
+                  }}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                >
+                  {EVENT_CATEGORY_GROUPS.map((category) => (
+                    <option key={category.id} value={category.id}>{category.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#D8C78E]">Event Order *</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  value={newEventSortOrder}
+                  onChange={(e) => setNewEventSortOrder(Number(e.target.value))}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 text-sm text-white font-mono focus:border-[#D8C78E] focus:outline-none"
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-medium text-[#D8C78E]">Sort Order (1 = Essential, 2 = Signature, 3 = Premium)</label>
                 <input
@@ -2564,8 +2311,8 @@ export function AdminPackagesModule() {
                     <Film className="h-3.5 w-3.5 text-[#D8C78E]" />
                     Deliverables
                   </label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={4}
                     value={newDeliverables.Deliverables || ''}
                     onChange={(e) =>
                       setNewDeliverables((prev) => ({
@@ -2574,7 +2321,7 @@ export function AdminPackagesModule() {
                       }))
                     }
                     placeholder="e.g. Edited film, USB drive, framed prints"
-                    className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                    className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
                   />
                 </div>
 
@@ -2600,8 +2347,8 @@ export function AdminPackagesModule() {
                           Remove
                         </button>
                       </div>
-                      <input
-                        type="text"
+                        <textarea
+                          rows={4}
                         value={customValue || ''}
                         onChange={(e) =>
                           setNewDeliverables((prev) => ({
@@ -2609,7 +2356,7 @@ export function AdminPackagesModule() {
                             [customKey]: e.target.value,
                           }))
                         }
-                        className="h-9 w-full rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
                       />
                     </div>
                   ))}
@@ -2619,7 +2366,7 @@ export function AdminPackagesModule() {
                   <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
                     + Add Dynamic Category
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <input
                       type="text"
                       value={newCustomCategoryInput}
@@ -2627,12 +2374,12 @@ export function AdminPackagesModule() {
                       placeholder="Category name (e.g. Drone & Aerial)"
                       className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                     />
-                    <input
-                      type="text"
+                    <textarea
+                      rows={2}
                       value={newCustomDetailInput}
                       onChange={(e) => setNewCustomDetailInput(e.target.value)}
                       placeholder="Details / Inclusions"
-                      className="h-8 flex-[2] rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                     />
                     <Button
                       type="button"

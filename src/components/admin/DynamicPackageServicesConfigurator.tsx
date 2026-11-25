@@ -13,7 +13,6 @@ import {
   StudioService,
 } from '@/src/types/studio';
 import {
-  calculatePackageAddonPrice,
   calculatePackageBasePrice,
   DURATION_TIER_LABELS,
   resolveServicePrice,
@@ -116,7 +115,6 @@ export function DynamicPackageServicesConfigurator({
       onChangeAvailableAddons(
         availableAddons.filter((item) => item.serviceSlug !== svc.slug)
       );
-
     }
   };
 
@@ -127,46 +125,6 @@ export function DynamicPackageServicesConfigurator({
     const qty = Math.max(minimum, newQty);
     onChangeIncludedServices(
       includedServices.map((i) => (i.serviceSlug === slug ? { ...i, quantity: qty } : i))
-    );
-  };
-
-  const handleToggleAddon = (svc: StudioService) => {
-    const existing = availableAddons.find((item) => item.serviceSlug === svc.slug);
-    onChangeAvailableAddons(
-      existing
-        ? availableAddons.filter((item) => item.serviceSlug !== svc.slug)
-        : [
-            ...availableAddons,
-            {
-              serviceSlug: svc.slug,
-              defaultQuantity:
-                svc.pricingType === 'per_unit'
-                  ? Math.max(svc.minQuantity || 1, svc.slug === 'photo-album' ? 30 : 1)
-                  : 1,
-              durationTier,
-              label: svc.name,
-            },
-          ]
-    );
-  };
-
-  const handleAddonQuantity = (slug: string, defaultQuantity: number) => {
-    const service = activeServices.find((item) => item.slug === slug);
-    const minimum = service?.pricingType === 'per_unit' ? service.minQuantity || 1 : 1;
-    onChangeAvailableAddons(
-      availableAddons.map((item) =>
-        item.serviceSlug === slug
-          ? { ...item, defaultQuantity: Math.max(minimum, defaultQuantity) }
-          : item
-      )
-    );
-  };
-
-  const handleAddonTier = (slug: string, itemTier: DurationTier) => {
-    onChangeAvailableAddons(
-      availableAddons.map((item) =>
-        item.serviceSlug === slug ? { ...item, durationTier: itemTier } : item
-      )
     );
   };
 
@@ -387,94 +345,6 @@ export function DynamicPackageServicesConfigurator({
               </div>
             );
           })}
-        </div>
-      </div>
-
-      <div className="space-y-2.5 bg-[#051C1A] p-4 rounded-lg border border-[#C5B378]/20">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E] block">
-            Available Add-ons ({availableAddons.length} Selected)
-          </span>
-          <p className="text-[11px] text-[#E6ECEB]/60">
-            Optional services retain their own duration tier and live catalog price.
-          </p>
-        </div>
-        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-          {activeServices
-            .filter((service) => !includedSlugSet.has(service.slug))
-            .map((service) => {
-              const addon = availableAddons.find((item) => item.serviceSlug === service.slug);
-              const quantity =
-                addon?.defaultQuantity ??
-                (service.pricingType === 'per_unit' ? Math.max(service.minQuantity || 1, 1) : 1);
-              const price = calculatePackageAddonPrice(
-                addon || { serviceSlug: service.slug, defaultQuantity: quantity, durationTier },
-                { durationTier },
-                activeServices,
-                durationTier
-              );
-              return (
-                <div
-                  key={service.slug}
-                  className={`flex flex-wrap items-center gap-2 rounded-md border p-2.5 ${
-                    addon
-                      ? 'border-[#D8C78E] bg-[#0E423E]'
-                      : 'border-[#C5B378]/20 bg-[#092E2B]/50'
-                  }`}
-                >
-                  <label className="flex min-w-[150px] flex-1 items-center gap-2 text-xs text-white">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(addon)}
-                      onChange={() => handleToggleAddon(service)}
-                      className="h-4 w-4 accent-[#C5B378]"
-                    />
-                    {englishOnlyName(service.name)}
-                  </label>
-                  {addon && (
-                    <>
-                      <div className="flex items-center rounded border border-[#C5B378]/35 bg-[#072421]">
-                        <button
-                          type="button"
-                          aria-label={`Decrease ${englishOnlyName(service.name)} add-on quantity`}
-                          onClick={() =>
-                            handleAddonQuantity(service.slug, quantity - (service.pricingType === 'per_unit' ? 5 : 1))
-                          }
-                          disabled={quantity <= (service.pricingType === 'per_unit' ? service.minQuantity || 1 : 1)}
-                          className="px-2 py-1 text-xs text-[#D8C78E] disabled:opacity-30"
-                        >−</button>
-                        <span className="border-x border-[#C5B378]/25 px-2 py-1 text-[10px] text-white">
-                          {quantity} {service.unitLabel}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Increase ${englishOnlyName(service.name)} add-on quantity`}
-                          onClick={() =>
-                            handleAddonQuantity(service.slug, quantity + (service.pricingType === 'per_unit' ? 5 : 1))
-                          }
-                          className="px-2 py-1 text-xs text-[#D8C78E]"
-                        >+</button>
-                      </div>
-                      {service.pricingType === 'tiered' && (
-                        <select
-                          aria-label={`${englishOnlyName(service.name)} add-on duration tier`}
-                          value={price.durationTier}
-                          onChange={(event) => handleAddonTier(service.slug, event.target.value as DurationTier)}
-                          className="h-8 rounded border border-[#C5B378]/35 bg-[#072421] px-2 text-[10px] text-white"
-                        >
-                          <option value="threeHours">3 Hours</option>
-                          <option value="halfDay">Half Day</option>
-                          <option value="fullDay">Full Day</option>
-                        </select>
-                      )}
-                      <span className="font-mono text-[11px] font-bold text-[#D8C78E]">
-                        +{formatINR(price.total)}
-                      </span>
-                    </>
-                  )}
-                </div>
-              );
-            })}
         </div>
       </div>
 

@@ -81,7 +81,6 @@ export function AdminScheduleModule() {
     bookings,
     packages,
     services,
-    events,
     eventProjects,
     upsertCalendarEntry,
     removeCalendarEntry,
