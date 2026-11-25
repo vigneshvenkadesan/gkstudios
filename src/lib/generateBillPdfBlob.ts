@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { StudioBill } from '@/src/types/studio';
+import { OptedServiceSnapshot, StudioBill } from '@/src/types/studio';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import {
   buildWhatsAppUrl,
@@ -18,6 +18,58 @@ interface BillTermItem {
     en?: string;
     ta?: string;
   };
+}
+
+export interface StudioQuotePdfData {
+  quoteNumber: string;
+  clientName: string;
+  clientPhone: string;
+  eventName: string;
+  eventDate: string;
+  eventTime: string;
+  schedulePlan: string;
+  endDate?: string;
+  venue: string;
+  packageName: string;
+  totalAmount: number;
+  optedServices: OptedServiceSnapshot[];
+  deliverables: Array<{ category: string; text: string }>;
+}
+
+const QUOTE_TERMS = [
+  {
+    before: 'Select your album photos within ',
+    emphasis: '7 days',
+    after: ' so we can begin production promptly.',
+  },
+  {
+    before: 'We securely back up your event files for ',
+    emphasis: '3 months',
+    after: ' after the event.',
+  },
+  {
+    before: 'Your package includes the listed album sheets. Add extras during selection for ',
+    emphasis: '₹300 per sheet',
+    after: '; we add the cost only for sheets you choose.',
+  },
+  {
+    before: 'Our transparent payment plan is ',
+    emphasis: '20% · 60% · 20%',
+    after: ': 20% at least 1 month before, 60% during the event, and 20% after delivery.',
+  },
+];
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[character];
+  });
 }
 
 /**
@@ -465,6 +517,301 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
       document.body.removeChild(container);
     }
   }
+}
+
+export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<Blob> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new Error('PDF generation must be executed in a browser context.');
+  }
+
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '794px';
+  container.style.backgroundColor = '#ffffff';
+  container.style.zIndex = '-9999';
+  container.style.color = '#1e293b';
+  container.style.fontFamily =
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", sans-serif';
+
+  const pageStyle =
+    'width:794px; min-height:1120px; padding:36px 40px; box-sizing:border-box; background:#fff; display:flex; flex-direction:column; justify-content:space-between;';
+  const page1 = document.createElement('div');
+  page1.style.cssText = pageStyle;
+  const page2 = document.createElement('div');
+  page2.style.cssText = pageStyle;
+  const clientName = escapeHtml(quote.clientName);
+  const clientPhone = escapeHtml(quote.clientPhone);
+  const eventName = escapeHtml(quote.eventName);
+  const eventDate = escapeHtml(formatDateDisplay(quote.eventDate) || quote.eventDate);
+  const eventTime = escapeHtml(quote.eventTime || 'To be confirmed');
+  const schedulePlan = escapeHtml(quote.schedulePlan);
+  const endDate = quote.endDate
+    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Through:</strong> ${escapeHtml(formatDateDisplay(quote.endDate) || quote.endDate)}</p>`
+    : '';
+  const venue = escapeHtml(quote.venue);
+  const packageName = escapeHtml(quote.packageName);
+  const quoteNumber = escapeHtml(quote.quoteNumber);
+  const quoteDate = escapeHtml(formatDateDisplay(new Date().toISOString().slice(0, 10)));
+  const amount = Math.max(0, Number(quote.totalAmount) || 0);
+  const advanceAmount = Math.round(amount * 0.2);
+  const eventAmount = Math.round(amount * 0.6);
+  const finalAmount = amount - advanceAmount - eventAmount;
+
+  page1.innerHTML = `
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #092E2B;padding-bottom:14px;margin-bottom:16px;">
+        <div>
+          <h1 style="margin:0;font-size:26px;font-weight:800;color:#072421;font-family:serif;">GK STUDIOS</h1>
+          <p style="margin:4px 0 0;font-size:11px;color:#334155;">${escapeHtml(STUDIO_INFO.address)}</p>
+          <p style="margin:3px 0 0;font-size:11px;color:#475569;">Phone: +91 ${escapeHtml(STUDIO_INFO.phone)} · Email: ${escapeHtml(STUDIO_INFO.email)}</p>
+        </div>
+        <div style="text-align:right;background:#f8fafc;border:1px solid #e2e8f0;padding:9px 12px;border-radius:4px;min-width:190px;">
+          <div style="background:#092E2B;color:#F4E8C1;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;padding:4px 9px;border-radius:3px;display:inline-block;">OFFICIAL QUOTATION</div>
+          <p style="margin:6px 0 0;font-family:monospace;font-size:13px;font-weight:800;color:#072421;">${quoteNumber}</p>
+          <p style="margin:3px 0 0;font-size:10px;color:#475569;"><strong>Quote Date:</strong> ${quoteDate}</p>
+          <p style="margin:4px 0 0;font-size:10px;font-weight:700;color:#b45309;">No payment received · ₹0 paid</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:10px 12px;">
+          <h4 style="margin:0 0 6px;font-size:10px;font-weight:800;text-transform:uppercase;color:#072421;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">Prepared For</h4>
+          <p style="margin:0;font-size:12px;font-weight:700;color:#0f172a;">${clientName}</p>
+          <p style="margin:3px 0 0;font-size:10px;color:#334155;">WhatsApp: +91 ${clientPhone}</p>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:10px 12px;">
+          <h4 style="margin:0 0 6px;font-size:10px;font-weight:800;text-transform:uppercase;color:#072421;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">Event Details</h4>
+          <p style="margin:0;font-size:12px;font-weight:700;color:#0f172a;">${eventName}</p>
+          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Date & Time:</strong> ${eventDate} · ${eventTime}</p>
+          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Coverage:</strong> ${schedulePlan}</p>
+          ${endDate}
+          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Venue:</strong> ${venue}</p>
+          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Package:</strong> ${packageName}</p>
+        </div>
+      </div>
+
+      <div style="border:2px solid #C5B378;border-radius:5px;padding:11px 13px;background:#fffcf2;margin-bottom:13px;">
+        <h2 style="margin:0 0 8px;font-size:12px;font-weight:900;color:#072421;text-transform:uppercase;letter-spacing:.5px;">Our Commitments & Payment Plan</h2>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${QUOTE_TERMS.map((term, index) => `
+            <div style="display:flex;gap:7px;align-items:flex-start;background:#fff;border-left:3px solid #C5B378;padding:6px 8px;">
+              <span style="font-size:10px;font-weight:900;color:#967d45;">${index + 1}.</span>
+              <span style="font-size:9.5px;line-height:1.35;color:#334155;">${escapeHtml(term.before)}<strong style="color:#072421;">${escapeHtml(term.emphasis)}</strong>${escapeHtml(term.after)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="border:2px solid #092E2B;border-radius:5px;overflow:hidden;margin-bottom:11px;">
+        <div style="background:#092E2B;color:#fff;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;">Final Quoted Amount</span>
+          <span style="font-size:19px;font-family:serif;font-weight:900;color:#F4E8C1;">${formatINR(amount)}</span>
+        </div>
+        <div style="padding:8px 11px;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;font-size:10px;">
+          <span style="font-weight:700;color:#334155;">Amount paid to date</span>
+          <span style="font-family:monospace;font-weight:900;color:#b45309;">${formatINR(0)} · No payment received</span>
+        </div>
+      </div>
+
+      <div style="border:1px solid #cbd5e1;border-radius:4px;overflow:hidden;">
+        <div style="padding:7px 10px;background:#f1f5f9;font-size:10px;font-weight:800;color:#072421;text-transform:uppercase;">Payment Schedule · Based on quoted amount</div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px;">
+          <tbody>
+            <tr style="border-top:1px solid #e2e8f0;"><td style="padding:6px 10px;color:#334155;">20% · At least one month before the event</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(advanceAmount)}</td></tr>
+            <tr style="border-top:1px solid #e2e8f0;background:#f8fafc;"><td style="padding:6px 10px;color:#334155;">60% · During the event</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(eventAmount)}</td></tr>
+            <tr style="border-top:1px solid #e2e8f0;"><td style="padding:6px 10px;color:#334155;">20% · After delivery</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(finalAmount)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div style="border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;">
+      <span>GK STUDIOS · Panruti, Tamil Nadu · +91 ${escapeHtml(STUDIO_INFO.phone)}</span>
+      <span style="font-weight:700;color:#072421;">Page 1 of 3 · Quotation</span>
+    </div>
+  `;
+
+  const servicesHtml = quote.optedServices.length > 0
+    ? quote.optedServices.map((service) => `
+        <tr style="border-top:1px solid #e2e8f0;">
+          <td style="padding:8px 10px;font-weight:700;color:#1e293b;">${escapeHtml(service.name)}</td>
+          <td style="padding:8px 10px;text-align:center;color:#475569;">${service.quantity} ${escapeHtml(service.unitLabel)}${service.quantity === 1 ? '' : 's'}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="2" style="padding:10px;color:#64748b;">No individual services were listed.</td></tr>';
+  const deliverablesHtml = quote.deliverables.length > 0
+    ? quote.deliverables.map((item) => `
+        <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;">
+          <p style="margin:0 0 3px;font-size:10px;font-weight:800;color:#072421;">${escapeHtml(item.category)}</p>
+          <p style="margin:0;font-size:10px;line-height:1.4;color:#475569;">${escapeHtml(item.text)}</p>
+        </div>
+      `).join('')
+    : '<p style="margin:0;color:#64748b;font-size:10px;">No additional deliverables listed.</p>';
+
+  page2.innerHTML = `
+    <div>
+      <div style="border-bottom:2px solid #092E2B;padding-bottom:11px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h2 style="margin:0;font-size:18px;font-weight:800;color:#072421;font-family:serif;">Services & Deliverables</h2>
+          <p style="margin:3px 0 0;font-size:10px;color:#64748b;">Quotation ${quoteNumber} · ${clientName} · ${eventName}</p>
+        </div>
+        <span style="font-size:10px;font-weight:800;color:#967d45;">${packageName}</span>
+      </div>
+
+      <h3 style="margin:0 0 8px;font-size:11px;font-weight:800;color:#072421;text-transform:uppercase;">Services Opted</h3>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #cbd5e1;font-size:10px;margin-bottom:18px;">
+        <thead><tr style="background:#092E2B;color:#fff;text-align:left;"><th style="padding:8px 10px;">Service</th><th style="padding:8px 10px;text-align:center;">Quantity</th></tr></thead>
+        <tbody>${servicesHtml}</tbody>
+      </table>
+
+      <h3 style="margin:0 0 8px;font-size:11px;font-weight:800;color:#072421;text-transform:uppercase;">Package Deliverables</h3>
+      <div style="display:flex;flex-direction:column;gap:7px;">${deliverablesHtml}</div>
+
+      <div style="margin-top:20px;padding:12px;border:1px solid #C5B378;border-radius:4px;background:#fffcf2;">
+        <p style="margin:0;font-size:10px;font-weight:800;color:#072421;">Quotation Summary</p>
+        <p style="margin:5px 0 0;font-size:10px;color:#475569;">Quoted total: <strong style="color:#072421;">${formatINR(amount)}</strong> · Paid: <strong style="color:#b45309;">${formatINR(0)}</strong> · Balance: <strong style="color:#072421;">${formatINR(amount)}</strong></p>
+        <p style="margin:5px 0 0;font-size:9px;color:#64748b;">This document is a quotation, not a payment receipt. Final service details and amount are subject to confirmation with GK STUDIOS.</p>
+      </div>
+    </div>
+    <div style="border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;">
+      <span>GK STUDIOS · Your Memories, Our Responsibility.</span>
+      <span style="font-weight:700;color:#072421;">Page 2 of 3 · Quotation</span>
+    </div>
+  `;
+
+  const termsPage = document.createElement('div');
+  termsPage.style.cssText = pageStyle;
+  termsPage.innerHTML = `
+    <div>
+      <div style="border-bottom:2px solid #092E2B;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h2 style="margin:0;font-size:16px;font-weight:800;color:#072421;letter-spacing:.5px;font-family:serif;">TERMS &amp; CONDITIONS / விதிமுறைகள் மற்றும் நிபந்தனைகள்</h2>
+          <p style="margin:2px 0 0;font-size:10px;color:#64748b;">GK Studios Standard Client Agreement · Official Service Guidelines (${STUDIO_TERMS_AND_CONDITIONS.length} Clauses)</p>
+        </div>
+        <span style="font-family:monospace;font-size:11px;font-weight:700;color:#072421;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 8px;border-radius:3px;">Quotation ${quoteNumber}</span>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${STUDIO_TERMS_AND_CONDITIONS.map((term, index) => {
+          const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
+          const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+          return `
+            <div style="border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
+              <p style="margin:0;font-size:10px;font-weight:700;color:#0f172a;line-height:1.3;">
+                ${index + 1}. ${escapeHtml(term.en)}${escapeHtml(titleEn)}
+              </p>
+              <p style="margin:2px 0 0;font-size:9.5px;color:#475569;line-height:1.45;">
+                ${escapeHtml(term.ta)}${escapeHtml(titleTa)}
+              </p>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div style="margin-top:14px;background:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #092E2B;border-radius:4px;padding:10px 14px;">
+        <p style="margin:0;font-size:10px;font-weight:700;color:#072421;">Client Acceptance &amp; Agreement / வாடிக்கையாளர் ஒப்புதல்:</p>
+        <p style="margin:3px 0 0;font-size:9.5px;color:#334155;line-height:1.4;">
+          By confirming your booking and payment, you agree that you have read, understood and accepted all the above terms and conditions.
+        </p>
+        <p style="margin:2px 0 0;font-size:9px;color:#64748b;line-height:1.4;">
+          முன்பதிவையும் கட்டணத்தையும் உறுதிப்படுத்துவதன் மூலம், மேலே உள்ள அனைத்து விதிமுறைகளையும் படித்து, புரிந்து, ஏற்றுக்கொண்டதாக ஒப்புக்கொள்கிறீர்கள்.
+        </p>
+      </div>
+    </div>
+    <div style="border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#64748b;">
+      <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+      <span style="font-weight:600;color:#072421;">Page 3 of 3 • Studio Terms &amp; Conditions</span>
+    </div>
+  `;
+
+  container.append(page1, page2, termsPage);
+  document.body.appendChild(container);
+
+  try {
+    const canvas1 = await html2canvas(page1, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+    const canvas2 = await html2canvas(page2, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+    const canvas3 = await html2canvas(termsPage, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    doc.addImage(canvas1.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, 210, 297);
+    doc.addPage();
+    doc.addImage(canvas2.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, 210, 297);
+    doc.addPage();
+    doc.addImage(canvas3.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, 210, 297);
+    return doc.output('blob');
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+  }
+}
+
+export async function shareQuotePdf(
+  quote: StudioQuotePdfData,
+  recipientPhone: string
+): Promise<boolean> {
+  const blob = await generateQuotePdfBlob(quote);
+  const safeQuoteNumber =
+    quote.quoteNumber.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'quotation';
+  const safeClientName =
+    quote.clientName.replace(/[<>:"/\\|?*]+/g, '_').trim().replace(/\s+/g, '_') || 'client';
+  const file = new File([blob], `${safeQuoteNumber}-${safeClientName}.pdf`, {
+    type: 'application/pdf',
+  });
+  const message = [
+    `Vanakkam ${quote.clientName}! Here is your GK STUDIOS quotation.`,
+    `Event: ${quote.eventName} · ${quote.eventDate} · ${quote.venue}`,
+    `Package: ${quote.packageName}`,
+    `Final quoted amount: ${formatINR(quote.totalAmount)} · Paid: ${formatINR(0)}`,
+    'Payment schedule, terms, services, and deliverables are included in the PDF.',
+  ].join('\n');
+
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: `GK STUDIOS Quotation ${quote.quoteNumber}`,
+        text: message,
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return false;
+      if (!(error instanceof Error && error.name === 'NotAllowedError')) throw error;
+    }
+  }
+
+  const downloadUrl = URL.createObjectURL(file);
+  const downloadLink = document.createElement('a');
+  downloadLink.href = downloadUrl;
+  downloadLink.download = file.name;
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  downloadLink.remove();
+  window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+  window.open(
+    buildWhatsAppUrl(
+      recipientPhone || STUDIO_INFO.phone,
+      `${message}\n\nPlease attach the downloaded quotation PDF.`
+    ),
+    '_blank',
+    'noopener,noreferrer'
+  );
+  return true;
 }
 
 export async function downloadBillPdf(bill: StudioBill): Promise<void> {

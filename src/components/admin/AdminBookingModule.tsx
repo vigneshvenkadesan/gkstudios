@@ -36,8 +36,13 @@ import { EventSelector } from '@/src/components/common/EventSelector';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
-import { calculateCustomizedEventPrice, calculatePackageBasePrice } from '@/src/lib/pricing';
+import {
+  calculateCustomizedEventPrice,
+  calculatePackageBasePrice,
+  sanitizePackageDeliverables,
+} from '@/src/lib/pricing';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
+import { QuotePdfActions } from '@/src/components/admin/QuotePdfActions';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { SubmitButton } from '@/src/components/ui/SubmitButton';
@@ -280,6 +285,74 @@ export function AdminBookingModule() {
   const [leadServiceTiers, setLeadServiceTiers] = useState<Record<string, DurationTier>>({});
   const [leadNotes, setLeadNotes] = useState('');
 
+  const selectedLeadPackage = packages.find((pkg) => pkg.id === leadPackageId);
+  const leadActiveItems: Array<{
+    serviceSlug: string;
+    quantity: number;
+    durationTier?: DurationTier;
+  }> = leadRequestedServices.map((service) => {
+    const serviceSlug = BOOKING_SERVICE_SLUGS[service];
+    const packageItem = selectedLeadPackage?.includedServices?.find(
+      (item) => item.serviceSlug === serviceSlug
+    );
+    return {
+      serviceSlug,
+      quantity: 1,
+      durationTier:
+        leadServiceTiers[serviceSlug] ??
+        packageItem?.durationTier ??
+        selectedLeadPackage?.durationTier ??
+        'halfDay',
+    };
+  });
+  if (selectedLeadPackage?.includedServices?.some((item) => item.serviceSlug === 'photo-album')) {
+    const album = selectedLeadPackage.includedServices.find(
+      (item) => item.serviceSlug === 'photo-album'
+    );
+    leadActiveItems.push({
+      serviceSlug: 'photo-album',
+      quantity: album?.quantity || 30,
+      durationTier: album?.durationTier ?? selectedLeadPackage.durationTier,
+    });
+  }
+  const { snapshots: leadOptedServices, total: calculatedLeadAmount } =
+    calculateCustomizedEventPrice(
+      leadActiveItems,
+      services,
+      selectedLeadPackage?.durationTier ?? 'halfDay'
+    );
+  const leadQuoteAmount =
+    Number(leadQuotedAmount) > 0 ? Number(leadQuotedAmount) : calculatedLeadAmount;
+  const leadQuote = {
+    quoteNumber: `GKS-Q-DRAFT-${leadPreferredDate.replace(/-/g, '')}-${leadPhone.replace(/\D/g, '').slice(-4) || 'LEAD'}`,
+    clientName: leadClientName.trim() || 'Prospective Client',
+    clientPhone: leadPhone.trim(),
+    eventName: englishOnlyName(leadEventType),
+    eventDate: leadPreferredDate,
+    eventTime: leadEventTime || 'To be confirmed',
+    schedulePlan: selectedLeadPackage?.duration || 'To be confirmed',
+    ...(leadEndDate ? { endDate: leadEndDate } : {}),
+    venue: leadVenue.trim() || 'To be confirmed',
+    packageName:
+      leadPackageId === CUSTOM_PACKAGE_ID
+        ? CUSTOM_PACKAGE_NAME
+        : selectedLeadPackage?.name || CUSTOM_PACKAGE_NAME,
+    totalAmount: leadQuoteAmount,
+    optedServices: leadOptedServices,
+    deliverables: Object.entries(
+      sanitizePackageDeliverables(selectedLeadPackage?.deliverables)
+    ).map(([category, text]) => ({
+      category: englishOnlyName(category),
+      text: englishOnlyName(text),
+    })),
+  };
+  const leadQuoteActionsDisabled =
+    !leadClientName.trim() ||
+    !leadPhone.trim() ||
+    !leadPreferredDate ||
+    !leadVenue.trim() ||
+    isCreatingLead;
+
   const concurrentLeadCount = useMemo(
     () =>
       bookings.filter(
@@ -498,7 +571,7 @@ export function AdminBookingModule() {
     }
   };
 
-  const handleCreateDirectLead = async (e: React.FormEvent) => {
+  const handleCreateDirectLead = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!leadClientName.trim()) {
       toast.error('Client name is required.');
@@ -517,43 +590,6 @@ export function AdminBookingModule() {
       return;
     }
 
-    const selectedPkg = packages.find((p) => p.id === leadPackageId);
-    const resolvedPackageName =
-      leadPackageId === CUSTOM_PACKAGE_ID
-        ? CUSTOM_PACKAGE_NAME
-        : selectedPkg?.name || CUSTOM_PACKAGE_NAME;
-
-    // Dynamically build historical optedServices snapshot
-    const activeItems: Array<{ serviceSlug: string; quantity: number; durationTier?: DurationTier }> = [];
-    leadRequestedServices.forEach((s) => {
-      const serviceSlug =
-        BOOKING_SERVICE_SLUGS[s];
-      const packageItem = selectedPkg?.includedServices?.find((item) => item.serviceSlug === serviceSlug);
-      activeItems.push({
-        serviceSlug,
-        quantity: 1,
-        durationTier:
-          leadServiceTiers[serviceSlug] ??
-          packageItem?.durationTier ??
-          selectedPkg?.durationTier ??
-          'halfDay',
-      });
-    });
-    if (selectedPkg?.includedServices?.some((i) => i.serviceSlug === 'photo-album')) {
-      const album = selectedPkg.includedServices.find((i) => i.serviceSlug === 'photo-album');
-      activeItems.push({
-        serviceSlug: 'photo-album',
-        quantity: album?.quantity || 30,
-        durationTier: album?.durationTier ?? selectedPkg.durationTier,
-      });
-    }
-    const { snapshots: leadOptedServices, total: computedTotal } = calculateCustomizedEventPrice(
-      activeItems,
-      services,
-      selectedPkg?.durationTier ?? 'halfDay'
-    );
-    const finalLeadAmount = Number(leadQuotedAmount) > 0 ? Number(leadQuotedAmount) : computedTotal;
-
     setIsCreatingLead(true);
     try {
       const created = await submitBooking({
@@ -565,12 +601,12 @@ export function AdminBookingModule() {
         eventTime: leadEventTime.trim() ? leadEventTime.trim() : undefined,
         venue: leadVenue.trim(),
         packageId: leadPackageId,
-        packageName: resolvedPackageName,
-        quotedAmount: finalLeadAmount,
+        packageName: leadQuote.packageName,
+        quotedAmount: leadQuoteAmount,
         requestedServices: leadRequestedServices,
-        durationTier: selectedPkg?.durationTier ?? 'halfDay',
+        durationTier: selectedLeadPackage?.durationTier ?? 'halfDay',
         optedServices: leadOptedServices,
-        totalAmount: finalLeadAmount,
+        totalAmount: leadQuoteAmount,
         notes: leadNotes.trim(),
         status: leadStatus,
         source: leadSource,
@@ -806,6 +842,63 @@ export function AdminBookingModule() {
           : '',
     planCustomizations?.shootSetting || '',
   ].filter(Boolean);
+
+  const bookingQuote = useMemo(() => {
+    if (!activeBooking) return null;
+    const matchingProposal =
+      activeBooking.proposalDraft?.packageId === editPackageId
+        ? activeBooking.proposalDraft
+        : undefined;
+    const savedOptedServices =
+      matchingProposal?.optedServices ??
+      (activeBooking.packageId === editPackageId ? activeBooking.optedServices : undefined);
+    const requestedServices =
+      matchingProposal?.requestedServices ?? activeBooking.requestedServices ?? [];
+    const serviceItems =
+      selectedPkg?.includedServices ??
+      requestedServices.map((service) => ({
+        serviceSlug: BOOKING_SERVICE_SLUGS[service],
+        quantity: 1,
+        durationTier: selectedPkg?.durationTier ?? activeBooking.durationTier ?? 'halfDay',
+      }));
+    const { snapshots } = calculateCustomizedEventPrice(
+      serviceItems,
+      services,
+      selectedPkg?.durationTier ?? activeBooking.durationTier ?? 'halfDay'
+    );
+    return {
+      quoteNumber: `GKS-Q-${activeBooking.referenceCode}`,
+      clientName: activeBooking.clientName,
+      clientPhone: activeBooking.phone,
+      eventName: englishOnlyName(activeBooking.eventType),
+      eventDate: activeBooking.preferredDate,
+      eventTime: editEventTime.trim() || activeBooking.eventTime || 'To be confirmed',
+      schedulePlan:
+        selectedPkg?.duration ||
+        (activeBooking.durationTier === 'fullDay'
+          ? 'Full Day'
+          : activeBooking.durationTier === 'threeHours'
+            ? '3 Hours'
+            : 'Half Day'),
+      ...(activeBooking.endDate ? { endDate: activeBooking.endDate } : {}),
+      venue: activeBooking.venue,
+      packageName: selectedPkg?.name || activeBooking.packageName,
+      totalAmount: Number.isFinite(editQuote)
+        ? Math.max(0, editQuote)
+        : activeBooking.quotedAmount,
+      optedServices: savedOptedServices ?? snapshots,
+      deliverables: Object.entries(
+        sanitizePackageDeliverables(
+          selectedPkg?.deliverables ??
+            matchingProposal?.packageSnapshot?.deliverables ??
+            activeBooking.packageSnapshot?.deliverables
+        )
+      ).map(([category, text]) => ({
+        category: englishOnlyName(category),
+        text: englishOnlyName(text),
+      })),
+    };
+  }, [activeBooking, editPackageId, editQuote, editEventTime, selectedPkg, services]);
 
   const handleCopyMessage = async () => {
     try {
@@ -1391,12 +1484,15 @@ export function AdminBookingModule() {
                 <label className="block text-xs font-medium text-[#D8C78E]">
                   Quoted / Estimated Amount (₹)
                 </label>
-                <input
-                  type="number"
-                  value={leadQuotedAmount}
-                  onChange={(e) => setLeadQuotedAmount(Number(e.target.value))}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white tabular-nums focus:border-[#D8C78E] focus:outline-none"
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    value={leadQuotedAmount}
+                    onChange={(e) => setLeadQuotedAmount(Number(e.target.value))}
+                    className="h-10 min-w-32 flex-1 rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white tabular-nums focus:border-[#D8C78E] focus:outline-none"
+                  />
+                  <QuotePdfActions quote={leadQuote} disabled={leadQuoteActionsDisabled} />
+                </div>
               </div>
             </div>
 
@@ -1499,6 +1595,7 @@ export function AdminBookingModule() {
               <SubmitButton
                 type="submit"
                 isLoading={isCreatingLead}
+                disabled={isCreatingLead}
                 loadingText="Creating Lead..."
                 icon={<Plus className="h-4 w-4 mr-1.5" />}
                 className="bg-[#C5B378] text-[#072421] hover:bg-[#D8C78E] font-semibold"
@@ -1718,13 +1815,18 @@ export function AdminBookingModule() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-[#D8C78E]">Quote (₹)</label>
-                  <input
-                    type="number"
-                    disabled={isProcessingAction}
-                    value={editQuote}
-                    onChange={(e) => setEditQuote(Number(e.target.value))}
-                    className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white tabular-nums focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="number"
+                      disabled={isProcessingAction}
+                      value={editQuote}
+                      onChange={(e) => setEditQuote(Number(e.target.value))}
+                      className="h-10 min-w-32 flex-1 rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white tabular-nums focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
+                    />
+                    {bookingQuote && (
+                      <QuotePdfActions quote={bookingQuote} disabled={isProcessingAction} />
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -121,8 +121,13 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
           className="flex items-center gap-1.5 sm:gap-2.5 text-left whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] rounded-sm py-1"
         >
           <GKCameraMark className="h-6 w-8 sm:h-7 sm:w-10 shrink-0" />
-          <span className="text-sm sm:text-lg font-bold tracking-[0.12em] sm:tracking-[0.2em] text-white whitespace-nowrap shrink-0">
-            GK STUDIOS
+          <span className="inline-flex flex-col items-start whitespace-nowrap leading-none">
+            <span className="text-sm sm:text-lg font-bold tracking-[0.12em] sm:tracking-[0.2em] text-white shrink-0">
+              GK STUDIOS
+            </span>
+            <span className="mt-0.5 text-[7px] sm:text-[9px] font-medium tracking-[0.08em] text-[#D8C78E]">
+              Creating Memories
+            </span>
           </span>
         </button>
 

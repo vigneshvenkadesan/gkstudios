@@ -17,7 +17,6 @@ import {
   MapPin,
   User,
   Phone,
-  FileText,
   MessageCircle,
   Send,
   Loader2,
@@ -1496,7 +1495,8 @@ export function ProposalPageClient() {
   };
 
   const saveProposalToInquiry = async (
-    actor: 'admin' | 'client'
+    actor: 'admin' | 'client',
+    acceptedTerms = actor === 'client'
   ): Promise<ProposalBookingView> => {
     if (!rawProposalToken) throw new Error('Proposal link is missing.');
     const response = await fetch(`/api/proposals/${encodeURIComponent(rawProposalToken)}`, {
@@ -1504,7 +1504,7 @@ export function ProposalPageClient() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         actor,
-        proposal: buildProposalUpdate(actor === 'client'),
+        proposal: buildProposalUpdate(acceptedTerms),
       }),
     });
     const result = (await response.json()) as { booking?: ProposalBookingView; error?: string };
