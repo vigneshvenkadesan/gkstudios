@@ -207,6 +207,8 @@ export interface StudioBill {
     tamilEventName: string; // e.g., "திருமணம்"
     eventDate: string; // e.g., "2026-12-14"
     eventTime: string; // e.g., "06:00 AM (Morning Muhurtham)"
+    eventEndDate?: string;
+    eventEndTime?: string;
     venue: string;
     schedulePlan: string; // e.g., "Full-Day / 2-Day • Morning & Evening"
   };
@@ -233,6 +235,8 @@ export interface StudioBill {
   };
   financials: {
     totalPackageAmount: number;
+    packagePrice?: number;
+    discountAmount?: number;
     amountPaidNow: number; // Amount recorded in this payment entry
     totalPaidToDate: number; // Cumulative paid including this transaction
     balanceDue: number; // Remaining balance (totalPackageAmount - totalPaidToDate)
@@ -388,7 +392,8 @@ export interface BookingRequest {
   eventType: EventCategory;
   preferredDate: string; // YYYY-MM-DD
   endDate?: string; // Optional multi-day YYYY-MM-DD
-  eventTime?: string; // Optional HH:mm
+  eventTime?: string; // Optional start time
+  eventEndTime?: string; // Optional end time
   venue: string;
   packageId: string;
   packageName: string;
@@ -434,7 +439,7 @@ export type BookingProposalUpdate = Pick<
   Partial<
     Pick<
       BookingRequest,
-      'endDate' | 'eventTime' | 'termsAccepted' | 'termsAcceptedAt' | 'termsVersion'
+      'endDate' | 'eventTime' | 'eventEndTime' | 'termsAccepted' | 'termsAcceptedAt' | 'termsVersion'
     >
   >;
 
@@ -447,6 +452,7 @@ export type ProposalBookingView = Pick<
   | 'preferredDate'
   | 'endDate'
   | 'eventTime'
+  | 'eventEndTime'
   | 'venue'
   | 'packageId'
   | 'packageName'

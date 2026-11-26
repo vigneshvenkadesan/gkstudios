@@ -44,9 +44,11 @@ import { formatINR } from '../lib/utils';
 import {
   DEFAULT_STUDIO_PACKAGES,
   DEFAULT_STUDIO_SERVICES,
+  calculateCustomizedEventPrice,
   calculatePackageBasePrice,
   calculatePackageServiceCost,
   formatServiceLineItem,
+  getPackageIncludedFeatures,
   hasValidPackageServiceDurationTiers,
   sanitizePackageDeliverables,
 } from '../lib/pricing';
@@ -580,6 +582,7 @@ function toPlainBooking(booking: BookingRequest & { createdAt?: unknown; package
     preferredDate: String(booking.preferredDate),
     ...(booking.endDate ? { endDate: String(booking.endDate) } : {}),
     ...(booking.eventTime ? { eventTime: String(booking.eventTime) } : {}),
+    ...(booking.eventEndTime ? { eventEndTime: String(booking.eventEndTime) } : {}),
     venue: String(booking.venue),
     packageId: String(booking.packageId),
     packageName: String(booking.packageName),
@@ -684,6 +687,8 @@ export async function updateBookingProposalOnServer(
       ? {
           proposalDraft: 1,
           ...(input.endDate ? {} : { endDate: 1 }),
+          ...(input.eventTime ? {} : { eventTime: 1 }),
+          ...(input.eventEndTime ? {} : { eventEndTime: 1 }),
         }
       : undefined;
   await bookings.updateOne(
@@ -767,9 +772,10 @@ function toPlainBill(b: any): StudioBill {
           basePackageName: String(b.packageDetails.basePackageName || ''),
           tierLabel: b.packageDetails.tierLabel || 'Signature',
           durationTier: b.packageDetails.durationTier || b.durationTier || undefined,
-          optedServices: Array.isArray(b.packageDetails.optedServices)
+          optedServices: Array.isArray(b.packageDetails.optedServices) &&
+            b.packageDetails.optedServices.length > 0
             ? b.packageDetails.optedServices
-            : Array.isArray(b.optedServices)
+            : Array.isArray(b.optedServices) && b.optedServices.length > 0
             ? b.optedServices
             : undefined,
           includedServices: Array.isArray(b.packageDetails.includedServices)
@@ -856,9 +862,9 @@ function toPlainBill(b: any): StudioBill {
           ta: String(term.ta || ''),
         }))
       : [],
-    optedServices: Array.isArray(b.optedServices)
+    optedServices: Array.isArray(b.optedServices) && b.optedServices.length > 0
       ? b.optedServices
-      : Array.isArray(b.packageDetails?.optedServices)
+      : Array.isArray(b.packageDetails?.optedServices) && b.packageDetails.optedServices.length > 0
       ? b.packageDetails.optedServices
       : undefined,
     createdAt: String(b.createdAt),
@@ -953,6 +959,7 @@ export async function createBookingOnServer(input: {
   preferredDate: string;
   endDate?: string;
   eventTime?: string;
+  eventEndTime?: string;
   venue: string;
   packageId: string;
   packageName?: string;
@@ -1004,6 +1011,7 @@ export async function createBookingOnServer(input: {
     preferredDate: input.preferredDate,
     endDate: input.endDate || undefined,
     eventTime: input.eventTime?.trim() || undefined,
+    eventEndTime: input.eventEndTime?.trim() || undefined,
     venue: input.venue.trim(),
     packageId: selectedPkg?.id || CUSTOM_PACKAGE_ID,
     packageName: resolvedPkgName,
@@ -1087,6 +1095,7 @@ export async function processBookingOnServer(input: {
   nextStatus: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
   blockCalendarDate?: boolean;
   eventTime?: string;
+  eventEndTime?: string;
 }): Promise<StudioState> {
   const cachedState = await getStudioState();
   const bookingsModel = await requireBookingModel();
@@ -1118,6 +1127,18 @@ export async function processBookingOnServer(input: {
     input.assignedCrew?.trim() || targetBooking.assignedCrew || 'G Krishna & Studio Unit';
   const resolvedEventTime =
     input.eventTime !== undefined ? input.eventTime.trim() : targetBooking.eventTime;
+  const resolvedEventEndTime =
+    input.eventEndTime !== undefined ? input.eventEndTime.trim() : targetBooking.eventEndTime;
+  if (
+    (!targetBooking.endDate || targetBooking.endDate === targetBooking.preferredDate) &&
+    resolvedEventTime &&
+    resolvedEventEndTime &&
+    /^\d{2}:\d{2}$/.test(resolvedEventTime) &&
+    /^\d{2}:\d{2}$/.test(resolvedEventEndTime) &&
+    resolvedEventEndTime <= resolvedEventTime
+  ) {
+    throw new Error('Event end time must be later than the start time.');
+  }
 
   const updatedBookings = state.bookings.map((b) =>
     b.id === input.bookingId
@@ -1131,6 +1152,7 @@ export async function processBookingOnServer(input: {
           acknowledgementNote: input.acknowledgementNote.trim(),
           status: input.nextStatus,
           eventTime: resolvedEventTime || undefined,
+          eventEndTime: resolvedEventEndTime || undefined,
         }
       : b
   );
@@ -1266,9 +1288,19 @@ export async function processBookingOnServer(input: {
   }
 
   const bookings = await requireBookingModel();
+  const unsetEventTimes: Record<string, 1> = {};
+  if (input.eventTime !== undefined && !resolvedEventTime) {
+    unsetEventTimes.eventTime = 1;
+  }
+  if (input.eventEndTime !== undefined && !resolvedEventEndTime) {
+    unsetEventTimes.eventEndTime = 1;
+  }
   await bookings.updateOne(
     { id: targetBookingId },
-    { $set: updatedBooking },
+    {
+      $set: updatedBooking,
+      ...(Object.keys(unsetEventTimes).length ? { $unset: unsetEventTimes } : {}),
+    },
     { upsert: true }
   );
 
@@ -1688,8 +1720,9 @@ export async function addEventPaymentOnServer(
   }
 
   const eventDate = project.eventDate || matchingBooking?.preferredDate || '';
-  const eventTime =
-    matchingBooking?.eventTime || '06:00 AM (Morning Muhurtham)';
+  const eventTime = matchingBooking?.eventTime || '';
+  const eventEndDate = project.endDate || matchingBooking?.endDate || '';
+  const eventEndTime = matchingBooking?.eventEndTime || '';
   const venue = project.venue || matchingBooking?.venue || '';
   const schedulePlan =
     matchingBooking?.notes?.includes('Plan:')
@@ -1744,6 +1777,19 @@ export async function addEventPaymentOnServer(
     state.packages?.find((p) =>
       basePackageName.toLowerCase().includes(p.name.toLowerCase())
     );
+  const savedOptedServices = [
+    project.optedServices,
+    matchingBooking?.optedServices,
+    matchingCalendarEntry?.optedServices,
+  ].find((items) => Array.isArray(items) && items.length > 0);
+  const packageServiceSnapshots = matchedPkg?.includedServices?.length
+    ? calculateCustomizedEventPrice(
+        matchedPkg.includedServices,
+        state.services?.length ? state.services : DEFAULT_STUDIO_SERVICES,
+        matchedPkg.durationTier || matchingBooking?.durationTier || 'halfDay'
+      ).snapshots
+    : [];
+  const billOptedServices = savedOptedServices || packageServiceSnapshots;
 
   // Determine tierLabel
   let tierLabel: 'Essential' | 'Signature' | 'Premium' = 'Signature';
@@ -1763,8 +1809,11 @@ export async function addEventPaymentOnServer(
   }
 
   // Base included features
-  const baseInclusions: PackageIncludedFeatures = matchedPkg?.customizer?.included
-    ? { ...matchedPkg.customizer.included }
+  const baseInclusions: PackageIncludedFeatures = matchedPkg
+    ? getPackageIncludedFeatures(
+        matchedPkg,
+        state.services?.length ? state.services : DEFAULT_STUDIO_SERVICES
+      )
     : tierLabel === 'Premium'
     ? {
         traditionalPhoto: true,
@@ -1963,6 +2012,10 @@ export async function addEventPaymentOnServer(
     0,
     (project.agreedAmount || 0) + (project.extraCharges || 0) - (project.discount || 0)
   );
+  const packagePrice = Number(
+    project.packageSnapshot?.basePrice ?? matchedPkg?.price ?? project.agreedAmount
+  ) || 0;
+  const discountAmount = Number(project.discount) || 0;
   const amountPaidNow = Number(payment.amount) || 0;
   const previousPaid = project.payments.reduce((sum, p) => sum + p.amount, 0);
   const totalPaidToDate = previousPaid + amountPaidNow;
@@ -1991,6 +2044,8 @@ export async function addEventPaymentOnServer(
       tamilEventName,
       eventDate,
       eventTime,
+      ...(eventEndDate ? { eventEndDate } : {}),
+      ...(eventEndTime ? { eventEndTime } : {}),
       venue,
       schedulePlan,
     },
@@ -1998,7 +2053,7 @@ export async function addEventPaymentOnServer(
       basePackageName,
       tierLabel,
       durationTier: project.durationTier || matchingBooking?.durationTier || matchingCalendarEntry?.durationTier,
-      optedServices: project.optedServices || matchingBooking?.optedServices || matchingCalendarEntry?.optedServices,
+      optedServices: billOptedServices,
       includedServices,
       deliverables,
       requiredCrew,
@@ -2008,6 +2063,8 @@ export async function addEventPaymentOnServer(
     },
     financials: {
       totalPackageAmount,
+      packagePrice,
+      discountAmount,
       amountPaidNow,
       totalPaidToDate,
       balanceDue,
@@ -2020,7 +2077,7 @@ export async function addEventPaymentOnServer(
       en: t.en,
       ta: t.ta,
     })),
-    optedServices: project.optedServices || matchingBooking?.optedServices || matchingCalendarEntry?.optedServices,
+    optedServices: billOptedServices,
     createdAt: new Date().toISOString(),
   };
 
@@ -2337,6 +2394,16 @@ export async function createPackageOnServer(
   );
   const hasPriceOverride = typeof input.price === 'number' && Number.isFinite(input.price);
   const price = hasPriceOverride ? Number(input.price) : calculatedPrice;
+  const sortOrder = Number.isInteger(input.sortOrder) && Number(input.sortOrder) > 0
+    ? Number(input.sortOrder)
+    : maxSort + 1;
+  const customizer = {
+    ...(input.customizer || {}),
+    included: getPackageIncludedFeatures(
+      { ...input, includedServices, sortOrder },
+      services
+    ),
+  };
 
   const newPackage: StudioPackage = {
     id,
@@ -2357,13 +2424,11 @@ export async function createPackageOnServer(
     highlighted: Boolean(input.highlighted || input.featured),
     featured: Boolean(input.featured || input.highlighted),
     deliverables: sanitizePackageDeliverables(input.deliverables),
-    customizer: input.customizer,
+    customizer,
     imageUrl: input.imageUrl?.trim() || input.image?.trim() || '',
     status: input.status === 'inactive' ? 'inactive' : 'active',
     displayOnPortfolio: input.displayOnPortfolio !== false,
-    sortOrder: Number.isInteger(input.sortOrder) && Number(input.sortOrder) > 0
-      ? Number(input.sortOrder)
-      : maxSort + 1,
+    sortOrder,
     eventSortOrder: linkedEvent.sortOrder,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2461,6 +2526,21 @@ export async function updatePackageOnServer(
     patch.duration !== undefined ? patch.duration : existing.duration,
     durationTier
   );
+  const sortOrder = patch.sortOrder !== undefined ? Number(patch.sortOrder) : existing.sortOrder;
+  const customizerSource = patch.customizer !== undefined ? patch.customizer : existing.customizer;
+  const customizer = {
+    ...(customizerSource || {}),
+    included: getPackageIncludedFeatures(
+      {
+        ...existing,
+        ...patch,
+        includedServices,
+        sortOrder,
+        customizer: customizerSource,
+      },
+      services
+    ),
+  };
 
   const updatedPackage: StudioPackage = {
     ...existing,
@@ -2496,13 +2576,13 @@ export async function updatePackageOnServer(
       patch.deliverables !== undefined
         ? sanitizePackageDeliverables(patch.deliverables)
         : sanitizePackageDeliverables(existing.deliverables),
-    customizer: patch.customizer !== undefined ? patch.customizer : existing.customizer,
+    customizer,
     status: patch.status ? (patch.status === 'inactive' ? 'inactive' : 'active') : existing.status,
     displayOnPortfolio:
       patch.displayOnPortfolio !== undefined
         ? patch.displayOnPortfolio
         : existing.displayOnPortfolio,
-    sortOrder: patch.sortOrder !== undefined ? Number(patch.sortOrder) : existing.sortOrder,
+    sortOrder,
     updatedAt: new Date().toISOString(),
   };
 

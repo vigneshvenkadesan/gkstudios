@@ -17,10 +17,6 @@ export function useEvents(options: UseEventsOptions = {}) {
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
-    setEvents(state.events);
-  }, [state.events]);
-
-  useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
     if (options.all) {

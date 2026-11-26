@@ -6,7 +6,9 @@ import {
   buildWhatsAppUrl,
   formatDateDisplay,
   formatINR,
+  getBillDisplayDeliverables,
   getBillPaymentHistory,
+  getBillServiceRateTotal,
 } from '@/src/lib/utils';
 import { STUDIO_TERMS_AND_CONDITIONS } from '@/src/config/termsAndConditions';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
@@ -29,6 +31,7 @@ export interface StudioQuotePdfData {
   eventTime: string;
   schedulePlan: string;
   endDate?: string;
+  eventEndTime?: string;
   venue: string;
   packageName: string;
   totalAmount: number;
@@ -155,7 +158,57 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
   const excludedItems = bill.packageDetails.excludedItems || [];
   const paymentHistory = getBillPaymentHistory(bill);
   const tierLabel = bill.packageDetails.tierLabel || 'Signature';
-  const optedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
+  const optedServices =
+    bill.packageDetails?.optedServices?.length ? bill.packageDetails.optedServices : bill.optedServices || [];
+  const printableDeliverables = getBillDisplayDeliverables(bill.packageDetails.deliverables);
+  const serviceRateTotal = getBillServiceRateTotal(optedServices);
+  const packagePrice = bill.financials.packagePrice ?? bill.financials.totalPackageAmount;
+  const discountAmount = bill.financials.discountAmount ?? 0;
+  const scopeRows = [
+    ...optedServices.map(
+      (service) => `
+        <tr style="border-top:1px solid #e2e8f0;">
+          <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.name))}${service.durationTier ? ` <span style="font-size:8px;color:#64748b;">(${service.durationTier === 'fullDay' ? 'Full Day' : service.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})</span>` : ''}</td>
+          <td style="padding:6px 8px;text-align:center;color:#475569;">${service.quantity} ${escapeHtml(service.unitLabel)}${service.quantity === 1 ? '' : 's'}</td>
+          <td style="padding:6px 8px;text-align:right;color:#475569;">${formatINR(service.unitPrice)}</td>
+          <td style="padding:6px 8px;text-align:right;color:#072421;font-weight:700;">${formatINR(service.total)}</td>
+        </tr>`
+    ),
+    ...(optedServices.length === 0
+      ? includedServices.map(
+          (service) => `
+            <tr style="border-top:1px solid #e2e8f0;">
+              <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.en))}${service.ta ? `<span style="display:block;color:#64748b;font-size:8px;">${escapeHtml(service.ta)}</span>` : ''}</td>
+              <td colspan="3" style="padding:6px 8px;text-align:right;color:#64748b;">Included</td>
+            </tr>`
+        )
+      : []),
+    ...printableDeliverables.map(
+      ({ category, text, isComplimentary }) => `
+        <tr style="border-top:1px solid #e2e8f0;background:${isComplimentary ? '#ecfdf5' : '#f8fafc'};">
+          <td style="padding:6px 8px;color:${isComplimentary ? '#065f46' : '#475569'};font-weight:${isComplimentary ? '700' : '400'};"><strong style="color:#072421;">${escapeHtml(englishOnlyName(category))}:</strong> ${escapeHtml(englishOnlyName(text))}${isComplimentary ? ' <strong>(Complimentary)</strong>' : ''}</td>
+          <td style="padding:6px 8px;text-align:center;color:#64748b;">—</td>
+          <td style="padding:6px 8px;text-align:right;color:#64748b;">—</td>
+          <td style="padding:6px 8px;text-align:right;color:${isComplimentary ? '#065f46' : '#64748b'};font-weight:${isComplimentary ? '700' : '400'};">${isComplimentary ? formatINR(0) : 'Included'}</td>
+        </tr>`
+    ),
+    ...(optedServices.length > 0
+      ? [`
+        <tr style="border-top:2px solid #cbd5e1;background:#f1f5f9;">
+          <td colspan="3" style="padding:7px 8px;color:#1e293b;font-weight:700;">Live Service Rates Total</td>
+          <td style="padding:7px 8px;text-align:right;color:#072421;font-weight:700;">${formatINR(serviceRateTotal)}</td>
+        </tr>`]
+      : []),
+    `
+      <tr style="border-top:1px solid #e2e8f0;">
+        <td colspan="3" style="padding:7px 8px;color:#1e293b;font-weight:700;">Selected Package Price</td>
+        <td style="padding:7px 8px;text-align:right;color:#072421;font-weight:700;">${formatINR(packagePrice)}</td>
+      </tr>
+      <tr style="border-top:1px solid #e2e8f0;">
+        <td colspan="3" style="padding:7px 8px;color:#475569;font-weight:700;">Discount</td>
+        <td style="padding:7px 8px;text-align:right;color:#b91c1c;font-weight:700;">-${formatINR(discountAmount)}</td>
+      </tr>`,
+  ].join('') || '<tr><td colspan="4" style="padding:8px;color:#64748b;">No services or deliverables listed.</td></tr>';
 
   // ═══════════════════════════════════════════════════════════════════════
   // PAGE 1: OFFICIAL PAYMENT RECEIPT & INVOICE STATEMENT
@@ -231,8 +284,13 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
             ${englishOnlyName(bill.eventDetails.eventName)}
           </p>
           <p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;">
-            <strong>Date & Slot:</strong> ${bill.eventDetails.eventDate} ${bill.eventDetails.eventTime ? `(${bill.eventDetails.eventTime})` : ''}
+            <strong>Event Start:</strong> ${escapeHtml(bill.eventDetails.eventDate)} ${bill.eventDetails.eventTime ? `(${escapeHtml(bill.eventDetails.eventTime)})` : ''}
           </p>
+          ${
+            bill.eventDetails.eventEndDate || bill.eventDetails.eventEndTime
+              ? `<p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;"><strong>Event End:</strong> ${escapeHtml(bill.eventDetails.eventEndDate || bill.eventDetails.eventDate)} ${bill.eventDetails.eventEndTime ? `(${escapeHtml(bill.eventDetails.eventEndTime)})` : ''}</p>`
+              : ''
+          }
           <p style="margin: 3px 0 0 0; font-size: 10px; color: #64748b;">
             <strong>Venue:</strong> ${bill.eventDetails.venue || 'To be updated'}
           </p>
@@ -257,63 +315,17 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
           </div>
         </div>
 
-        <!-- Itemized Confirmed Services (Single Source of Truth) -->
-        ${
-          optedServices.length > 0
-            ? `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 10px; color: #334155;">
-                ${optedServices
-                  .map(
-                    (svc) =>
-                      `<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; line-height: 1.3; background: #ffffff; border: 1px solid #f1f5f9; padding: 4px 6px; border-radius: 3px;">
-                        <div style="display: flex; align-items: flex-start; gap: 4px;">
-                          <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
-                          <div>
-                            <span style="font-weight: 700; color: #1e293b;">${englishOnlyName(svc.name)}</span>
-                            <span style="display: block; font-size: 8.5px; color: #64748b;">
-                              ${svc.quantity} ${svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹${svc.unitPrice.toLocaleString('en-IN')}
-                              ${svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}
-                            </span>
-                          </div>
-                        </div>
-                        <span style="font-family: monospace; font-weight: 700; color: #072421; font-size: 10.5px;">
-                          ₹${svc.total.toLocaleString('en-IN')}
-                        </span>
-                      </div>`
-                  )
-                  .join('')}
-              </div>`
-            : `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 10px; color: #334155;">
-                ${includedServices
-                  .map(
-                    (svc) =>
-                      `<div style="display: flex; align-items: flex-start; gap: 6px; line-height: 1.3;">
-                        <span style="color: #059669; font-weight: bold; font-size: 11px; margin-top: -1px;">✓</span>
-                        <div>
-                          <span style="font-weight: 600; color: #1e293b;">${svc.en}</span>
-                          ${
-                            svc.ta
-                              ? `<span style="display: block; font-size: 9px; color: #64748b; font-family: 'Noto Sans Tamil', 'Latha', sans-serif;">${svc.ta}</span>`
-                              : ''
-                          }
-                        </div>
-                      </div>`
-                  )
-                  .join('')}
-              </div>`
-        }
-
-        ${
-          bill.packageDetails.deliverables && Object.keys(bill.packageDetails.deliverables).length > 0
-            ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dotted #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 9.5px; color: #475569;">
-                ${Object.entries(bill.packageDetails.deliverables)
-                  .map(
-                    ([cat, text]) =>
-                      `<div><strong style="color: #072421;">${cat}:</strong> ${text}</div>`
-                  )
-                  .join('')}
-              </div>`
-            : ''
-        }
+        <table style="width:100%;border-collapse:collapse;font-size:9px;color:#334155;">
+          <thead>
+            <tr style="background:#f1f5f9;text-align:left;color:#072421;">
+              <th style="padding:6px 8px;">Service / Deliverable</th>
+              <th style="padding:6px 8px;text-align:center;">Quantity</th>
+              <th style="padding:6px 8px;text-align:right;">Unit Price</th>
+              <th style="padding:6px 8px;text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${scopeRows}</tbody>
+        </table>
 
         ${
           excludedItems.length > 0
@@ -575,7 +587,9 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
   const eventTime = escapeHtml(quote.eventTime || 'To be confirmed');
   const schedulePlan = escapeHtml(quote.schedulePlan);
   const endDate = quote.endDate
-    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Through:</strong> ${escapeHtml(formatDateDisplay(quote.endDate) || quote.endDate)}</p>`
+    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event End:</strong> ${escapeHtml(formatDateDisplay(quote.endDate) || quote.endDate)}${quote.eventEndTime ? ` · ${escapeHtml(quote.eventEndTime)}` : ''}</p>`
+    : quote.eventEndTime
+    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event End Time:</strong> ${escapeHtml(quote.eventEndTime)}</p>`
     : '';
   const venue = escapeHtml(quote.venue);
   const packageName = escapeHtml(quote.packageName);
@@ -611,7 +625,7 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:10px 12px;">
           <h4 style="margin:0 0 6px;font-size:10px;font-weight:800;text-transform:uppercase;color:#072421;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">Event Details</h4>
           <p style="margin:0;font-size:12px;font-weight:700;color:#0f172a;">${eventName}</p>
-          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Date & Time:</strong> ${eventDate} · ${eventTime}</p>
+          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event Start:</strong> ${eventDate} · ${eventTime}</p>
           <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Coverage:</strong> ${schedulePlan}</p>
           ${endDate}
           <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Venue:</strong> ${venue}</p>
@@ -659,22 +673,21 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
     </div>
   `;
 
-  const servicesHtml = quote.optedServices.length > 0
-    ? quote.optedServices.map((service) => `
+  const scopeRows = [
+    ...quote.optedServices.map((service) => `
         <tr style="border-top:1px solid #e2e8f0;">
           <td style="padding:8px 10px;font-weight:700;color:#1e293b;">${escapeHtml(service.name)}</td>
           <td style="padding:8px 10px;text-align:center;color:#475569;">${service.quantity} ${escapeHtml(service.unitLabel)}${service.quantity === 1 ? '' : 's'}</td>
+          <td style="padding:8px 10px;text-align:right;color:#475569;">${formatINR(service.unitPrice)}</td>
+          <td style="padding:8px 10px;text-align:right;font-weight:700;color:#072421;">${formatINR(service.total)}</td>
         </tr>
-      `).join('')
-    : '<tr><td colspan="2" style="padding:10px;color:#64748b;">No individual services were listed.</td></tr>';
-  const deliverablesHtml = quote.deliverables.length > 0
-    ? quote.deliverables.map((item) => `
-        <div style="padding:8px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;">
-          <p style="margin:0 0 3px;font-size:10px;font-weight:800;color:#072421;">${escapeHtml(item.category)}</p>
-          <p style="margin:0;font-size:10px;line-height:1.4;color:#475569;">${escapeHtml(item.text)}</p>
-        </div>
-      `).join('')
-    : '<p style="margin:0;color:#64748b;font-size:10px;">No additional deliverables listed.</p>';
+      `),
+    ...quote.deliverables.map((item) => `
+        <tr style="border-top:1px solid #e2e8f0;background:#f8fafc;">
+          <td colspan="4" style="padding:8px 10px;color:#475569;"><strong style="color:#072421;">${escapeHtml(item.category)}:</strong> ${escapeHtml(item.text)} <span style="font-weight:700;color:#64748b;">(Included)</span></td>
+        </tr>
+      `),
+  ].join('') || '<tr><td colspan="4" style="padding:10px;color:#64748b;">No services or custom deliverables were listed.</td></tr>';
 
   page2.innerHTML = `
     <div>
@@ -686,14 +699,11 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
         <span style="font-size:10px;font-weight:800;color:#967d45;">${packageName}</span>
       </div>
 
-      <h3 style="margin:0 0 8px;font-size:11px;font-weight:800;color:#072421;text-transform:uppercase;">Services Opted</h3>
+      <h3 style="margin:0 0 8px;font-size:11px;font-weight:800;color:#072421;text-transform:uppercase;">Services & Custom Deliverables</h3>
       <table style="width:100%;border-collapse:collapse;border:1px solid #cbd5e1;font-size:10px;margin-bottom:18px;">
-        <thead><tr style="background:#092E2B;color:#fff;text-align:left;"><th style="padding:8px 10px;">Service</th><th style="padding:8px 10px;text-align:center;">Quantity</th></tr></thead>
-        <tbody>${servicesHtml}</tbody>
+        <thead><tr style="background:#092E2B;color:#fff;text-align:left;"><th style="padding:8px 10px;">Item</th><th style="padding:8px 10px;text-align:center;">Quantity</th><th style="padding:8px 10px;text-align:right;">Unit Price</th><th style="padding:8px 10px;text-align:right;">Amount</th></tr></thead>
+        <tbody>${scopeRows}</tbody>
       </table>
-
-      <h3 style="margin:0 0 8px;font-size:11px;font-weight:800;color:#072421;text-transform:uppercase;">Package Deliverables</h3>
-      <div style="display:flex;flex-direction:column;gap:7px;">${deliverablesHtml}</div>
 
       <div style="margin-top:20px;padding:12px;border:1px solid #C5B378;border-radius:4px;background:#fffcf2;">
         <p style="margin:0;font-size:10px;font-weight:800;color:#072421;">Quotation Summary</p>
@@ -869,7 +879,10 @@ export async function shareBillPdfWhatsApp(bill: StudioBill): Promise<void> {
     ``,
     `🧾 Bill Number: ${bill.billNumber}`,
     `✨ Event: ${englishOnlyName(bill.eventDetails.eventName)}`,
-    `📅 Event Date & Timing: ${bill.eventDetails.eventDate} at ${bill.eventDetails.eventTime || '06:00 AM'}`,
+    `📅 Event Start: ${bill.eventDetails.eventDate}${bill.eventDetails.eventTime ? ` at ${bill.eventDetails.eventTime}` : ''}`,
+    ...(bill.eventDetails.eventEndDate || bill.eventDetails.eventEndTime
+      ? [`📅 Event End: ${bill.eventDetails.eventEndDate || bill.eventDetails.eventDate}${bill.eventDetails.eventEndTime ? ` at ${bill.eventDetails.eventEndTime}` : ''}`]
+      : []),
     `📍 Venue: ${bill.eventDetails.venue || 'To be updated'}`,
     `📦 Package: ${bill.packageDetails.basePackageName}`,
     ``,

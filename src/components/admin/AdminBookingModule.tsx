@@ -21,7 +21,6 @@ import {
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import {
-  BOOKING_SERVICE_OPTIONS,
   BookingRequest,
   BookingServiceOption,
   BookingStatus,
@@ -40,6 +39,7 @@ import { getPackageTierInfo } from '@/src/lib/packageTiers';
 import {
   calculateCustomizedEventPrice,
   calculatePackageBasePrice,
+  getPackageBookingServiceOptions,
   sanitizePackageDeliverables,
 } from '@/src/lib/pricing';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
@@ -93,48 +93,6 @@ const BOOKING_SERVICE_SLUGS: Record<BookingServiceOption, string> = {
   TV: 'led-tv',
   'LED Wall': 'led-wall',
 };
-
-function extract24HourTime(timeStr: string): string {
-  if (!timeStr) return '';
-  const match24 = timeStr.match(/^([01]\d|2[0-3]):([0-5]\d)/);
-  if (match24) return `${match24[1]}:${match24[2]}`;
-
-  const match12 = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (match12) {
-    let h = parseInt(match12[1], 10);
-    const m = match12[2];
-    const period = match12[3].toUpperCase();
-    if (period === 'PM' && h < 12) h += 12;
-    if (period === 'AM' && h === 12) h = 0;
-    return `${String(h).padStart(2, '0')}:${m}`;
-  }
-  return '';
-}
-
-function formatTimeTo12Hour(time24: string): string {
-  if (!time24) return '';
-  if (time24.includes('AM') || time24.includes('PM')) return time24;
-  const parts = time24.split(':');
-  if (parts.length < 2) return time24;
-  const h = parseInt(parts[0], 10);
-  const m = parts[1].slice(0, 2);
-  if (isNaN(h)) return time24;
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${String(h12).padStart(2, '0')}:${m} ${period}`;
-}
-
-const COMMON_EVENT_TIME_SLOTS = [
-  { label: '06:00 AM', value: '06:00 AM', time24: '06:00' },
-  { label: '09:00 AM', value: '09:00 AM', time24: '09:00' },
-  { label: '06:00 PM', value: '06:00 PM', time24: '18:00' },
-  { label: 'Full Day', value: 'Full Day', time24: '06:00' },
-] as const;
-const TIME_PICKER_OPTIONS = Array.from({ length: 48 }, (_, index) =>
-  formatTimeTo12Hour(
-    `${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 === 0 ? '00' : '30'}`
-  )
-);
 
 function formatCompactEventTime(value?: string): string {
   if (!value) return '';
@@ -216,22 +174,13 @@ export function AdminBookingModule() {
   }, [packages]);
 
   const getPackagesForEvent = useCallback(
-    (eventCatOrId?: string) => {
-      if (!eventCatOrId) return activePackages;
-      const normalized = eventCatOrId.toLowerCase().replace(/[^a-z0-9]/g, '');
+    (eventId?: string) => {
+      if (!eventId) return [];
       const matchedEvent = activeEvents.find(
-        (e) =>
-          e.id.toLowerCase() === normalized ||
-          e.name.toLowerCase() === eventCatOrId.toLowerCase() ||
-          e.id.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
+        (event) => event.id === eventId || event.name.toLowerCase() === eventId.toLowerCase()
       );
-      const targetId = matchedEvent ? matchedEvent.id.toLowerCase() : normalized;
-      const filtered = activePackages.filter(
-        (p) =>
-          (p.eventId || 'wedding').toLowerCase() === targetId ||
-          (p.eventId || '').toLowerCase().replace(/[^a-z0-9]/g, '') === normalized
-      );
-      return filtered.length > 0 ? filtered : activePackages;
+      const resolvedEventId = matchedEvent?.id || eventId;
+      return activePackages.filter((pkg) => pkg.eventId === resolvedEventId);
     },
     [activeEvents, activePackages]
   );
@@ -248,6 +197,7 @@ export function AdminBookingModule() {
   const [editCrew, setEditCrew] = useState('');
   const [editNote, setEditNote] = useState('');
   const [editEventTime, setEditEventTime] = useState('');
+  const [editEventEndTime, setEditEventEndTime] = useState('');
   const [proposalLinks, setProposalLinks] = useState<{ editor: string; client: string } | null>(null);
   const [isCreatingProposalLink, setIsCreatingProposalLink] = useState(false);
   const [proposalLinkError, setProposalLinkError] = useState('');
@@ -261,10 +211,12 @@ export function AdminBookingModule() {
   const [isCreatingLead, setIsCreatingLead] = useState(false);
   const [leadClientName, setLeadClientName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
+  const [leadEventId, setLeadEventId] = useState(packages[0]?.eventId || '');
   const [leadEventType, setLeadEventType] = useState<EventCategory>('Weddings');
   const [leadPreferredDate, setLeadPreferredDate] = useState(() => toISODate(new Date()));
   const [leadEndDate, setLeadEndDate] = useState('');
   const [leadEventTime, setLeadEventTime] = useState('');
+  const [leadEventEndTime, setLeadEventEndTime] = useState('');
   const [leadVenue, setLeadVenue] = useState('');
   const [leadPackageId, setLeadPackageId] = useState<string>(
     packages[0]?.id || CUSTOM_PACKAGE_ID
@@ -273,44 +225,28 @@ export function AdminBookingModule() {
   const [leadSource, setLeadSource] = useState<string>('Direct Referral');
   const [leadStatus, setLeadStatus] = useState<BookingStatus>('In Discussion');
   const [leadAssignedCrew, setLeadAssignedCrew] = useState('G Krishna + Studio Unit');
-  const [leadRequestedServices, setLeadRequestedServices] = useState<BookingServiceOption[]>([
-    'Traditional Camera',
-    'Candid Camera',
-    'Traditional Video',
-  ]);
-  const [leadServiceTiers, setLeadServiceTiers] = useState<Record<string, DurationTier>>({});
   const [leadNotes, setLeadNotes] = useState('');
 
   const selectedLeadPackage = packages.find((pkg) => pkg.id === leadPackageId);
+  const leadRequestedServices = selectedLeadPackage
+    ? getPackageBookingServiceOptions(selectedLeadPackage, services)
+    : [];
   const leadActiveItems: Array<{
     serviceSlug: string;
     quantity: number;
     durationTier?: DurationTier;
-  }> = leadRequestedServices.map((service) => {
-    const serviceSlug = BOOKING_SERVICE_SLUGS[service];
-    const packageItem = selectedLeadPackage?.includedServices?.find(
-      (item) => item.serviceSlug === serviceSlug
-    );
-    return {
-      serviceSlug,
-      quantity: 1,
-      durationTier:
-        leadServiceTiers[serviceSlug] ??
-        packageItem?.durationTier ??
-        selectedLeadPackage?.durationTier ??
-        'halfDay',
-    };
-  });
-  const includedLeadAlbum = selectedLeadPackage?.includedServices?.find((item) =>
-    item.serviceSlug.startsWith('photo-album')
-  );
-  if (includedLeadAlbum) {
-    leadActiveItems.push({
-      serviceSlug: includedLeadAlbum.serviceSlug,
-      quantity: includedLeadAlbum.quantity || 30,
-      durationTier: includedLeadAlbum.durationTier ?? selectedLeadPackage?.durationTier,
-    });
-  }
+  }> = selectedLeadPackage?.includedServices?.length
+    ? selectedLeadPackage.includedServices.map((item) => ({
+      ...item,
+      durationTier: item.durationTier ?? selectedLeadPackage.durationTier,
+    }))
+    : selectedLeadPackage
+      ? leadRequestedServices.map((service) => ({
+          serviceSlug: BOOKING_SERVICE_SLUGS[service],
+          quantity: 1,
+          durationTier: selectedLeadPackage.durationTier ?? 'halfDay',
+        }))
+      : [];
   const { snapshots: leadOptedServices, total: calculatedLeadAmount } =
     calculateCustomizedEventPrice(
       leadActiveItems,
@@ -328,6 +264,7 @@ export function AdminBookingModule() {
     eventTime: leadEventTime || 'To be confirmed',
     schedulePlan: selectedLeadPackage?.duration || 'To be confirmed',
     ...(leadEndDate ? { endDate: leadEndDate } : {}),
+    ...(leadEventEndTime ? { eventEndTime: leadEventEndTime } : {}),
     venue: leadVenue.trim() || 'To be confirmed',
     packageName:
       leadPackageId === CUSTOM_PACKAGE_ID
@@ -345,6 +282,7 @@ export function AdminBookingModule() {
   const leadQuoteActionsDisabled =
     !leadClientName.trim() ||
     !leadPhone.trim() ||
+    !leadEventId ||
     !leadPreferredDate ||
     !leadVenue.trim() ||
     isCreatingLead;
@@ -366,27 +304,18 @@ export function AdminBookingModule() {
 
     setLeadClientName('');
     setLeadPhone('');
+    setLeadEventId(defaultEvId);
     setLeadEventType(defaultEv as EventCategory);
     setLeadPreferredDate(toISODate(new Date()));
     setLeadEndDate('');
     setLeadEventTime('');
+    setLeadEventEndTime('');
     setLeadVenue('');
     setLeadPackageId(signaturePkg?.id || CUSTOM_PACKAGE_ID);
     setLeadQuotedAmount(signaturePkg?.price ?? 0);
     setLeadSource('Direct Referral');
     setLeadStatus('In Discussion');
     setLeadAssignedCrew('G Krishna + Studio Unit');
-    setLeadRequestedServices(['Traditional Camera', 'Candid Camera', 'Traditional Video']);
-    setLeadServiceTiers(
-      Object.fromEntries(
-        BOOKING_SERVICE_OPTIONS.map((service) => [
-          BOOKING_SERVICE_SLUGS[service],
-          signaturePkg?.includedServices?.find(
-            (item) => item.serviceSlug === BOOKING_SERVICE_SLUGS[service]
-          )?.durationTier ?? signaturePkg?.durationTier ?? 'halfDay',
-        ])
-      )
-    );
     setLeadNotes('');
   };
 
@@ -400,6 +329,7 @@ export function AdminBookingModule() {
     selectedEv?: StudioEvent
   ) => {
     const evName = (selectedEv?.name || selectedId) as EventCategory;
+    setLeadEventId(selectedEv?.id || selectedId);
     setLeadEventType(evName);
 
     // Sync Package Interest with selected Ceremony / Event Type
@@ -421,34 +351,11 @@ export function AdminBookingModule() {
           setLeadPackageId(matchingTierPkg.id);
           setLeadQuotedAmount(matchingTierPkg.price);
 
-          // Synchronize services based on package inclusions
-          const inc = matchingTierPkg.customizer?.included;
-          const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
-          if (inc?.candidPhoto || matchingTierPkg.sortOrder === 2 || matchingTierPkg.sortOrder === 3) {
-            newServices.push('Candid Camera');
-          }
-          if (inc?.candidVideo || matchingTierPkg.sortOrder === 3) {
-            newServices.push('Candid Video');
-          }
-          if (inc?.drone || matchingTierPkg.sortOrder === 3) {
-            newServices.push('Drone');
-          }
-          if (inc?.ledWall) {
-            newServices.push('LED Wall');
-          }
-          setLeadRequestedServices(newServices);
-          setLeadServiceTiers(
-            Object.fromEntries(
-              BOOKING_SERVICE_OPTIONS.map((service) => [
-                BOOKING_SERVICE_SLUGS[service],
-                matchingTierPkg.includedServices?.find(
-                  (item) => item.serviceSlug === BOOKING_SERVICE_SLUGS[service]
-                )?.durationTier ?? matchingTierPkg.durationTier ?? 'halfDay',
-              ])
-            )
-          );
         }
       }
+    } else {
+      setLeadPackageId(CUSTOM_PACKAGE_ID);
+      setLeadQuotedAmount(0);
     }
   };
 
@@ -456,9 +363,6 @@ export function AdminBookingModule() {
     setLeadPackageId(pkgId);
     if (pkgId === CUSTOM_PACKAGE_ID) {
       setLeadQuotedAmount(0);
-      setLeadServiceTiers(
-        Object.fromEntries(BOOKING_SERVICE_OPTIONS.map((service) => [BOOKING_SERVICE_SLUGS[service], 'halfDay']))
-      );
       return;
     }
 
@@ -466,16 +370,6 @@ export function AdminBookingModule() {
     if (found) {
       const dynamicPrice = calculatePackageBasePrice(found, services);
       setLeadQuotedAmount(dynamicPrice);
-      setLeadServiceTiers(
-        Object.fromEntries(
-          BOOKING_SERVICE_OPTIONS.map((service) => [
-            BOOKING_SERVICE_SLUGS[service],
-            found.includedServices?.find(
-              (item) => item.serviceSlug === BOOKING_SERVICE_SLUGS[service]
-            )?.durationTier ?? found.durationTier ?? 'halfDay',
-          ])
-        )
-      );
 
       // Two-way sync: If selected package belongs to an event, update ceremony & event type
       if (found.eventId) {
@@ -487,83 +381,10 @@ export function AdminBookingModule() {
               found.eventId?.toLowerCase().replace(/[^a-z0-9]/g, '')
         );
         if (matchedEv) {
+          setLeadEventId(matchedEv.id);
           setLeadEventType(matchedEv.name as EventCategory);
         }
       }
-
-      // Synchronize services based on package inclusions
-      const inc = found.customizer?.included;
-      const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
-      if (inc?.candidPhoto || found.sortOrder === 2 || found.sortOrder === 3) {
-        newServices.push('Candid Camera');
-      }
-      if (inc?.candidVideo || found.sortOrder === 3) {
-        newServices.push('Candid Video');
-      }
-      if (inc?.drone || found.sortOrder === 3) {
-        newServices.push('Drone');
-      }
-      if (inc?.ledWall) {
-        newServices.push('LED Wall');
-      }
-      setLeadRequestedServices(newServices);
-    }
-  };
-
-  const toggleLeadService = (service: BookingServiceOption) => {
-    setLeadRequestedServices((prev) => {
-      const updated = prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service];
-      // Dynamically recalculate quote for custom selection
-      if (leadPackageId === CUSTOM_PACKAGE_ID) {
-        const items = updated.map((svcName) => {
-          let slug = 'traditional-camera';
-          if (svcName === 'Traditional Video') slug = 'traditional-video';
-          else if (svcName === 'Candid Camera') slug = 'candid-photography';
-          else if (svcName === 'Candid Video') slug = 'candid-cinematography';
-          else if (svcName === 'Drone') slug = 'drone-aerial-coverage';
-          else if (svcName === 'LED Wall') slug = 'led-wall';
-          else if (svcName === 'TV') slug = 'led-tv';
-          return {
-            serviceSlug: slug,
-            quantity: 1,
-            durationTier: leadServiceTiers[slug] ?? 'halfDay',
-          };
-        });
-        const { total } = calculateCustomizedEventPrice(items, services, 'halfDay');
-        setLeadQuotedAmount(total);
-      }
-      return updated;
-    });
-  };
-
-  const handleLeadServiceTierChange = (service: BookingServiceOption, tier: DurationTier) => {
-    const serviceSlug = BOOKING_SERVICE_SLUGS[service];
-    const nextTiers = { ...leadServiceTiers, [serviceSlug]: tier };
-    setLeadServiceTiers(nextTiers);
-
-    if (leadPackageId === CUSTOM_PACKAGE_ID) {
-      const items = leadRequestedServices.map((requestedService) => ({
-        serviceSlug: BOOKING_SERVICE_SLUGS[requestedService],
-        quantity: 1,
-        durationTier: nextTiers[BOOKING_SERVICE_SLUGS[requestedService]] ?? 'halfDay',
-      }));
-      setLeadQuotedAmount(calculateCustomizedEventPrice(items, services, 'halfDay').total);
-      return;
-    }
-
-    const selectedPkg = packages.find((pkg) => pkg.id === leadPackageId);
-    if (selectedPkg?.includedServices) {
-      const includedServices = selectedPkg.includedServices.map((item) => ({
-        ...item,
-        durationTier:
-          nextTiers[item.serviceSlug] ??
-          item.durationTier ??
-          selectedPkg.durationTier ??
-          'halfDay',
-      }));
-      setLeadQuotedAmount(
-        calculatePackageBasePrice({ ...selectedPkg, includedServices }, services)
-      );
     }
   };
 
@@ -581,6 +402,19 @@ export function AdminBookingModule() {
       toast.error('Event date is required.');
       return;
     }
+    if (leadEndDate && leadEndDate < leadPreferredDate) {
+      toast.error('Event end date cannot be before the start date.');
+      return;
+    }
+    if (
+      (!leadEndDate || leadEndDate === leadPreferredDate) &&
+      leadEventTime &&
+      leadEventEndTime &&
+      leadEventEndTime <= leadEventTime
+    ) {
+      toast.error('Event end time must be after the start time.');
+      return;
+    }
     if (!leadVenue.trim()) {
       toast.error('Venue / Location is required.');
       return;
@@ -595,6 +429,7 @@ export function AdminBookingModule() {
         preferredDate: leadPreferredDate,
         endDate: leadEndDate ? leadEndDate : undefined,
         eventTime: leadEventTime.trim() ? leadEventTime.trim() : undefined,
+        eventEndTime: leadEventEndTime.trim() ? leadEventEndTime.trim() : undefined,
         venue: leadVenue.trim(),
         packageId: leadPackageId,
         packageName: leadQuote.packageName,
@@ -634,6 +469,7 @@ export function AdminBookingModule() {
     );
     setEditCrew(booking.assignedCrew || 'G Krishna + Studio Unit');
     setEditEventTime(booking.eventTime || '');
+    setEditEventEndTime(booking.eventEndTime || '');
     setEditNote(
       booking.acknowledgementNote ||
         'Thank you for choosing GK Studios. Date is available for your ceremony.'
@@ -776,7 +612,7 @@ export function AdminBookingModule() {
   const generatedMessage = useMemo(() => {
     if (!activeBooking) return '';
     const pkgName = selectedPkg?.name || activeBooking.packageName;
-    const resolvedTime = editEventTime.trim() || activeBooking.eventTime;
+    const resolvedTime = editEventTime.trim();
     const optedServices =
       activeBooking.proposalDraft?.optedServices ?? activeBooking.optedServices;
     const requestedServices =
@@ -787,8 +623,11 @@ export function AdminBookingModule() {
     return [
       `Vanakkam ${activeBooking.clientName}!`,
       `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
-      `Regarding your ${englishOnlyName(activeBooking.eventType)} (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)} at ${activeBooking.venue}:`,
-      resolvedTime ? `Event time: ${resolvedTime}` : '',
+      `Regarding your ${englishOnlyName(activeBooking.eventType)} (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)}${activeBooking.endDate ? ` through ${formatDateDisplay(activeBooking.endDate)}` : ''} at ${activeBooking.venue}:`,
+      resolvedTime ? `Event start: ${resolvedTime}` : '',
+      editEventEndTime.trim()
+        ? `Event end: ${activeBooking.endDate ? `${formatDateDisplay(activeBooking.endDate)} ` : ''}${editEventEndTime.trim()}`
+        : '',
       `Package: ${pkgName} | Quote: ${formatINR(editQuote)}`,
       serviceNames ? `Opted services: ${serviceNames}` : '',
       editNote ? `Note: ${editNote}` : '',
@@ -796,7 +635,7 @@ export function AdminBookingModule() {
     ]
       .filter(Boolean)
       .join('\n');
-  }, [activeBooking, selectedPkg, editQuote, editNote, editEventTime]);
+  }, [activeBooking, selectedPkg, editQuote, editNote, editEventTime, editEventEndTime]);
 
   const visibleClientNotes = activeBooking ? getVisibleClientNotes(activeBooking.notes) : '';
   const planSnapshot = activeBooking?.packageSnapshot;
@@ -868,7 +707,9 @@ export function AdminBookingModule() {
       clientPhone: activeBooking.phone,
       eventName: englishOnlyName(activeBooking.eventType),
       eventDate: activeBooking.preferredDate,
-      eventTime: editEventTime.trim() || activeBooking.eventTime || 'To be confirmed',
+      eventTime: editEventTime.trim() || 'To be confirmed',
+      ...(activeBooking.endDate ? { endDate: activeBooking.endDate } : {}),
+      ...(editEventEndTime.trim() ? { eventEndTime: editEventEndTime.trim() } : {}),
       schedulePlan:
         selectedPkg?.duration ||
         (activeBooking.durationTier === 'fullDay'
@@ -876,7 +717,6 @@ export function AdminBookingModule() {
           : activeBooking.durationTier === 'threeHours'
             ? '3 Hours'
             : 'Half Day'),
-      ...(activeBooking.endDate ? { endDate: activeBooking.endDate } : {}),
       venue: activeBooking.venue,
       packageName: selectedPkg?.name || activeBooking.packageName,
       totalAmount: Number.isFinite(editQuote)
@@ -894,7 +734,7 @@ export function AdminBookingModule() {
         text: englishOnlyName(text),
       })),
     };
-  }, [activeBooking, editPackageId, editQuote, editEventTime, selectedPkg, services]);
+  }, [activeBooking, editPackageId, editQuote, editEventTime, editEventEndTime, selectedPkg, services]);
 
   const handleCopyMessage = async () => {
     try {
@@ -914,7 +754,8 @@ export function AdminBookingModule() {
         packageId: editPackageId,
         quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
         assignedCrew: editCrew,
-        eventTime: editEventTime.trim() || undefined,
+        eventTime: editEventTime.trim(),
+        eventEndTime: editEventEndTime.trim(),
         acknowledgementNote: editNote,
         nextStatus: 'In Discussion',
         blockCalendarDate: false,
@@ -937,7 +778,8 @@ export function AdminBookingModule() {
         packageId: editPackageId,
         quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
         assignedCrew: editCrew,
-        eventTime: editEventTime.trim() || undefined,
+        eventTime: editEventTime.trim(),
+        eventEndTime: editEventEndTime.trim(),
         acknowledgementNote: editNote,
         nextStatus: 'Acknowledged',
         blockCalendarDate: true,
@@ -960,7 +802,8 @@ export function AdminBookingModule() {
         packageId: editPackageId,
         quotedAmount: Number(editQuote) || activeBooking.quotedAmount,
         assignedCrew: editCrew,
-        eventTime: editEventTime.trim() || undefined,
+        eventTime: editEventTime.trim(),
+        eventEndTime: editEventEndTime.trim(),
         acknowledgementNote: editNote,
         nextStatus: 'Confirmed',
         blockCalendarDate: true,
@@ -1156,7 +999,12 @@ export function AdminBookingModule() {
                     </p>
                     {booking.eventTime && (
                       <span className="mt-1 inline-block font-mono text-xs text-[#D8C78E] bg-[#072421] px-1.5 py-0.5 rounded border border-[#C5B378]/25 tabular-nums">
-                        {booking.eventTime}
+                        Start: {booking.eventTime}
+                      </span>
+                    )}
+                    {booking.eventEndTime && (
+                      <span className="mt-1 inline-block font-mono text-xs text-[#D8C78E] bg-[#072421] px-1.5 py-0.5 rounded border border-[#C5B378]/25 tabular-nums">
+                        End: {booking.eventEndTime}
                       </span>
                     )}
                     {booking.endDate && (
@@ -1271,7 +1119,7 @@ export function AdminBookingModule() {
         <DialogContent
           onPointerDownOutside={(e) => { if (isCreatingLead) e.preventDefault(); }}
           onEscapeKeyDown={(e) => { if (isCreatingLead) e.preventDefault(); }}
-          className="w-[95vw] max-w-3xl max-h-[92dvh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
+          className="w-[95vw] max-w-5xl max-h-[92dvh] overflow-y-auto bg-[#092E2B] border-[#C5B378]/35 text-[#E6ECEB]"
         >
           <DialogHeader>
             <div className="flex items-center gap-2">
@@ -1318,8 +1166,9 @@ export function AdminBookingModule() {
               <div className="space-y-1.5">
                 <EventSelector
                   id="admin-lead-event"
-                  label="Ceremony / Event Type"
-                  value={leadEventType}
+                  label="Event Type"
+                  value={leadEventId}
+                  events={activeEvents}
                   onChange={handleLeadEventTypeChange}
                   required
                 />
@@ -1346,7 +1195,7 @@ export function AdminBookingModule() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-[#D8C78E]">
-                  Event Date *
+                  Event Start Date *
                 </label>
                 <input
                   type="date"
@@ -1364,79 +1213,38 @@ export function AdminBookingModule() {
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-[#D8C78E]">
-                  End Date (Optional)
+                  Event End Date
                 </label>
                 <input
                   type="date"
                   value={leadEndDate}
+                  min={leadPreferredDate}
                   onChange={(e) => setLeadEndDate(e.target.value)}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
             </div>
 
-            {/* Interactive Time Picker & Quick Slots */}
-            <div className="space-y-1.5 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-medium text-[#D8C78E]">
-                  Ceremony Time / Slot (Interactive Time Picker)
-                </label>
-                {leadEventTime && (
-                  <button
-                    type="button"
-                    disabled={isCreatingLead}
-                    onClick={() => setLeadEventTime('')}
-                    className="text-[11px] text-[#C5B378]/70 hover:text-rose-300 transition-colors cursor-pointer"
-                  >
-                    Clear Time
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative sm:w-44">
-                  <input
-                    type="time"
-                    disabled={isCreatingLead}
-                    value={extract24HourTime(leadEventTime)}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setLeadEventTime(val ? formatTimeTo12Hour(val) : '');
-                    }}
-                    className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60 cursor-pointer"
-                  />
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Start Time</label>
                 <input
-                  type="text"
+                  type="time"
                   disabled={isCreatingLead}
                   value={leadEventTime}
                   onChange={(e) => setLeadEventTime(e.target.value)}
-                  placeholder="e.g., 06:00 AM (Muhurtham) or Full-Day Session"
-                  className="h-10 flex-1 rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-[10px] text-[#C5B378]/70">Quick Slots:</span>
-                {COMMON_EVENT_TIME_SLOTS.map((slot) => {
-                  const isSelected =
-                    leadEventTime.toLowerCase().includes(slot.time24.toLowerCase()) ||
-                    leadEventTime === slot.label ||
-                    leadEventTime === slot.value;
-                  return (
-                    <button
-                      key={slot.label}
-                      type="button"
-                      disabled={isCreatingLead}
-                      onClick={() => setLeadEventTime(slot.label)}
-                      className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#C5B378]/25 border-[#D8C78E] text-[#D8C78E] font-semibold'
-                          : 'bg-[#072421] border-[#C5B378]/20 text-[#E6ECEB]/70 hover:border-[#D8C78E]/40 hover:text-white'
-                      }`}
-                    >
-                      {slot.label}
-                    </button>
-                  );
-                })}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#D8C78E]">Event End Time</label>
+                <input
+                  type="time"
+                  disabled={isCreatingLead}
+                  value={leadEventEndTime}
+                  onChange={(e) => setLeadEventEndTime(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
+                />
               </div>
             </div>
 
@@ -1464,7 +1272,7 @@ export function AdminBookingModule() {
                   onChange={(e) => handleLeadPackageChange(e.target.value)}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 >
-                  {getPackagesForEvent(leadEventType).map((p) => {
+                  {getPackagesForEvent(leadEventId).map((p) => {
                     const tier = getPackageTierInfo(p);
                     return (
                       <option key={p.id} value={p.id}>
@@ -1491,6 +1299,45 @@ export function AdminBookingModule() {
                 </div>
               </div>
             </div>
+
+            <section className="space-y-2 rounded-md border border-[#C5B378]/20 bg-[#061E1C] p-3">
+              <h3 className="text-xs font-semibold text-[#D8C78E]">In-scope services</h3>
+              {leadActiveItems.length ? (
+                <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {leadActiveItems.map((item) => {
+                    const serviceInfo = services.find((service) => service.slug === item.serviceSlug);
+                    const serviceName =
+                      serviceInfo?.name ||
+                      item.serviceSlug.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+                    const unitLabel = serviceInfo?.unitLabel || 'unit';
+                    const durationLabel =
+                      item.durationTier === 'fullDay'
+                        ? 'Full Day'
+                        : item.durationTier === 'threeHours'
+                          ? '3 Hours'
+                          : item.durationTier === 'halfDay'
+                            ? 'Half Day'
+                            : '';
+                    return (
+                      <li
+                        key={item.serviceSlug}
+                        className="flex items-center justify-between gap-3 rounded border border-white/10 bg-white/5 px-2.5 py-2 text-xs"
+                      >
+                        <span className="text-[#E6ECEB]">{serviceName}</span>
+                        <span className="shrink-0 text-[#D8C78E]">
+                          {item.quantity} {unitLabel}{item.quantity === 1 ? '' : 's'}
+                          {durationLabel ? ` · ${durationLabel}` : ''}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-xs text-[#E6ECEB]/60">
+                  Custom package — services to be finalized.
+                </p>
+              )}
+            </section>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -1519,50 +1366,6 @@ export function AdminBookingModule() {
                   placeholder="e.g., G Krishna + Studio Unit"
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
-              </div>
-            </div>
-
-            {/* Services Checklist */}
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-[#D8C78E]">
-                Services Requested / In Scope
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {BOOKING_SERVICE_OPTIONS.map((service) => {
-                  const selected = leadRequestedServices.includes(service);
-                  const serviceSlug = BOOKING_SERVICE_SLUGS[service];
-                  const serviceInfo = services.find((item) => item.slug === serviceSlug);
-                  return (
-                    <div key={service} className="flex items-center gap-1 rounded-md border border-[#C5B378]/20 bg-[#072421] px-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleLeadService(service)}
-                      className={`text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
-                        selected
-                          ? 'border-[#C5B378] bg-[#C5B378]/20 text-[#D8C78E] font-medium'
-                          : 'border-white/15 bg-[#072421] text-[#E6ECEB]/70 hover:text-white'
-                      }`}
-                    >
-                      {selected ? '✓ ' : '+ '}
-                      {service}
-                    </button>
-                    {selected && serviceInfo?.pricingType === 'tiered' && (
-                      <select
-                        aria-label={`${service} duration tier`}
-                        value={leadServiceTiers[serviceSlug] ?? 'halfDay'}
-                        onChange={(event) =>
-                          handleLeadServiceTierChange(service, event.target.value as DurationTier)
-                        }
-                        className="h-7 rounded border border-[#C5B378]/35 bg-[#092E2B] px-1 text-[10px] text-white"
-                      >
-                        <option value="threeHours">3h</option>
-                        <option value="halfDay">Half</option>
-                        <option value="fullDay">Full</option>
-                      </select>
-                    )}
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
@@ -1621,6 +1424,9 @@ export function AdminBookingModule() {
                     {activeBooking.referenceCode} · {formatDateDisplay(activeBooking.preferredDate)}
                     {activeBooking.eventTime
                       ? ` · ${formatCompactEventTime(activeBooking.eventTime)}`
+                      : ''}
+                    {activeBooking.eventEndTime
+                      ? ` — ${formatCompactEventTime(activeBooking.eventEndTime)}`
                       : ''}
                   </p>
                   {getStatusBadge(activeBooking.status)}
@@ -1826,81 +1632,28 @@ export function AdminBookingModule() {
                 </div>
               </div>
 
-              {/* Event Time and Quick Slots */}
-              <div className="space-y-1.5 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-medium text-[#D8C78E]">
-                    Event Time
-                  </label>
-                  {editEventTime && (
-                    <button
-                      type="button"
-                      disabled={isProcessingAction}
-                      onClick={() => setEditEventTime('')}
-                      className="text-[11px] text-[#C5B378]/70 hover:text-rose-300 transition-colors cursor-pointer"
-                    >
-                      Clear Time
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-[#C5B378]/25 bg-[#072421]/60 p-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#D8C78E]">Event Start Time</label>
                   <input
                     type="text"
                     disabled={isProcessingAction}
                     value={editEventTime}
                     onChange={(e) => setEditEventTime(e.target.value)}
-                    placeholder="e.g. 06:00 AM or Full Day"
+                    placeholder="e.g. 06:00"
                     className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
                   />
                 </div>
-                <details className="rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2">
-                  <summary className="cursor-pointer text-xs font-medium text-[#D8C78E]">
-                    Choose time ▾
-                  </summary>
-                  <div className="mt-2 grid max-h-40 grid-cols-3 gap-1 overflow-y-auto pr-1 sm:grid-cols-6">
-                    {TIME_PICKER_OPTIONS.map((time) => (
-                      <button
-                        key={time}
-                        type="button"
-                        disabled={isProcessingAction}
-                        onClick={(event) => {
-                          setEditEventTime(time);
-                          const picker = event.currentTarget.closest('details');
-                          if (picker) picker.open = false;
-                        }}
-                        className={`rounded border px-1.5 py-1 text-[10px] ${
-                          extract24HourTime(editEventTime) === extract24HourTime(time)
-                            ? 'border-[#D8C78E] bg-[#C5B378]/25 text-[#D8C78E]'
-                            : 'border-[#C5B378]/15 bg-[#072421] text-[#E6ECEB]/80'
-                        }`}
-                      >
-                        {time}
-                      </button>
-                    ))}
-                  </div>
-                </details>
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  {COMMON_EVENT_TIME_SLOTS.map((slot) => {
-                    const isSelected =
-                      editEventTime.toLowerCase().includes(slot.time24.toLowerCase()) ||
-                      editEventTime === slot.label ||
-                      editEventTime === slot.value;
-                    return (
-                      <button
-                        key={slot.label}
-                        type="button"
-                        disabled={isProcessingAction}
-                        onClick={() => setEditEventTime(slot.label)}
-                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#C5B378]/25 border-[#D8C78E] text-[#D8C78E] font-semibold'
-                            : 'bg-[#072421] border-[#C5B378]/20 text-[#E6ECEB]/70 hover:border-[#D8C78E]/40 hover:text-white'
-                        }`}
-                      >
-                        {slot.label}
-                      </button>
-                    );
-                  })}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#D8C78E]">Event End Time</label>
+                  <input
+                    type="text"
+                    disabled={isProcessingAction}
+                    value={editEventEndTime}
+                    onChange={(e) => setEditEventEndTime(e.target.value)}
+                    placeholder="e.g. 18:00"
+                    className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none disabled:opacity-60"
+                  />
                 </div>
               </div>
 

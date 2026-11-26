@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       preferredDate?: string;
       endDate?: string;
       eventTime?: string;
+      eventEndTime?: string;
       venue?: string;
       packageId?: string;
       packageName?: string;
@@ -47,6 +48,33 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(body.preferredDate) ||
+      (body.endDate !== undefined &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(body.endDate) || body.endDate < body.preferredDate)) ||
+      (body.eventTime !== undefined &&
+        (typeof body.eventTime !== 'string' || body.eventTime.length > 120)) ||
+      (body.eventEndTime !== undefined &&
+        (typeof body.eventEndTime !== 'string' || body.eventEndTime.length > 120))
+    ) {
+      return NextResponse.json(
+        { error: 'Provide a valid event start and end date/time.' },
+        { status: 400 }
+      );
+    }
+    if (
+      typeof body.eventTime === 'string' &&
+      typeof body.eventEndTime === 'string' &&
+      (!body.endDate || body.endDate === body.preferredDate) &&
+      /^\d{2}:\d{2}$/.test(body.eventTime) &&
+      /^\d{2}:\d{2}$/.test(body.eventEndTime) &&
+      body.eventEndTime <= body.eventTime
+    ) {
+      return NextResponse.json(
+        { error: 'Event end time must be later than the start time.' },
+        { status: 400 }
+      );
+    }
     if (body.durationTier !== undefined && !durationTierSet.has(body.durationTier)) {
       return NextResponse.json(
         { error: 'durationTier must be one of: threeHours, halfDay, fullDay.' },
@@ -61,6 +89,7 @@ export async function POST(request: Request) {
       preferredDate: body.preferredDate,
       endDate: body.endDate,
       eventTime: body.eventTime,
+      eventEndTime: body.eventEndTime,
       venue: body.venue,
       packageId: body.packageId || CUSTOM_PACKAGE_ID,
       packageName: body.packageName,

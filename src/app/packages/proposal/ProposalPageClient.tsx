@@ -41,9 +41,7 @@ import {
   Users,
   Heart,
   Baby,
-  Cake,
   Flame,
-  Briefcase,
   Monitor,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -54,7 +52,6 @@ import {
   BookingServiceOption,
   BookingProposalUpdate,
   DurationTier,
-  EVENT_CATEGORY_GROUPS,
   EventCategory,
   OptedServiceSnapshot,
   PackageDeliverables,
@@ -67,6 +64,8 @@ import {
   calculateCustomizedEventPrice,
   calculatePackageBasePrice,
   formatServiceLineItem,
+  getPackageFeatureServiceSlugs,
+  getPackageIncludedFeatures,
   getDynamicPackageDisplaySections,
   resolveServicePrice,
   sanitizePackageDeliverables,
@@ -89,10 +88,9 @@ import {
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   wedding: <Heart className="h-4 w-4" />,
-  'baby-maternity': <Baby className="h-4 w-4" />,
-  'birthday-kids': <Cake className="h-4 w-4" />,
-  'family-traditional': <Flame className="h-4 w-4" />,
-  'corporate-business': <Briefcase className="h-4 w-4" />,
+  'baby-kids': <Baby className="h-4 w-4" />,
+  outdoor: <Sparkles className="h-4 w-4" />,
+  'family-milestones': <Flame className="h-4 w-4" />,
 };
 
 function matchesCategory(eventCategory?: string, groupId?: string): boolean {
@@ -106,6 +104,19 @@ function matchesCategory(eventCategory?: string, groupId?: string): boolean {
   if ((grp.includes('family') || grp.includes('traditional')) && (evCat.includes('family') || evCat.includes('traditional'))) return true;
   if ((grp.includes('corporate') || grp.includes('business')) && (evCat.includes('corporate') || evCat.includes('business'))) return true;
   return false;
+}
+
+function parseTimeInput(value?: string): string {
+  const time = value?.trim() || '';
+  const twentyFourHour = time.match(/^([01]\d|2[0-3]):([0-5]\d)/);
+  if (twentyFourHour) return `${twentyFourHour[1]}:${twentyFourHour[2]}`;
+
+  const twelveHour = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!twelveHour) return '';
+  let hour = Number(twelveHour[1]);
+  if (twelveHour[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
+  if (twelveHour[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${twelveHour[2]}`;
 }
 
 interface FeatureMeta {
@@ -178,7 +189,7 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
 const FEATURE_SERVICE_SLUGS: Record<keyof PackageIncludedFeatures, string[]> = {
   traditionalPhoto: ['traditional-camera'],
   traditionalVideo: ['traditional-video'],
-  candidPhoto: ['candid-photography'],
+  candidPhoto: ['candid-photography', 'candid-photography-standard'],
   candidVideo: ['candid-cinematography'],
   printedAlbum: [
     'photo-album',
@@ -193,39 +204,6 @@ const FEATURE_SERVICE_SLUGS: Record<keyof PackageIncludedFeatures, string[]> = {
   ledWall: ['led-wall', 'led-tv'],
   outdoorShoot: ['outdoor-shoot'],
 };
-
-const TIME_SLOT_PRESETS = [
-  {
-    id: 'muhurtham',
-    label: 'Early Morning Muhurtham (6:00 AM)',
-    time: '06:00',
-    value: 'Early Morning Muhurtham (6:00 AM)',
-  },
-  {
-    id: 'morning',
-    label: 'Morning Session (9:00 AM)',
-    time: '09:00',
-    value: 'Morning Session (9:00 AM)',
-  },
-  {
-    id: 'evening',
-    label: 'Evening Reception (6:00 PM)',
-    time: '18:00',
-    value: 'Evening Reception (6:00 PM)',
-  },
-  {
-    id: 'full-day',
-    label: 'Full-Day / Multi-Session',
-    time: '',
-    value: 'Full-Day / Multi-Session',
-  },
-  {
-    id: 'unsure',
-    label: 'Unsure yet — confirm later',
-    time: '',
-    value: 'To be confirmed',
-  },
-];
 
 function parseDeliverables(
   deliverables: PackageDeliverables | string[] | undefined | null
@@ -285,7 +263,6 @@ export function ProposalPageClient() {
   );
   const [preferredPackageId, setPreferredPackageId] = useState<string | null>(rawPackageParam);
   const [isEditingIntake, setIsEditingIntake] = useState(!hasQueryParams);
-  const [intakeCategory, setIntakeCategory] = useState<string>('wedding');
   const [shootSetting, setShootSetting] = useState<ShootSetting | null>(initialShootSetting);
 
   // Sync state if query params change
@@ -397,13 +374,8 @@ export function ProposalPageClient() {
     return today > '2026-11-28' ? today : '2026-11-28';
   });
   const [endDate, setEndDate] = useState('');
-  const [nextDayTiming, setNextDayTiming] = useState('');
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(() =>
-    activePlan === 'full' ? 'Full-Day / Multi-Session' : 'Early Morning Muhurtham (6:00 AM)'
-  );
-  const [customTime, setCustomTime] = useState<string>(() =>
-    activePlan === 'full' ? '' : '06:00'
-  );
+  const [eventStartTime, setEventStartTime] = useState('');
+  const [eventEndTime, setEventEndTime] = useState('');
   const [venue, setVenue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -491,21 +463,24 @@ export function ProposalPageClient() {
         .filter((item) => item.durationTier)
         .map((item) => [item.serviceSlug, item.durationTier as DurationTier])
     );
-    const inferredExcludedIds = isSavedPackage ? targetPackage?.includedServices
-      ?.filter((item) =>
-        !optedServices.some((opted) => opted.serviceSlug === item.serviceSlug)
-      )
-      .flatMap((item) => {
-        const feature = (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>).find(
-          (key) => FEATURE_SERVICE_SLUGS[key].includes(item.serviceSlug)
-        );
-        return feature ? [`inc-${feature}`] : [];
-      }) || [] : [];
+    const inferredExcludedIds = isSavedPackage && targetPackage
+      ? (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>)
+          .filter((feature) => {
+            const featureSlugs = getPackageFeatureServiceSlugs(targetPackage, services, feature);
+            return (
+              featureSlugs.length > 0 &&
+              !featureSlugs.some((slug) =>
+                optedServices.some((opted) => opted.serviceSlug === slug)
+              )
+            );
+          })
+          .map((feature) => `inc-${feature}`)
+      : [];
     const inferredUpgradeIds = isSavedPackage ? optedServices
       .filter((item) => !includedSlugs.has(item.serviceSlug))
       .map((item) => item.serviceSlug) : [];
     const savedAlbumSheets = isSavedPackage
-      ? optedServices.find((item) => item.serviceSlug === 'photo-album')?.quantity
+      ? optedServices.find((item) => item.serviceSlug.startsWith('photo-album'))?.quantity
       : undefined;
     const matchedEvent = activeEvents.find(
       (event) => event.name.toLowerCase() === proposalData.eventType.toLowerCase()
@@ -533,23 +508,6 @@ export function ProposalPageClient() {
         proposalData.notes.toLowerCase().includes(option.label.toLowerCase())
       )?.id ||
       null;
-    const time = proposalData.eventTime || '';
-    const timePreset = TIME_SLOT_PRESETS.find(
-      (slot) =>
-        slot.value.toLowerCase() === time.toLowerCase() ||
-        slot.label.toLowerCase() === time.toLowerCase()
-    );
-    const timeMatch = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    let parsedTime = '';
-    if (timeMatch) {
-      let hour = Number(timeMatch[1]);
-      if (timeMatch[3].toUpperCase() === 'PM' && hour < 12) hour += 12;
-      if (timeMatch[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
-      parsedTime = `${String(hour).padStart(2, '0')}:${timeMatch[2]}`;
-    } else if (/^([01]\d|2[0-3]):[0-5]\d/.test(time)) {
-      parsedTime = time.slice(0, 5);
-    }
-
     skipNextAlbumDefault.current = true;
     setActiveEventId(resolvedEventId);
     setActivePlan(savedPlan);
@@ -581,8 +539,8 @@ export function ProposalPageClient() {
     setPhone(proposalData.phone);
     setEventDate(proposalData.preferredDate);
     setEndDate(proposalData.endDate || '');
-    setSelectedTimeSlot(timePreset?.value || 'custom');
-    setCustomTime(timePreset?.time || parsedTime);
+    setEventStartTime(parseTimeInput(proposalData.eventTime));
+    setEventEndTime(parseTimeInput(proposalData.eventEndTime));
     setVenue(proposalData.venue);
     setProposalHydrated(true);
   }, [
@@ -597,35 +555,10 @@ export function ProposalPageClient() {
     rawPlanParam,
     rawProposalToken,
     rawTierParam,
+    services,
   ]);
 
-  // Auto-default based on intake plan (e.g. multi-session)
-  useEffect(() => {
-    if (activePlan === 'full') {
-      setSelectedTimeSlot('Full-Day / Multi-Session');
-      setCustomTime('');
-    }
-  }, [activePlan]);
-
-  // Compute effective event time representation
-  const effectiveEventTime = useMemo(() => {
-    if (selectedTimeSlot && selectedTimeSlot !== 'custom') {
-      return selectedTimeSlot;
-    }
-    if (customTime) {
-      const [hStr, mStr] = customTime.split(':');
-      const h = parseInt(hStr, 10);
-      const m = parseInt(mStr, 10);
-      if (!isNaN(h) && !isNaN(m)) {
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        const displayH = h % 12 || 12;
-        const displayM = m < 10 ? `0${m}` : m;
-        return `${displayH}:${displayM} ${ampm}`;
-      }
-      return customTime;
-    }
-    return 'To be confirmed';
-  }, [selectedTimeSlot, customTime]);
+  const effectiveEventTime = eventStartTime || 'To be confirmed';
 
   // Current active event object
   const currentEvent = useMemo(() => {
@@ -739,7 +672,7 @@ export function ProposalPageClient() {
   const baseIncludedElements = useMemo(() => {
     if (!basePackage) return [];
 
-    const incMap = basePackage.customizer?.included;
+    const includedFeatures = getPackageIncludedFeatures(basePackage, services);
     const keys: (keyof PackageIncludedFeatures)[] = [
       'traditionalPhoto',
       'traditionalVideo',
@@ -762,29 +695,16 @@ export function ProposalPageClient() {
     }[] = [];
 
     keys.forEach((k) => {
-      let isIncluded = false;
-      if (basePackage.includedServices?.length) {
-        isIncluded = basePackage.includedServices.some((item) =>
-          FEATURE_SERVICE_SLUGS[k].includes(item.serviceSlug)
-        );
-      } else if (incMap) {
-        isIncluded = Boolean(incMap[k]);
-      } else {
-        if (basePackage.sortOrder === 3) {
-          isIncluded = ['traditionalPhoto', 'traditionalVideo', 'candidPhoto', 'candidVideo', 'printedAlbum', 'drone'].includes(k);
-        } else if (basePackage.sortOrder === 2) {
-          isIncluded = ['traditionalPhoto', 'traditionalVideo', 'candidPhoto', 'printedAlbum'].includes(k);
-        } else {
-          isIncluded = ['traditionalPhoto', 'traditionalVideo', 'printedAlbum'].includes(k);
-        }
-      }
+      const isIncluded = includedFeatures[k];
 
       if (isIncluded) {
         const meta = BASE_FEATURE_DEFINITIONS[k];
         const albumSheets = basePackage.sortOrder === 3 ? 40 : basePackage.sortOrder === 1 ? 30 : 35;
-        const includedItem = basePackage.includedServices?.find((item) =>
-          FEATURE_SERVICE_SLUGS[k].includes(item.serviceSlug)
-        );
+        const featureServiceSlugs = getPackageFeatureServiceSlugs(basePackage, services, k);
+        const includedItems = basePackage.includedServices?.filter((item) =>
+          featureServiceSlugs.includes(item.serviceSlug)
+        ) || [];
+        const includedItem = includedItems[0];
         const qty =
           includedItem?.quantity || (k === 'printedAlbum' ? albumSheets : 1);
         const slug =
@@ -798,7 +718,18 @@ export function ProposalPageClient() {
           includedItem?.durationTier ??
           basePackage.durationTier ??
           durationTier;
-        const dynamicCost = slug ? getServiceCost(slug, qty, effectiveTier) : 0;
+        const dynamicCost = includedItems.length
+          ? includedItems.reduce((sum, item) => {
+              const itemTier =
+                serviceDurationOverrides[item.serviceSlug] ??
+                item.durationTier ??
+                basePackage.durationTier ??
+                durationTier;
+              return sum + getServiceCost(item.serviceSlug, item.quantity, itemTier);
+            }, 0)
+          : slug
+            ? getServiceCost(slug, qty, effectiveTier)
+            : 0;
         let deduction = dynamicCost > 0 ? -dynamicCost : meta.defaultDeduction;
 
         if (k === 'printedAlbum' && basePackage.customizer?.addons) {
@@ -979,43 +910,7 @@ export function ProposalPageClient() {
       };
     }
 
-    const incMap = basePackage.customizer?.included;
-
-    // Standard fallback by tier if customizer.included is not defined
-    const tierOrder = basePackage.sortOrder ?? 2;
-    const fallbackIncluded: Record<string, boolean> = {
-      traditionalPhoto: true,
-      traditionalVideo: true,
-      candidPhoto: tierOrder >= 2,
-      candidVideo: tierOrder >= 3,
-      printedAlbum: true,
-      drone: tierOrder >= 3,
-      ledWall: false,
-      outdoorShoot: tierOrder >= 2,
-    };
-
-    const isBaseKey = (k: string): boolean => {
-      if (basePackage.includedServices?.length) {
-        return FEATURE_SERVICE_SLUGS[k as keyof PackageIncludedFeatures].some((slug) =>
-          basePackage.includedServices?.some((item) => item.serviceSlug === slug)
-        );
-      }
-      if (incMap && typeof incMap[k] === 'boolean') {
-        return Boolean(incMap[k]);
-      }
-      return Boolean(fallbackIncluded[k]);
-    };
-
-    const baseFlags = {
-      traditionalPhoto: isBaseKey('traditionalPhoto'),
-      traditionalVideo: isBaseKey('traditionalVideo'),
-      candidPhoto: isBaseKey('candidPhoto'),
-      candidVideo: isBaseKey('candidVideo'),
-      printedAlbum: isBaseKey('printedAlbum'),
-      drone: isBaseKey('drone'),
-      ledWall: isBaseKey('ledWall'),
-      outdoorShoot: isBaseKey('outdoorShoot'),
-    };
+    const baseFlags = getPackageIncludedFeatures(basePackage, services);
 
     const currentFeatures = {
       traditionalPhoto:
@@ -1146,14 +1041,18 @@ export function ProposalPageClient() {
       activeFeatures: currentFeatures,
       activeChips: chips,
     };
-  }, [basePackage, unselectedIncludedIds]);
+  }, [basePackage, services, unselectedIncludedIds]);
 
   const customizedActiveServiceItems = useMemo(() => {
     if (!basePackage) return [];
     const excludedSlugs = new Set(
       unselectedIncludedIds.flatMap((id) => {
         const feature = id.replace('inc-', '') as keyof PackageIncludedFeatures;
-        return FEATURE_SERVICE_SLUGS[feature] || [];
+        if (!Object.prototype.hasOwnProperty.call(FEATURE_SERVICE_SLUGS, feature)) return [];
+        return [
+          ...(FEATURE_SERVICE_SLUGS[feature] || []),
+          ...getPackageFeatureServiceSlugs(basePackage, services, feature),
+        ];
       })
     );
     const activeItems = new Map<string, { serviceSlug: string; quantity: number; durationTier?: DurationTier }>();
@@ -1170,7 +1069,7 @@ export function ProposalPageClient() {
               basePackage.durationTier ??
               durationTier,
             quantity:
-              item.serviceSlug.startsWith('photo-album') && activeFeatures.printedAlbum
+              item.serviceSlug === albumServiceSlug && activeFeatures.printedAlbum
                 ? customAlbumSheets
                 : item.quantity,
           });
@@ -1205,6 +1104,7 @@ export function ProposalPageClient() {
     return [...activeItems.values()];
   }, [
     basePackage,
+    albumServiceSlug,
     activeFeatures,
     customAlbumSheets,
     services,
@@ -1371,14 +1271,15 @@ export function ProposalPageClient() {
     if (clientName.trim()) lines.push(`👤 Client: ${clientName.trim()}`);
     if (phone.trim()) lines.push(`📞 Phone: ${phone.trim()}`);
 
-    const timeDisplay = effectiveEventTime || 'To be finalized';
     if (eventDate) {
-      lines.push(`📅 Date & Time: ${eventDate} at ${timeDisplay}`);
-      if (activePlan === 'full' && endDate) {
-        lines.push(`📅 Multi-day through: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`);
+      lines.push(`📅 Event start: ${eventDate}${eventStartTime ? ` at ${eventStartTime}` : ''}`);
+      if (endDate || eventEndTime) {
+        lines.push(
+          `📅 Event end: ${endDate || eventDate}${eventEndTime ? ` at ${eventEndTime}` : ''}`
+        );
       }
     } else {
-      lines.push(`📅 Date & Time: To be finalized`);
+      lines.push(`📅 Event start: To be finalized`);
     }
 
     if (venue.trim()) lines.push(`📍 Venue: ${venue.trim()}`);
@@ -1428,18 +1329,18 @@ export function ProposalPageClient() {
 
   const buildProposalUpdate = (acceptedTerms = false): BookingProposalUpdate => {
     const customNotes = customizedModifications.map((mod) => `${mod.label} (${mod.badge})`).join(', ');
-    const timingNote = effectiveEventTime ? `Timing: ${effectiveEventTime}` : '';
-    const multiDayNote =
-      activePlan === 'full' && endDate
-        ? `End Date: ${endDate}${nextDayTiming ? ` (${nextDayTiming})` : ''}`
+    const startNote = `Start: ${eventDate}${eventStartTime ? ` ${eventStartTime}` : ''}`;
+    const endNote =
+      endDate || eventEndTime
+        ? `End: ${endDate || eventDate}${eventEndTime ? ` ${eventEndTime}` : ''}`
         : '';
     const combinedNotes = [
       `Proposal for ${currentEvent?.name || 'Event'} (${planShortLabel}${
         asksForShootSetting ? '' : `, ${guestsShortLabel}`
       })`,
       asksForShootSetting ? `Shoot setting: ${selectedShootSetting}` : '',
-      timingNote,
-      multiDayNote,
+      startNote,
+      endNote,
       `Base Package: ${basePackage?.name} (${formatINR(basePackage?.price || 0)})`,
       customNotes ? `Customizations: ${customNotes}` : '',
       `Estimated Total: ${formatINR(finalPrice)}`,
@@ -1451,6 +1352,7 @@ export function ProposalPageClient() {
       'traditional-camera': 'Traditional Camera',
       'traditional-video': 'Traditional Video',
       'candid-photography': 'Candid Camera',
+      'candid-photography-standard': 'Candid Camera',
       'candid-cinematography': 'Candid Video',
       'drone-aerial-coverage': 'Drone',
       'led-wall': 'LED Wall',
@@ -1499,8 +1401,9 @@ export function ProposalPageClient() {
       phone: phone.trim(),
       eventType: (currentEvent?.name || 'Weddings') as EventCategory,
       preferredDate: eventDate,
-      ...(activePlan === 'full' && endDate ? { endDate } : {}),
-      eventTime: effectiveEventTime || 'To be confirmed',
+      ...(endDate ? { endDate } : {}),
+      ...(eventStartTime ? { eventTime: eventStartTime } : {}),
+      ...(eventEndTime ? { eventEndTime } : {}),
       venue: venue.trim(),
       packageId: basePackage?.id || 'pkg-custom',
       packageName: `${basePackage?.name || 'Custom Proposal'} (Total: ${formatINR(finalPrice)})`,
@@ -1550,6 +1453,19 @@ export function ProposalPageClient() {
     }
     if (!clientName.trim() || !phone.trim() || !eventDate || !venue.trim()) {
       toast.error('Please fill in your name, phone, date, and venue.');
+      return false;
+    }
+    if (endDate && endDate < eventDate) {
+      toast.error('Event end date cannot be before the start date.');
+      return false;
+    }
+    if (
+      (!endDate || endDate === eventDate) &&
+      eventStartTime &&
+      eventEndTime &&
+      eventEndTime <= eventStartTime
+    ) {
+      toast.error('Event end time must be after the start time.');
       return false;
     }
     return true;
@@ -1728,41 +1644,12 @@ export function ProposalPageClient() {
               {/* Question 1: Milestone Event */}
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                  1. What milestone are we capturing?
+                  1. Choose your event
                 </label>
-                {/* Category Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {EVENT_CATEGORY_GROUPS.map((group) => {
-                    const isSelected = intakeCategory === group.id;
-                    const icon = CATEGORY_ICONS[group.id] || <Sparkles className="h-3.5 w-3.5" />;
-                    return (
-                      <button
-                        key={group.id}
-                        type="button"
-                        onClick={() => {
-                          setIntakeCategory(group.id);
-                          const first = activeEvents.find((e) => matchesCategory(e.category, group.id));
-                          if (first) setActiveEventId(first.id);
-                        }}
-                        className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                          isSelected
-                            ? 'bg-[#D8C78E] text-[#061E1C] font-bold shadow'
-                            : 'bg-[#092E2B] text-[#E6ECEB]/80 border border-[#C5B378]/25 hover:text-white'
-                        }`}
-                      >
-                        {icon}
-                        <span>{group.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Event Chips */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
-                  {activeEvents
-                    .filter((e) => matchesCategory(e.category, intakeCategory))
-                    .map((ev) => {
+                  {activeEvents.map((ev) => {
                       const isSelected = activeEventId === ev.id;
+                      const icon = CATEGORY_ICONS[ev.category] || <Sparkles className="h-3.5 w-3.5" />;
                       return (
                         <button
                           key={ev.id}
@@ -1774,7 +1661,10 @@ export function ProposalPageClient() {
                               : 'border-[#C5B378]/20 bg-[#092E2B]/80 text-[#E6ECEB]/80 hover:text-white'
                           }`}
                         >
-                          <span className="truncate">{ev.name}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {icon}
+                            <span className="truncate">{ev.name}</span>
+                          </span>
                           {isSelected && <Check className="h-3.5 w-3.5 text-[#D8C78E] shrink-0 ml-1" />}
                         </button>
                       );
@@ -2181,14 +2071,22 @@ export function ProposalPageClient() {
                     {/* A. Base Included Features (Default Checked) */}
                     {baseIncludedElements.map((el) => {
                       const isChecked = !unselectedIncludedIds.includes(el.id);
-                      const featureServiceSlug = FEATURE_SERVICE_SLUGS[
-                        el.featureKey as keyof PackageIncludedFeatures
-                      ].find((slug) => services.some((service) => service.slug === slug));
+                      const featureKey = el.featureKey as keyof PackageIncludedFeatures;
+                      const featureServiceSlugs = getPackageFeatureServiceSlugs(
+                        basePackage,
+                        services,
+                        featureKey
+                      );
+                      const featureServiceSlug =
+                        featureServiceSlugs[0] ||
+                        FEATURE_SERVICE_SLUGS[featureKey].find((slug) =>
+                          services.some((service) => service.slug === slug)
+                        );
                       const featureService = services.find(
                         (service) => service.slug === featureServiceSlug
                       );
                       const featureItem = basePackage?.includedServices?.find(
-                        (item) => item.serviceSlug === featureServiceSlug
+                        (item) => featureServiceSlugs.includes(item.serviceSlug)
                       );
                       const featureDurationTier =
                         serviceDurationOverrides[featureServiceSlug || ''] ??
@@ -2590,15 +2488,9 @@ export function ProposalPageClient() {
                       </div>
                     </div>
 
-                    {/* Date & Time Side-by-Side Row */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90 flex items-center justify-between">
-                          <span>Event date *</span>
-                          {activePlan === 'full' && (
-                            <span className="text-[10px] text-[#D8C78E] font-medium">Day 1</span>
-                          )}
-                        </label>
+                        <label className="text-xs font-semibold text-white/90">Event start date *</label>
                         <input
                           type="date"
                           required
@@ -2609,52 +2501,36 @@ export function ProposalPageClient() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-white/90">Time</label>
+                        <label className="text-xs font-semibold text-white/90">Event start time</label>
                         <input
                           type="time"
-                          value={customTime}
-                          onChange={(e) => {
-                            setCustomTime(e.target.value);
-                            setSelectedTimeSlot('custom');
-                          }}
+                          value={eventStartTime}
+                          onChange={(e) => setEventStartTime(e.target.value)}
+                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-white/90">Event end date</label>
+                        <input
+                          type="date"
+                          min={eventDate}
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-white/90">Event end time</label>
+                        <input
+                          type="time"
+                          value={eventEndTime}
+                          onChange={(e) => setEventEndTime(e.target.value)}
                           className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-3 py-2 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
                         />
                       </div>
                     </div>
-
-                    {/* Optional Multi-Day End Date (if activePlan is Full-Day / Multi-Session) */}
-                    {activePlan === 'full' && (
-                      <div className="rounded-sm border border-[#C5B378]/25 bg-[#0E423E]/60 p-2.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-[#D8C78E] flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-[#D8C78E]" />
-                            Multi-Session / Next-Day Muhurtham
-                          </span>
-                          <span className="text-[10px] text-[#E6ECEB]/60">Optional 2nd Day</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          <div className="space-y-0.5">
-                            <label className="text-[10px] text-white/80">Day 2 / End Date</label>
-                            <input
-                              type="date"
-                              value={endDate}
-                              onChange={(e) => setEndDate(e.target.value)}
-                              className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-2.5 py-1.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-0.5">
-                            <label className="text-[10px] text-white/80">Next-Day Muhurtham Timing</label>
-                            <input
-                              type="text"
-                              value={nextDayTiming}
-                              onChange={(e) => setNextDayTiming(e.target.value)}
-                              placeholder="e.g. 5:30 AM Muhurtham"
-                              className="w-full rounded-sm border border-[#C5B378]/30 bg-[#061E1C] px-2.5 py-1.5 text-xs text-white placeholder-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     {asksForShootSetting && (
                       <fieldset className="space-y-1.5">

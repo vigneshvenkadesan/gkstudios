@@ -30,6 +30,7 @@ interface SubmitBookingInput {
   preferredDate: string;
   endDate?: string;
   eventTime?: string;
+  eventEndTime?: string;
   venue: string;
   packageId: string;
   packageName?: string;
@@ -57,6 +58,7 @@ interface AcknowledgeBookingInput {
   nextStatus: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
   blockCalendarDate?: boolean;
   eventTime?: string;
+  eventEndTime?: string;
 }
 
 interface CreateEventProjectInput {
@@ -201,6 +203,7 @@ export function StudioProvider({
         nextStatus: input.nextStatus,
         blockCalendarDate: input.blockCalendarDate,
         eventTime: input.eventTime,
+        eventEndTime: input.eventEndTime,
       }),
     });
     setState(nextState);

@@ -34,6 +34,7 @@ import {
   calculateCustomizedEventPrice,
   calculatePackageBasePrice,
   buildOptedServicesForPackage,
+  getPackageBookingServiceOptions,
 } from '@/src/lib/pricing';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
@@ -203,22 +204,7 @@ export function AdminScheduleModule() {
       )
     );
 
-    // Auto-fill services based on package inclusions
-    const newServices: BookingServiceOption[] = ['Traditional Camera', 'Traditional Video'];
-    const inc = pkg.customizer?.included;
-    if (inc?.candidPhoto || pkg.sortOrder === 2 || pkg.sortOrder === 3) {
-      newServices.push('Candid Camera');
-    }
-    if (inc?.candidVideo || pkg.sortOrder === 3) {
-      newServices.push('Candid Video');
-    }
-    if (inc?.drone || pkg.sortOrder === 3) {
-      newServices.push('Drone');
-    }
-    if (inc?.ledWall) {
-      newServices.push('LED Wall');
-    }
-    setRequestedServices(newServices);
+    setRequestedServices(getPackageBookingServiceOptions(pkg, services));
 
     // Auto-fill crew
     if (pkg.sortOrder === 3) {

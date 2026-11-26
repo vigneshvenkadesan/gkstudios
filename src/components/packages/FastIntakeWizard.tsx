@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Heart,
   Baby,
-  Cake,
   Flame,
-  Briefcase,
   Home,
   Users,
   Crown,
@@ -20,7 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { EVENT_CATEGORY_GROUPS, StudioEvent, StudioPackage } from '@/src/types/studio';
+import { StudioEvent, StudioPackage } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
 
 export type SessionPlan = 'single-3h' | 'half' | 'full';
@@ -50,24 +48,10 @@ interface FastIntakeWizardProps {
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   wedding: <Heart className="h-4 w-4" />,
-  'baby-maternity': <Baby className="h-4 w-4" />,
-  'birthday-kids': <Cake className="h-4 w-4" />,
-  'family-traditional': <Flame className="h-4 w-4" />,
-  'corporate-business': <Briefcase className="h-4 w-4" />,
+  'baby-kids': <Baby className="h-4 w-4" />,
+  outdoor: <Sparkles className="h-4 w-4" />,
+  'family-milestones': <Flame className="h-4 w-4" />,
 };
-
-function matchesCategory(eventCategory?: string, groupId?: string): boolean {
-  if (!eventCategory || !groupId) return false;
-  const evCat = eventCategory.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-  const grp = groupId.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-  if (evCat === grp) return true;
-  if (grp.includes('wedding') && evCat.includes('wedding')) return true;
-  if ((grp.includes('baby') || grp.includes('maternity')) && (evCat.includes('baby') || evCat.includes('maternity'))) return true;
-  if ((grp.includes('birthday') || grp.includes('kid')) && (evCat.includes('birthday') || evCat.includes('kid'))) return true;
-  if ((grp.includes('family') || grp.includes('traditional')) && (evCat.includes('family') || evCat.includes('traditional'))) return true;
-  if ((grp.includes('corporate') || grp.includes('business')) && (evCat.includes('corporate') || evCat.includes('business'))) return true;
-  return false;
-}
 
 export const GUEST_SCALES = [
   {
@@ -123,9 +107,8 @@ export function FastIntakeWizard({
 
   const filteredEvents = useMemo(() => {
     return activeEvents
-      .filter((e) => matchesCategory(e.category, selectedCategoryId))
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [activeEvents, selectedCategoryId]);
+  }, [activeEvents]);
 
   const currentEvent = useMemo(() => {
     return (
@@ -234,45 +217,22 @@ export function FastIntakeWizard({
               </p>
             </div>
 
-            {/* Category Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none scroll-smooth">
-              {EVENT_CATEGORY_GROUPS.map((group) => {
-                const isSelected = selectedCategoryId === group.id;
-                const icon = CATEGORY_ICONS[group.id] || <Sparkles className="h-4 w-4" />;
-
-                return (
-                  <button
-                    key={group.id}
-                    type="button"
-                    onClick={() => {
-                      onChangeCategory(group.id);
-                      const first = activeEvents.find((e) => matchesCategory(e.category, group.id));
-                      if (first) onChangeEvent(first.id);
-                    }}
-                    className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] shadow-[0_4px_16px_rgba(216,199,142,0.3)] ring-1 ring-[#F4E8C1]'
-                        : 'bg-[#0E423E]/80 text-[#E6ECEB]/80 border border-[#C5B378]/25 hover:border-[#D8C78E]/60 hover:text-white'
-                    }`}
-                  >
-                    <span>{icon}</span>
-                    <span>{group.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Event Cards Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
               {filteredEvents.map((ev) => {
                 const isSelected = selectedEventId === ev.id;
-                const catIcon = CATEGORY_ICONS[selectedCategoryId] || <Sparkles className="h-4 w-4" />;
+                const catIcon =
+                  CATEGORY_ICONS[ev.category] ||
+                  CATEGORY_ICONS[selectedCategoryId] ||
+                  <Sparkles className="h-4 w-4" />;
 
                 return (
                   <motion.button
                     key={ev.id}
                     type="button"
-                    onClick={() => onChangeEvent(ev.id)}
+                    onClick={() => {
+                      onChangeCategory(ev.category);
+                      onChangeEvent(ev.id);
+                    }}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.98 }}
                     className={`flex items-center justify-between text-left p-2.5 sm:p-3.5 rounded-sm border transition-all ${

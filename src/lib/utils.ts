@@ -1,6 +1,12 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { PaymentRecord, StudioBill } from '@/src/types/studio';
+import type { OptedServiceSnapshot, PaymentRecord, StudioBill } from '@/src/types/studio';
+
+export interface BillDisplayDeliverable {
+  category: string;
+  text: string;
+  isComplimentary: boolean;
+}
 
 export interface BillPaymentEntry {
   id: string;
@@ -8,6 +14,25 @@ export interface BillPaymentEntry {
   label: string;
   amount: number;
   method: string;
+}
+
+export function getBillDisplayDeliverables(
+  deliverables: Record<string, string> | undefined
+): BillDisplayDeliverable[] {
+  const hiddenCategories = new Set(['albums & photo frames', 'digital deliverables']);
+  return Object.entries(deliverables || {}).filter(
+    ([category]) => !hiddenCategories.has(category.trim().toLowerCase())
+  ).flatMap(([category, value]) =>
+    value.split(',').map((text) => text.trim()).filter(Boolean).map((text) => ({
+      category,
+      text,
+      isComplimentary: /^complementary/i.test(text),
+    }))
+  );
+}
+
+export function getBillServiceRateTotal(services: OptedServiceSnapshot[]): number {
+  return services.reduce((total, service) => total + service.unitPrice * service.quantity, 0);
 }
 
 export function cn(...inputs: ClassValue[]) {

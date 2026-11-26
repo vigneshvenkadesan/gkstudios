@@ -37,6 +37,7 @@ export async function PATCH(
       nextStatus?: Extract<BookingStatus, 'In Discussion' | 'Acknowledged' | 'Confirmed'>;
       blockCalendarDate?: boolean;
       eventTime?: string;
+      eventEndTime?: string;
     };
 
     if (body.action === 'status' && body.status) {
@@ -45,6 +46,17 @@ export async function PATCH(
     }
 
     if (body.nextStatus) {
+      if (
+        (body.eventTime !== undefined &&
+          (typeof body.eventTime !== 'string' || body.eventTime.length > 120)) ||
+        (body.eventEndTime !== undefined &&
+          (typeof body.eventEndTime !== 'string' || body.eventEndTime.length > 120))
+      ) {
+        return NextResponse.json(
+          { error: 'Provide a valid event start and end time.' },
+          { status: 400 }
+        );
+      }
       const state = await processBookingOnServer({
         bookingId: id,
         packageId: body.packageId || '',
@@ -54,6 +66,7 @@ export async function PATCH(
         nextStatus: body.nextStatus,
         blockCalendarDate: body.blockCalendarDate,
         eventTime: body.eventTime,
+        eventEndTime: body.eventEndTime,
       });
       return NextResponse.json(state);
     }
@@ -64,6 +77,8 @@ export async function PATCH(
     const status =
       message === 'Booking request not found.'
         ? 404
+        : message === 'Event end time must be later than the start time.'
+          ? 400
         : message.includes('proposal before confirming')
           ? 409
           : error instanceof SyntaxError

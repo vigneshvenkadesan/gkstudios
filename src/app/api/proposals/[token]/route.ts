@@ -147,9 +147,19 @@ function parseProposalUpdate(value: unknown): BookingProposalUpdate | null {
     (value.durationTier !== undefined &&
       !VALID_DURATION_TIERS.has(value.durationTier as DurationTier)) ||
     (value.endDate !== undefined &&
-      (typeof value.endDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.endDate))) ||
+      (typeof value.endDate !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value.endDate) ||
+        value.endDate < value.preferredDate)) ||
     (value.eventTime !== undefined &&
       (typeof value.eventTime !== 'string' || value.eventTime.length > 120)) ||
+    (value.eventEndTime !== undefined &&
+      (typeof value.eventEndTime !== 'string' || value.eventEndTime.length > 120)) ||
+    (typeof value.eventTime === 'string' &&
+      typeof value.eventEndTime === 'string' &&
+      (!value.endDate || value.endDate === value.preferredDate) &&
+      /^\d{2}:\d{2}$/.test(value.eventTime) &&
+      /^\d{2}:\d{2}$/.test(value.eventEndTime) &&
+      value.eventEndTime <= value.eventTime) ||
     (value.totalAmount !== undefined &&
       (typeof value.totalAmount !== 'number' ||
         !Number.isFinite(value.totalAmount) ||
@@ -169,6 +179,7 @@ function parseProposalUpdate(value: unknown): BookingProposalUpdate | null {
     preferredDate: value.preferredDate,
     ...(typeof value.endDate === 'string' ? { endDate: value.endDate } : {}),
     ...(typeof value.eventTime === 'string' ? { eventTime: value.eventTime } : {}),
+    ...(typeof value.eventEndTime === 'string' ? { eventEndTime: value.eventEndTime } : {}),
     venue: value.venue.trim(),
     packageId: value.packageId,
     packageName: value.packageName.trim(),
@@ -194,6 +205,7 @@ function toProposalView(booking: BookingRequest): ProposalBookingView {
     preferredDate: booking.preferredDate,
     ...(booking.endDate ? { endDate: booking.endDate } : {}),
     ...(booking.eventTime ? { eventTime: booking.eventTime } : {}),
+    ...(booking.eventEndTime ? { eventEndTime: booking.eventEndTime } : {}),
     venue: booking.venue,
     packageId: booking.packageId,
     packageName: booking.packageName,

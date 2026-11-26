@@ -111,7 +111,8 @@ Exact schema fields:
 | `eventType` | string/EventCategory | Required |
 | `preferredDate` | string | `YYYY-MM-DD` |
 | `endDate` | string, optional | Multi-day end date |
-| `eventTime` | string, optional | Stored time text/value |
+| `eventTime` | string, optional | Event start time |
+| `eventEndTime` | string, optional | Event end time |
 | `venue` | string | Required |
 | `packageId` | string | Package ID or `custom-package` |
 | `packageName` | string | Required |
@@ -249,7 +250,7 @@ The bill collection stores one immutable snapshot per payment entry.
 | `paymentId` | string | Related payment |
 | `clientName` | string | Snapshot |
 | `clientPhone` | string | Snapshot |
-| `eventDetails` | object | Event name, Tamil name, date, time, venue, plan |
+| `eventDetails` | object | Event name, Tamil name, start/end date and time, venue, plan |
 | `packageDetails` | object | Package/tier/duration/services/deliverables/crew/addons/exclusions |
 | `financials` | object | Totals paid now, cumulative paid, balance due, stage |
 | `termsAndConditions` | array | `{ en, ta }[]` |

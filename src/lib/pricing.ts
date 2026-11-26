@@ -1,6 +1,9 @@
 import {
+  BOOKING_SERVICE_OPTIONS,
+  BookingServiceOption,
   DurationTier,
   OptedServiceSnapshot,
+  PackageIncludedFeatures,
   PackageIncludedService,
   StudioPackage,
   StudioService,
@@ -35,6 +38,120 @@ const DERIVED_DELIVERABLE_KEYS = new Set([
 ]);
 
 const VALID_DURATION_TIERS = new Set<DurationTier>(['threeHours', 'halfDay', 'fullDay']);
+
+const PACKAGE_FEATURE_MATCHERS: Record<keyof PackageIncludedFeatures, RegExp> = {
+  traditionalPhoto: /traditional.*(photograph|photo|camera)/i,
+  traditionalVideo: /traditional.*(video|cinematograph|cinema|movie)/i,
+  candidPhoto: /candid.*(photograph|photo|camera)/i,
+  candidVideo: /candid.*(video|cinematograph|cinema|movie)/i,
+  printedAlbum: /(album|photobook)/i,
+  drone: /(drone|aerial)/i,
+  ledWall: /led.*(wall|tv|screen)|live.*(wall|screen)/i,
+  outdoorShoot: /outdoor.*(shoot|photo|session)|photoshoot.*outdoor/i,
+};
+
+const PACKAGE_BOOKING_SERVICE_SLUGS: Record<BookingServiceOption, string[]> = {
+  'Traditional Camera': ['traditional-camera'],
+  'Candid Camera': ['candid-photography', 'candid-photography-standard'],
+  'Candid Video': ['candid-cinematography'],
+  'Traditional Video': ['traditional-video'],
+  Drone: ['drone-aerial-coverage'],
+  TV: ['led-tv'],
+  'LED Wall': ['led-wall'],
+};
+
+function packageServiceDescriptor(
+  item: PackageIncludedService,
+  services: StudioService[]
+): string {
+  const service = services.find((candidate) => candidate.slug === item.serviceSlug);
+  return `${item.serviceSlug} ${service?.name || ''}`.trim();
+}
+
+function packageServiceMatchesFeature(
+  item: PackageIncludedService,
+  services: StudioService[],
+  feature: keyof PackageIncludedFeatures
+): boolean {
+  const descriptor = packageServiceDescriptor(item, services);
+  if (
+    ['traditionalPhoto', 'traditionalVideo', 'candidPhoto', 'candidVideo'].includes(feature) &&
+    /\b(editing|retouch|post-production)\b/i.test(descriptor)
+  ) {
+    return false;
+  }
+  return PACKAGE_FEATURE_MATCHERS[feature].test(descriptor);
+}
+
+export function getPackageFeatureServiceSlugs(
+  pkg: Partial<StudioPackage>,
+  services: StudioService[],
+  feature: keyof PackageIncludedFeatures
+): string[] {
+  return (pkg.includedServices || [])
+    .filter(
+      (item) =>
+        item.quantity > 0 &&
+        packageServiceMatchesFeature(item, services, feature)
+    )
+    .map((item) => item.serviceSlug);
+}
+
+export function getPackageIncludedFeatures(
+  pkg: Partial<StudioPackage>,
+  services: StudioService[] = []
+): PackageIncludedFeatures {
+  if (Array.isArray(pkg.includedServices)) {
+    return {
+      traditionalPhoto: getPackageFeatureServiceSlugs(pkg, services, 'traditionalPhoto').length > 0,
+      traditionalVideo: getPackageFeatureServiceSlugs(pkg, services, 'traditionalVideo').length > 0,
+      candidPhoto: getPackageFeatureServiceSlugs(pkg, services, 'candidPhoto').length > 0,
+      candidVideo: getPackageFeatureServiceSlugs(pkg, services, 'candidVideo').length > 0,
+      drone: getPackageFeatureServiceSlugs(pkg, services, 'drone').length > 0,
+      ledWall: getPackageFeatureServiceSlugs(pkg, services, 'ledWall').length > 0,
+      outdoorShoot: getPackageFeatureServiceSlugs(pkg, services, 'outdoorShoot').length > 0,
+      printedAlbum: getPackageFeatureServiceSlugs(pkg, services, 'printedAlbum').length > 0,
+    };
+  }
+
+  if (pkg.customizer?.included) return { ...pkg.customizer.included };
+
+  const sortOrder = pkg.sortOrder ?? 2;
+  return {
+    traditionalPhoto: true,
+    traditionalVideo: true,
+    candidPhoto: sortOrder >= 2,
+    candidVideo: sortOrder >= 3,
+    drone: sortOrder >= 3,
+    ledWall: false,
+    outdoorShoot: sortOrder >= 2,
+    printedAlbum: true,
+  };
+}
+
+export function getPackageBookingServiceOptions(
+  pkg: Partial<StudioPackage>,
+  services: StudioService[] = []
+): BookingServiceOption[] {
+  if (Array.isArray(pkg.includedServices)) {
+    const includedSlugs = new Set(
+      pkg.includedServices.filter((item) => item.quantity > 0).map((item) => item.serviceSlug)
+    );
+    return BOOKING_SERVICE_OPTIONS.filter((service) =>
+      PACKAGE_BOOKING_SERVICE_SLUGS[service].some((slug) => includedSlugs.has(slug))
+    );
+  }
+
+  const features = getPackageIncludedFeatures(pkg, services);
+  return [
+    ...(features.traditionalPhoto ? (['Traditional Camera'] as const) : []),
+    ...(features.candidPhoto ? (['Candid Camera'] as const) : []),
+    ...(features.candidVideo ? (['Candid Video'] as const) : []),
+    ...(features.traditionalVideo ? (['Traditional Video'] as const) : []),
+    ...(features.drone ? (['Drone'] as const) : []),
+    ...(features.ledWall ? (['LED Wall'] as const) : []),
+  ];
+}
 
 export function hasValidPackageServiceDurationTiers(items: unknown): boolean {
   return (

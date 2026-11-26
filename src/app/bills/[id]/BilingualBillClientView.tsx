@@ -21,7 +21,9 @@ import {
   buildWhatsAppUrl,
   formatDateDisplay,
   formatINR,
+  getBillDisplayDeliverables,
   getBillPaymentHistory,
+  getBillServiceRateTotal,
 } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf } from '@/src/lib/generateBillPdfBlob';
@@ -97,7 +99,12 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
         }));
 
   const activeServices = rawServices.filter(isServiceActive);
-  const billOptedServices = bill.packageDetails?.optedServices || bill.optedServices || [];
+  const billOptedServices =
+    bill.packageDetails?.optedServices?.length ? bill.packageDetails.optedServices : bill.optedServices || [];
+  const printableDeliverables = getBillDisplayDeliverables(bill.packageDetails?.deliverables);
+  const serviceRateTotal = getBillServiceRateTotal(billOptedServices);
+  const packagePrice = bill.financials.packagePrice ?? bill.financials.totalPackageAmount;
+  const discountAmount = bill.financials.discountAmount ?? 0;
 
   const handleShareWhatsApp = () => {
     const lines = [
@@ -105,8 +112,11 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
       `Here is your official payment receipt from GK STUDIOS:`,
       ``,
       `🧾 Bill Number: ${bill.billNumber}`,
-      `✨ Event: $      {englishOnlyName(bill.eventDetails.eventName)}`,
-      `📅 Event Date & Timing: ${bill.eventDetails.eventDate} at ${bill.eventDetails.eventTime || '06:00 AM'}`,
+      `✨ Event: ${englishOnlyName(bill.eventDetails.eventName)}`,
+      `📅 Event Start: ${bill.eventDetails.eventDate}${bill.eventDetails.eventTime ? ` at ${bill.eventDetails.eventTime}` : ''}`,
+      ...(bill.eventDetails.eventEndDate || bill.eventDetails.eventEndTime
+        ? [`📅 Event End: ${bill.eventDetails.eventEndDate || bill.eventDetails.eventDate}${bill.eventDetails.eventEndTime ? ` at ${bill.eventDetails.eventEndTime}` : ''}`]
+        : []),
       `📍 Venue: ${bill.eventDetails.venue}`,
       `📦 Package: ${bill.packageDetails.basePackageName}`,
       ``,
@@ -264,11 +274,15 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
               </p>
               <p className="flex items-center gap-1.5 text-xs text-slate-700">
                 <Calendar className="h-3 w-3 text-[#9A7B38]" />
-                <span>Date: {bill.eventDetails.eventDate}</span>
-              </p>
-              <p className="flex items-center gap-1.5 text-xs text-slate-700">
-                <Clock className="h-3 w-3 text-[#9A7B38]" />
-                <span>Timing: {bill.eventDetails.eventTime || '06:00 AM (Morning Muhurtham)'}</span>
+                <span>
+                  Start: {bill.eventDetails.eventDate}
+                  {bill.eventDetails.eventTime ? ` · ${bill.eventDetails.eventTime}` : ''}
+                  {bill.eventDetails.eventEndDate
+                    ? ` — End: ${bill.eventDetails.eventEndDate}${bill.eventDetails.eventEndTime ? ` · ${bill.eventDetails.eventEndTime}` : ''}`
+                    : bill.eventDetails.eventEndTime
+                      ? ` — End: ${bill.eventDetails.eventEndTime}`
+                      : ''}
+                </span>
               </p>
               <p className="text-[11px] text-slate-600">
                 Schedule: {bill.eventDetails.schedulePlan}
@@ -294,44 +308,77 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
           </div>
 
           {/* Itemized Opted Services Breakdown (Single Source of Truth) */}
-          {billOptedServices.length > 0 ? (
+          {billOptedServices.length > 0 ||
+          activeServices.length > 0 ||
+          printableDeliverables.length > 0 ? (
             <div className="pt-2 border-t border-slate-200 space-y-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                 Confirmed Services & Deliverables:
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700">
+                      <th className="p-2">Service / Deliverable</th>
+                      <th className="p-2 text-center">Quantity</th>
+                      <th className="p-2 text-right">Unit Price</th>
+                      <th className="p-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {billOptedServices.map((svc, i) => (
-                  <div key={i} className="flex items-start justify-between gap-2 bg-white p-2 rounded border border-slate-200">
-                    <div className="flex items-start gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-semibold text-slate-900 block">{englishOnlyName(svc.name)}</span>
-                        <span className="text-[10px] text-slate-500">
-                          {svc.quantity} {svc.quantity > 1 ? `${svc.unitLabel}s` : svc.unitLabel} × ₹{svc.unitPrice.toLocaleString('en-IN')}
-                          {svc.durationTier ? ` • ${svc.durationTier === 'threeHours' ? '3h' : svc.durationTier === 'fullDay' ? 'Full Day' : 'Half Day'}` : ''}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="font-mono font-bold text-slate-900 text-xs shrink-0">
-                      ₹{svc.total.toLocaleString('en-IN')}
-                    </span>
-                  </div>
+                  <tr key={`service-${svc.serviceSlug}-${i}`} className="border-t border-slate-200">
+                    <td className="p-2 font-semibold text-slate-900">
+                      {englishOnlyName(svc.name)}
+                      {svc.durationTier ? ` (${svc.durationTier === 'fullDay' ? 'Full Day' : svc.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})` : ''}
+                    </td>
+                    <td className="p-2 text-center text-slate-600">
+                      {svc.quantity} {svc.quantity === 1 ? svc.unitLabel : `${svc.unitLabel}s`}
+                    </td>
+                    <td className="p-2 text-right text-slate-600">{formatINR(svc.unitPrice)}</td>
+                    <td className="p-2 text-right font-bold text-slate-900">{formatINR(svc.total)}</td>
+                  </tr>
                 ))}
+                {billOptedServices.length === 0 && activeServices.map((svc, i) => (
+                  <tr key={`legacy-${svc.key}-${i}`} className="border-t border-slate-200">
+                    <td className="p-2 font-semibold text-slate-900">{englishOnlyName(svc.en)}</td>
+                    <td colSpan={3} className="p-2 text-right text-slate-500">Included</td>
+                  </tr>
+                ))}
+                {printableDeliverables.map(({ category, text, isComplimentary }, i) => (
+                  <tr
+                    key={`deliverable-${category}-${i}`}
+                    className={`border-t border-slate-200 ${isComplimentary ? 'bg-emerald-50' : 'bg-slate-50'}`}
+                  >
+                    <td className={`p-2 ${isComplimentary ? 'font-bold text-emerald-800' : 'text-slate-700'}`}>
+                      <strong className="text-slate-900">{englishOnlyName(category)}:</strong>{' '}
+                      {englishOnlyName(text)}
+                      {isComplimentary && <span className="ml-1 font-bold">(Complimentary)</span>}
+                    </td>
+                    <td className="p-2 text-center text-slate-500">—</td>
+                    <td className="p-2 text-right text-slate-500">—</td>
+                    <td className={`p-2 text-right ${isComplimentary ? 'font-bold text-emerald-800' : 'text-slate-500'}`}>
+                      {isComplimentary ? formatINR(0) : 'Included'}
+                    </td>
+                  </tr>
+                ))}
+                {billOptedServices.length > 0 && (
+                  <tr className="border-t-2 border-slate-300 bg-slate-100">
+                    <td colSpan={3} className="p-2 font-bold text-slate-800">Live Service Rates Total</td>
+                    <td className="p-2 text-right font-bold text-slate-900">{formatINR(serviceRateTotal)}</td>
+                  </tr>
+                )}
+                <tr className="border-t border-slate-200">
+                  <td colSpan={3} className="p-2 font-bold text-slate-800">Selected Package Price</td>
+                  <td className="p-2 text-right font-bold text-slate-900">{formatINR(packagePrice)}</td>
+                </tr>
+                <tr className="border-t border-slate-200">
+                  <td colSpan={3} className="p-2 font-bold text-slate-700">Discount</td>
+                  <td className="p-2 text-right font-bold text-red-700">-{formatINR(discountAmount)}</td>
+                </tr>
+                  </tbody>
+                </table>
               </div>
-            </div>
-          ) : activeServices.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {activeServices.map((svc, i) => (
-                <div key={i} className="flex items-start gap-2 bg-white p-2 rounded border border-slate-200">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-slate-900 block">{svc.en}</span>
-                    {svc.ta && (
-                      <span className="text-[10px] text-slate-500 font-tamil block">{svc.ta}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
@@ -349,17 +396,6 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                 <CheckCircle2 className="h-3 w-3 text-[#9A7B38]" />
                 Confirmed Scope
               </span>
-            </div>
-          )}
-
-          {/* Deliverables details */}
-          {bill.packageDetails.deliverables && Object.keys(bill.packageDetails.deliverables).length > 0 && (
-            <div className="pt-2 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-600">
-              {Object.entries(bill.packageDetails.deliverables).map(([cat, text]) => (
-                <div key={cat}>
-                  <strong className="text-slate-800">{cat}:</strong> {text}
-                </div>
-              ))}
             </div>
           )}
 
