@@ -2372,7 +2372,19 @@ export async function createPackageOnServer(
     input.durationTier === 'fullDay'
       ? input.durationTier
       : 'halfDay';
-  const includedServices = Array.isArray(input.includedServices) ? input.includedServices : undefined;
+  const includedServices = Array.isArray(input.includedServices)
+    ? input.includedServices.map((item) => {
+        const service = services.find((candidate) => candidate.slug === item.serviceSlug);
+        if (!service) return item;
+        const minimum = service.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
+          ? Math.max(1, Number(service.minQuantity) || 1)
+          : 1;
+        return {
+          ...item,
+          quantity: Math.max(minimum, Math.round(Number(item.quantity) || 0)),
+        };
+      })
+    : undefined;
   if (!hasValidPackageServiceDurationTiers(includedServices)) {
     throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
   }
@@ -2498,7 +2510,19 @@ export async function updatePackageOnServer(
           existing.durationTier === 'fullDay'
         ? existing.durationTier
         : 'halfDay';
-  const includedServices = patch.includedServices !== undefined ? patch.includedServices : existing.includedServices;
+  const includedServices = (
+    patch.includedServices !== undefined ? patch.includedServices : existing.includedServices
+  )?.map((item) => {
+    const service = services.find((candidate) => candidate.slug === item.serviceSlug);
+    if (!service) return item;
+    const minimum = service.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
+      ? Math.max(1, Number(service.minQuantity) || 1)
+      : 1;
+    return {
+      ...item,
+      quantity: Math.max(minimum, Math.round(Number(item.quantity) || 0)),
+    };
+  });
   if (!hasValidPackageServiceDurationTiers(includedServices)) {
     throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
   }

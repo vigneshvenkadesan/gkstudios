@@ -161,7 +161,6 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
   const optedServices =
     bill.packageDetails?.optedServices?.length ? bill.packageDetails.optedServices : bill.optedServices || [];
   const printableDeliverables = getBillDisplayDeliverables(bill.packageDetails.deliverables);
-  const serviceRateTotal = getBillServiceRateTotal(optedServices);
   const packagePrice = bill.financials.packagePrice ?? bill.financials.totalPackageAmount;
   const discountAmount = bill.financials.discountAmount ?? 0;
   const scopeRows = [
@@ -169,9 +168,8 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
       (service) => `
         <tr style="border-top:1px solid #e2e8f0;">
           <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.name))}${service.durationTier ? ` <span style="font-size:8px;color:#64748b;">(${service.durationTier === 'fullDay' ? 'Full Day' : service.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})</span>` : ''}</td>
-          <td style="padding:6px 8px;text-align:center;color:#475569;">${service.quantity} ${escapeHtml(service.unitLabel)}${service.quantity === 1 ? '' : 's'}</td>
-          <td style="padding:6px 8px;text-align:right;color:#475569;">${formatINR(service.unitPrice)}</td>
-          <td style="padding:6px 8px;text-align:right;color:#072421;font-weight:700;">${formatINR(service.total)}</td>
+          <td style="padding:6px 8px;text-align:center;color:#475569;">${service.quantity}</td>
+          <td colspan="2" style="padding:6px 8px;text-align:right;color:#64748b;">Included</td>
         </tr>`
     ),
     ...(optedServices.length === 0
@@ -179,7 +177,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
           (service) => `
             <tr style="border-top:1px solid #e2e8f0;">
               <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.en))}${service.ta ? `<span style="display:block;color:#64748b;font-size:8px;">${escapeHtml(service.ta)}</span>` : ''}</td>
-              <td colspan="3" style="padding:6px 8px;text-align:right;color:#64748b;">Included</td>
+              <td colspan="2" style="padding:6px 8px;text-align:right;color:#64748b;">Included</td>
             </tr>`
         )
       : []),
@@ -188,17 +186,9 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         <tr style="border-top:1px solid #e2e8f0;background:${isComplimentary ? '#ecfdf5' : '#f8fafc'};">
           <td style="padding:6px 8px;color:${isComplimentary ? '#065f46' : '#475569'};font-weight:${isComplimentary ? '700' : '400'};"><strong style="color:#072421;">${escapeHtml(englishOnlyName(category))}:</strong> ${escapeHtml(englishOnlyName(text))}${isComplimentary ? ' <strong>(Complimentary)</strong>' : ''}</td>
           <td style="padding:6px 8px;text-align:center;color:#64748b;">—</td>
-          <td style="padding:6px 8px;text-align:right;color:#64748b;">—</td>
-          <td style="padding:6px 8px;text-align:right;color:${isComplimentary ? '#065f46' : '#64748b'};font-weight:${isComplimentary ? '700' : '400'};">${isComplimentary ? formatINR(0) : 'Included'}</td>
+          <td colspan="1" style="padding:6px 8px;text-align:right;color:${isComplimentary ? '#065f46' : '#64748b'};font-weight:${isComplimentary ? '700' : '400'};">${isComplimentary ? formatINR(0) : 'Included'}</td>
         </tr>`
     ),
-    ...(optedServices.length > 0
-      ? [`
-        <tr style="border-top:2px solid #cbd5e1;background:#f1f5f9;">
-          <td colspan="3" style="padding:7px 8px;color:#1e293b;font-weight:700;">Live Service Rates Total</td>
-          <td style="padding:7px 8px;text-align:right;color:#072421;font-weight:700;">${formatINR(serviceRateTotal)}</td>
-        </tr>`]
-      : []),
     `
       <tr style="border-top:1px solid #e2e8f0;">
         <td colspan="3" style="padding:7px 8px;color:#1e293b;font-weight:700;">Selected Package Price</td>
@@ -247,7 +237,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
           <div style="background: #092E2B; color: #D8C78E; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 8px; border-radius: 3px; display: inline-block;">
             OFFICIAL PAYMENT RECEIPT
           </div>
-          <p style="margin: 6px 0 0 0; font-size: 10px; font-weight: 700; color: #072421;">கட்டண ரசீது & விலைப்பட்டியல்</p>
+          <p style="margin: 6px 0 0 0; font-size: 10px; font-weight: 700; color: #072421;">Payment Receipt & Invoice</p>
           <p style="margin: 3px 0 0 0; font-family: monospace; font-size: 14px; font-weight: 800; color: #072421;">
             ${bill.billNumber}
           </p>
@@ -263,7 +253,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         <!-- Client Details -->
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px;">
           <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
-            Billed To / வாடிக்கையாளர் விவரம்
+            Billed To
           </h4>
           <p style="margin: 0; font-size: 13px; font-weight: 700; color: #0f172a;">${bill.clientName}</p>
           <p style="margin: 3px 0 0 0; font-size: 11px; color: #334155; font-family: monospace;">Phone: +91 ${bill.clientPhone}</p>
@@ -278,7 +268,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         <!-- Event Details -->
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px 14px;">
           <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
-            Event & Ceremony / நிகழ்வு விவரம்
+            Event & Ceremony
           </h4>
           <p style="margin: 0; font-size: 13px; font-weight: 700; color: #0f172a;">
             ${englishOnlyName(bill.eventDetails.eventName)}
@@ -302,7 +292,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px;">
           <div>
             <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #072421; letter-spacing: 0.5px;">
-              Included Services & Deliverables / சேர்க்கப்பட்ட சேவைகள்
+              Included Services & Deliverables
             </span>
           </div>
           <div style="display: flex; align-items: center; gap: 6px;">
@@ -320,8 +310,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
             <tr style="background:#f1f5f9;text-align:left;color:#072421;">
               <th style="padding:6px 8px;">Service / Deliverable</th>
               <th style="padding:6px 8px;text-align:center;">Quantity</th>
-              <th style="padding:6px 8px;text-align:right;">Unit Price</th>
-              <th style="padding:6px 8px;text-align:right;">Amount</th>
+              <th style="padding:6px 8px;text-align:right;">Status / Amount</th>
             </tr>
           </thead>
           <tbody>${scopeRows}</tbody>
@@ -341,7 +330,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
           <thead>
             <tr style="background: #092E2B; color: #ffffff; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-              <th style="padding: 8px 12px;">Description / விவரம்</th>
+              <th style="padding: 8px 12px;">Description</th>
               <th style="padding: 8px 12px; text-align: center;">Mode</th>
               <th style="padding: 8px 12px; text-align: center;">Stage</th>
               <th style="padding: 8px 12px; text-align: right;">Amount (₹)</th>
@@ -351,7 +340,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
             <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
               <td style="padding: 9px 12px; font-weight: 600; color: #1e293b;">
                 Total Agreed Package Investment
-                <span style="display: block; font-size: 9px; color: #64748b; font-weight: 400;">மொத்தத் தொகுப்புக் கட்டணம் (Base + Upgrades)</span>
+                <span style="display: block; font-size: 9px; color: #64748b; font-weight: 400;">Base Package + Upgrades</span>
               </td>
               <td style="padding: 9px 12px; text-align: center; color: #64748b;">—</td>
               <td style="padding: 9px 12px; text-align: center; color: #64748b;">Total Contract</td>
@@ -388,7 +377,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
               <td style="padding: 10px 12px; color: #78350f;">
                 Remaining Balance Due
                 <span style="display: block; font-size: 9px; color: #92400e; font-weight: 400;">
-                  மீதமுள்ள நிலுவைத் தொகை (To be cleared before final album/video handover)
+                  To be cleared before final album/video handover
                 </span>
               </td>
               <td style="padding: 10px 12px; text-align: center; color: #78350f;">—</td>
@@ -405,7 +394,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 14px 0; border-top: 1px solid #e2e8f0;">
         <div>
           <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: block;">
-            OFFICIAL STUDIO SEAL / முத்திரை
+            OFFICIAL STUDIO SEAL
           </span>
           <div style="margin-top: 4px; height: 44px; width: 140px; border: 1px dashed #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: serif; color: #94a3b8; font-weight: bold; letter-spacing: 0.5px;">
             GK STUDIOS PANRUTI
@@ -417,7 +406,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
 
         <div style="text-align: right;">
           <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; display: block;">
-            FOR GK STUDIOS / உரிமையாளர் கையொப்பம்
+            FOR GK STUDIOS
           </span>
           <div style="height: 38px; display: flex; align-items: flex-end; justify-content: flex-end;">
             <span style="font-family: serif; font-style: italic; font-weight: bold; font-size: 15px; color: #072421; border-bottom: 1px solid #94a3b8; padding-bottom: 2px;">
@@ -507,7 +496,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
 
     <!-- Page 2 Bottom Footer & Guarantee -->
     <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
-      <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+      <span>GK STUDIOS PANRUTI • Your Memories, Our Responsibility.</span>
       <span style="font-weight: 600; color: #072421;">Page 2 of 2 • Studio Terms & Conditions</span>
     </div>
   `;
@@ -677,9 +666,8 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
     ...quote.optedServices.map((service) => `
         <tr style="border-top:1px solid #e2e8f0;">
           <td style="padding:8px 10px;font-weight:700;color:#1e293b;">${escapeHtml(service.name)}</td>
-          <td style="padding:8px 10px;text-align:center;color:#475569;">${service.quantity} ${escapeHtml(service.unitLabel)}${service.quantity === 1 ? '' : 's'}</td>
-          <td style="padding:8px 10px;text-align:right;color:#475569;">${formatINR(service.unitPrice)}</td>
-          <td style="padding:8px 10px;text-align:right;font-weight:700;color:#072421;">${formatINR(service.total)}</td>
+          <td style="padding:8px 10px;text-align:center;color:#475569;">${service.quantity}</td>
+          <td colspan="2" style="padding:8px 10px;text-align:right;font-weight:700;color:#64748b;">Included</td>
         </tr>
       `),
     ...quote.deliverables.map((item) => `
@@ -701,7 +689,7 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
 
       <h3 style="margin:0 0 8px;font-size:11px;font-weight:800;color:#072421;text-transform:uppercase;">Services & Custom Deliverables</h3>
       <table style="width:100%;border-collapse:collapse;border:1px solid #cbd5e1;font-size:10px;margin-bottom:18px;">
-        <thead><tr style="background:#092E2B;color:#fff;text-align:left;"><th style="padding:8px 10px;">Item</th><th style="padding:8px 10px;text-align:center;">Quantity</th><th style="padding:8px 10px;text-align:right;">Unit Price</th><th style="padding:8px 10px;text-align:right;">Amount</th></tr></thead>
+        <thead><tr style="background:#092E2B;color:#fff;text-align:left;"><th style="padding:8px 10px;">Item</th><th style="padding:8px 10px;text-align:center;">Quantity</th><th colspan="2" style="padding:8px 10px;text-align:right;">Status / Amount</th></tr></thead>
         <tbody>${scopeRows}</tbody>
       </table>
 
@@ -757,7 +745,7 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
       </div>
     </div>
     <div style="border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#64748b;">
-      <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+      <span>GK STUDIOS PANRUTI • Your Memories, Our Responsibility.</span>
       <span style="font-weight:600;color:#072421;">Page 3 of 3 • Studio Terms &amp; Conditions</span>
     </div>
   `;

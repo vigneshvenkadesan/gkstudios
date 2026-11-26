@@ -314,6 +314,10 @@ export function PackagesSection({
                   const isSelected = selectedPackageId === pkg.id;
 
                   const isEssential = pkg.sortOrder === 1 || pkg.name.toLowerCase().includes('essential');
+                  const isGrand = Boolean(
+                    pkg.name.toLowerCase().includes('grand') ||
+                    pkg.id.toLowerCase().includes('grand')
+                  );
                   const isSignature = Boolean(
                     pkg.highlighted ||
                     pkg.sortOrder === 2 ||
@@ -412,7 +416,11 @@ export function PackagesSection({
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/25" />
                           <div className="absolute top-2.5 right-2.5 z-10">
-                            {isSignature ? (
+                            {isGrand ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#D8C78E] uppercase shadow-xs">
+                                👑 Grand Tier
+                              </span>
+                            ) : isSignature ? (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#C5B378] to-[#D8C78E] px-3 py-1 text-[10px] font-bold tracking-wider text-[#061E1C] uppercase shadow-[0_2px_12px_rgba(216,199,142,0.45)]">
                                 <Sparkles className="h-3 w-3 fill-[#061E1C]" />
                                 Signature · Most Popular
@@ -437,7 +445,11 @@ export function PackagesSection({
                           </span>
                           {!pkgImg && (
                             <div>
-                              {isSignature ? (
+                              {isGrand ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0E423E] border border-[#C5B378]/30 px-2.5 py-0.5 text-[10px] font-semibold text-[#D8C78E] uppercase tracking-wider">
+                                  👑 Grand Plan
+                                </span>
+                              ) : isSignature ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-[#D8C78E] px-2.5 py-0.5 text-[10px] font-bold text-[#061E1C] uppercase tracking-wider shadow">
                                   <Sparkles className="h-3 w-3 fill-[#061E1C]" />
                                   Signature Plan

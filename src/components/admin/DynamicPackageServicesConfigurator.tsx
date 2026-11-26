@@ -49,8 +49,19 @@ export function DynamicPackageServicesConfigurator({
 
   // Live calculated base price for package
   const liveBasePrice = useMemo(() => {
+    const normalizedIncludedServices = includedServices.map((item) => {
+      const service = activeServices.find((candidate) => candidate.slug === item.serviceSlug);
+      if (!service) return item;
+      const minimum = service.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
+        ? Math.max(1, Number(service.minQuantity) || 1)
+        : 1;
+      return {
+        ...item,
+        quantity: Math.max(minimum, Math.round(Number(item.quantity) || 0)),
+      };
+    });
     return calculatePackageBasePrice(
-      { includedServices, durationTier },
+      { includedServices: normalizedIncludedServices, durationTier },
       activeServices,
       durationTier
     );
@@ -58,7 +69,7 @@ export function DynamicPackageServicesConfigurator({
 
   // Included items breakdown with live cost
   const includedBreakdown = useMemo(() => {
-    return includedServices.map((item) => {
+    const rows = includedServices.flatMap((item) => {
       const svc = activeServices.find((s) => s.slug === item.serviceSlug);
       if (!svc) {
         return {
@@ -72,12 +83,16 @@ export function DynamicPackageServicesConfigurator({
         };
       }
       const itemTier = item.durationTier ?? durationTier;
-      const priceResult = resolveServicePrice(svc, itemTier, item.quantity);
+      const minimum = svc.pricingType === 'per_unit' && !svc.slug.startsWith('photo-album')
+        ? Math.max(1, Number(svc.minQuantity) || 1)
+        : 1;
+      const quantity = Math.max(minimum, Math.round(Number(item.quantity) || 0));
+      const priceResult = resolveServicePrice(svc, itemTier, quantity);
       return {
         slug: svc.slug,
         name: svc.name,
         tamilName: svc.tamilName,
-        quantity: item.quantity,
+        quantity,
         unitLabel: svc.unitLabel || 'unit',
         unitPrice: priceResult.unitPrice,
         total: priceResult.total,
@@ -85,6 +100,40 @@ export function DynamicPackageServicesConfigurator({
         pricingType: svc.pricingType,
         durationTier: itemTier,
       };
+    });
+
+    const merged = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const slug = row.slug.toLowerCase();
+      const name = englishOnlyName(row.name);
+      const isCandidPhoto =
+        slug === 'candid-photography' ||
+        slug === 'candid-photography-standard' ||
+        /candid.*(photo|photograph)/i.test(name);
+      const isLedWall =
+        slug === 'led-wall' ||
+        /led.*wall|live.*led/i.test(name);
+
+      const key = isCandidPhoto ? 'candid-photo' : isLedWall ? 'live-led-wall' : slug;
+      const current = merged.get(key);
+      if (!current) {
+        merged.set(key, {
+          ...row,
+          name: isCandidPhoto ? 'Candid Photo' : isLedWall ? 'Live LED Wall' : row.name,
+        });
+        continue;
+      }
+
+      const preferRow = row.total > current.total ? row : current;
+      merged.set(key, {
+        ...preferRow,
+        name: isCandidPhoto ? 'Candid Photo' : isLedWall ? 'Live LED Wall' : preferRow.name,
+      });
+    }
+
+    return Array.from(merged.values()).filter((row) => {
+      const hasCatalogName = !/^candid-photography(?:-|$)/i.test(row.name);
+      return row.slug !== 'candid-photography' || row.total > 0 || hasCatalogName;
     });
   }, [includedServices, activeServices, durationTier]);
 
@@ -98,7 +147,7 @@ export function DynamicPackageServicesConfigurator({
     } else {
       // Add to includedServices with smart default quantity
       const defaultQty =
-        svc.pricingType === 'per_unit'
+        svc.pricingType === 'per_unit' && !svc.slug.startsWith('photo-album')
           ? Math.max(svc.minQuantity || 1, 1)
           : 1;
 
@@ -113,7 +162,9 @@ export function DynamicPackageServicesConfigurator({
   // Update quantity of an included service
   const handleUpdateQuantity = (slug: string, newQty: number) => {
     const service = activeServices.find((item) => item.slug === slug);
-    const minimum = service?.pricingType === 'per_unit' ? service.minQuantity || 1 : 1;
+    const minimum = service?.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
+      ? service.minQuantity || 1
+      : 1;
     const qty = Math.max(minimum, newQty);
     onChangeIncludedServices(
       includedServices.map((i) => (i.serviceSlug === slug ? { ...i, quantity: qty } : i))
@@ -220,7 +271,14 @@ export function DynamicPackageServicesConfigurator({
           {activeServices.map((svc) => {
             const isIncluded = includedSlugSet.has(svc.slug);
             const currentItem = includedServices.find((i) => i.serviceSlug === svc.slug);
-            const qty = currentItem?.quantity || (svc.pricingType === 'per_unit' ? (svc.minQuantity || 1) : 1);
+            const catalogMinimum =
+              svc.pricingType === 'per_unit' && !svc.slug.startsWith('photo-album')
+                ? Math.max(1, Number(svc.minQuantity) || 1)
+                : 1;
+            const qty = Math.max(
+              catalogMinimum,
+              Math.round(Number(currentItem?.quantity) || (svc.pricingType === 'per_unit' ? catalogMinimum : 1))
+            );
             const itemTier = currentItem?.durationTier ?? durationTier;
             const linePrice = resolveServicePrice(svc, itemTier, qty);
 
@@ -264,12 +322,21 @@ export function DynamicPackageServicesConfigurator({
                 {/* Right: Quantity Stepper & Line Price */}
                 {isIncluded && (
                   <div className="flex items-center justify-between sm:justify-end gap-3 pl-6 sm:pl-0 shrink-0 border-t sm:border-t-0 border-[#C5B378]/15 pt-2 sm:pt-0">
+                    {svc.pricingType === 'per_unit' && !svc.slug.startsWith('photo-album') && (
+                      <span className="text-[10px] font-medium text-[#D8C78E]/70">
+                        Min: {svc.minQuantity || 1}
+                      </span>
+                    )}
                     {/* Stepper */}
                     <div className="flex items-center rounded border border-[#C5B378]/35 bg-[#072421]">
                       <button
                         type="button"
                         onClick={() => handleUpdateQuantity(svc.slug, qty - 1)}
-                        disabled={qty <= (svc.pricingType === 'per_unit' ? svc.minQuantity || 1 : 1)}
+                        disabled={qty <= (
+                          svc.pricingType === 'per_unit' && !svc.slug.startsWith('photo-album')
+                            ? svc.minQuantity || 1
+                            : 1
+                        )}
                         className="px-2 py-0.5 text-xs font-bold text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         −

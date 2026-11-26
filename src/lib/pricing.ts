@@ -226,6 +226,31 @@ export function getDynamicPackageDisplaySections(
 ): { coverage: string | null; albums: string | null; deliverables: string | null } {
   const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
   const servicesBySlug = new Map(services.map((service) => [service.slug, service]));
+  const canonicalCoverageLabel = (item: PackageIncludedService): string | null => {
+    const slug = item.serviceSlug.toLowerCase();
+    const serviceName = servicesBySlug.get(item.serviceSlug)?.name || '';
+    if (
+      slug === 'candid-photography' ||
+      slug === 'candid-photography-standard' ||
+      /candid.*(photo|photograph)/i.test(serviceName)
+    ) {
+      return 'Candid Photo';
+    }
+    if (
+      slug === 'led-wall' ||
+      /led.*wall|live.*led/i.test(serviceName)
+    ) {
+      return 'Live LED Wall';
+    }
+    if (slug === 'led-tv' || /^led tv/i.test(serviceName)) {
+      return 'LED TV Display';
+    }
+    return (
+      COVERAGE_SERVICE_LABELS[item.serviceSlug] ||
+      servicesBySlug.get(item.serviceSlug)?.name ||
+      item.serviceSlug
+    );
+  };
   const albumItems = items.filter((item) => item.serviceSlug.startsWith('photo-album'));
   const deliverableItems = items.filter((item) => {
     if (item.serviceSlug.startsWith('photo-album')) return false;
@@ -235,23 +260,32 @@ export function getDynamicPackageDisplaySections(
       .includes('deliverable') ?? false;
   });
   const deliverableSlugs = new Set(deliverableItems.map((item) => item.serviceSlug));
-  const coverageItems = items
+  const coverageItems = Array.from(
+    items
     .filter(
       (item) =>
         !item.serviceSlug.startsWith('photo-album') &&
         !deliverableSlugs.has(item.serviceSlug)
     )
-    .map((item) => {
-      const label =
-        COVERAGE_SERVICE_LABELS[item.serviceSlug] ||
-        servicesBySlug.get(item.serviceSlug)?.name ||
-        item.serviceSlug;
-      const itemTierLabel =
-        item.durationTier && packageDurationTier && item.durationTier !== packageDurationTier
-          ? ` (${item.durationTier === 'threeHours' ? '3 Hours' : item.durationTier === 'halfDay' ? 'Half Day' : 'Full Day'})`
-          : '';
-      return `${item.quantity > 1 ? `${item.quantity} × ` : ''}${label}${itemTierLabel}`;
-    });
+    .reduce((merged, item) => {
+      const label = canonicalCoverageLabel(item);
+      if (!label) return merged;
+      const key = label.toLowerCase();
+      const current = merged.get(key);
+      merged.set(key, {
+        label,
+        quantity: (current?.quantity || 0) + item.quantity,
+      });
+      return merged;
+    }, new Map<string, { label: string; quantity: number }>())
+    .values()
+  )
+    .filter(
+      ({ quantity }) => quantity > 0
+    )
+    .map(({ label, quantity }) =>
+      `${quantity > 1 ? `${quantity} × ` : ''}${label}`
+    );
 
   let coverage: string | null = null;
   if (coverageItems.length === 1) {

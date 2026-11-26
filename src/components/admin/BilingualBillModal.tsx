@@ -27,7 +27,6 @@ import {
   formatINR,
   getBillDisplayDeliverables,
   getBillPaymentHistory,
-  getBillServiceRateTotal,
 } from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
@@ -145,7 +144,6 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
   const billOptedServices =
     bill.packageDetails?.optedServices?.length ? bill.packageDetails.optedServices : bill.optedServices || [];
   const printableDeliverables = getBillDisplayDeliverables(bill.packageDetails?.deliverables);
-  const serviceRateTotal = getBillServiceRateTotal(billOptedServices);
   const packagePrice = bill.financials.packagePrice ?? bill.financials.totalPackageAmount;
   const discountAmount = bill.financials.discountAmount ?? 0;
 
@@ -174,7 +172,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                     Bilingual Tax Invoice / Bill #{bill.billNumber}
                   </h3>
                   <p className="text-[11px] text-[#D8C78E]">
-                    Official GK Studios Billing Record (English + தமிழ்)
+                    Official GK Studios Billing Record
                   </p>
                 </div>
               </div>
@@ -290,7 +288,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                 <div className="space-y-1.5">
                   <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#072421] border-b border-slate-200 pb-1 flex items-center gap-1.5">
                     <User className="h-3 w-3 text-[#C5B378]" />
-                    Client Details / வாடிக்கையாளர் விவரம்
+                    Client Details
                   </h4>
                   <p className="text-sm font-bold text-slate-900">{bill.clientName}</p>
                   <p className="text-xs text-slate-700 flex items-center gap-1 font-mono">
@@ -307,7 +305,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                 <div className="space-y-1.5">
                   <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#072421] border-b border-slate-200 pb-1 flex items-center gap-1.5">
                     <Calendar className="h-3 w-3 text-[#C5B378]" />
-                    Event & Ceremony / நிகழ்வு விவரம்
+                    Event & Ceremony
                   </h4>
                   <div className="flex items-center gap-2">
                     <span className="font-serif text-sm font-bold text-slate-900">
@@ -338,7 +336,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#072421] flex items-center gap-1.5">
                     <Camera className="h-3.5 w-3.5 text-[#C5B378]" />
-                    Included Services & Deliverables / சேர்க்கப்பட்ட சேவைகள்
+                    Included Services & Deliverables
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase bg-[#092E2B] text-[#D8C78E] px-2 py-0.5 rounded">
@@ -364,8 +362,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                           <tr className="bg-slate-100 text-slate-700">
                             <th className="p-2">Service / Deliverable</th>
                             <th className="p-2 text-center">Quantity</th>
-                            <th className="p-2 text-right">Unit Price</th>
-                            <th className="p-2 text-right">Amount</th>
+                            <th className="p-2 text-right">Status / Amount</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -375,11 +372,8 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                                 {englishOnlyName(svc.name)}
                                 {svc.durationTier ? ` (${svc.durationTier === 'fullDay' ? 'Full Day' : svc.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})` : ''}
                               </td>
-                              <td className="p-2 text-center text-slate-600">
-                                {svc.quantity} {svc.quantity === 1 ? svc.unitLabel : `${svc.unitLabel}s`}
-                              </td>
-                              <td className="p-2 text-right text-slate-600">{formatINR(svc.unitPrice)}</td>
-                              <td className="p-2 text-right font-bold text-slate-900">{formatINR(svc.total)}</td>
+                              <td className="p-2 text-center text-slate-600">{svc.quantity}</td>
+                              <td className="p-2 text-right font-bold text-slate-600">Included</td>
                             </tr>
                           ))}
                           {billOptedServices.length === 0 && activeServices.map((svc, i) => (
@@ -399,18 +393,11 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                                 {isComplimentary && <span className="ml-1 font-bold">(Complimentary)</span>}
                               </td>
                               <td className="p-2 text-center text-slate-500">—</td>
-                              <td className="p-2 text-right text-slate-500">—</td>
                               <td className={`p-2 text-right ${isComplimentary ? 'font-bold text-emerald-800' : 'text-slate-500'}`}>
                                 {isComplimentary ? formatINR(0) : 'Included'}
                               </td>
                             </tr>
                           ))}
-                          {billOptedServices.length > 0 && (
-                            <tr className="border-t-2 border-slate-300 bg-slate-100">
-                              <td colSpan={3} className="p-2 font-bold text-slate-800">Live Service Rates Total</td>
-                              <td className="p-2 text-right font-bold text-slate-900">{formatINR(serviceRateTotal)}</td>
-                            </tr>
-                          )}
                           <tr className="border-t border-slate-200">
                             <td colSpan={3} className="p-2 font-bold text-slate-800">Selected Package Price</td>
                             <td className="p-2 text-right font-bold text-slate-900">{formatINR(packagePrice)}</td>
@@ -453,7 +440,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-[#092E2B] text-white text-[11px] uppercase tracking-wider">
-                      <th className="p-2.5">Description / விவரம்</th>
+                      <th className="p-2.5">Description</th>
                       <th className="p-2.5 text-center">Payment Mode</th>
                       <th className="p-2.5 text-center">Stage</th>
                       <th className="p-2.5 text-right">Amount (₹)</th>
@@ -500,7 +487,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                     {/* Balance Due */}
                     <tr className="bg-amber-50/80 font-bold border-t-2 border-slate-300">
                       <td className="p-2.5 text-amber-950">
-                        Remaining Balance Due / மீதமுள்ள தொகை
+                        Remaining Balance Due
                         <span className="block text-[10px] text-amber-800 font-normal">
                           Payable before final deliverables handover
                         </span>
@@ -519,7 +506,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                    Official Studio Seal / முத்திரை
+                    Official Studio Seal
                   </span>
                   <div className="h-14 w-32 border border-dashed border-slate-300 rounded flex items-center justify-center text-[10px] text-slate-400 font-serif">
                     GK STUDIOS PANRUTI
@@ -529,7 +516,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
 
                 <div className="space-y-1 text-right">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                    For GK STUDIOS / உரிமையாளர் கையொப்பம்
+                    For GK Studios
                   </span>
                   <div className="h-10 flex items-end justify-end">
                     <span className="font-serif italic font-bold text-sm text-[#072421] border-b border-slate-400 pb-0.5">
@@ -593,7 +580,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
 
                 {/* Page 2 Print Footer */}
                 <div className="flex justify-between items-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
-                  <span>GK STUDIOS PANRUTI • உங்கள் நினைவுகள், எங்கள் பொறுப்பு. • Your Memories, Our Responsibility.</span>
+                  <span>GK STUDIOS PANRUTI • Your Memories, Our Responsibility.</span>
                   <span className="font-semibold text-[#072421]">Page 2 of 2 • Studio Terms & Conditions</span>
                 </div>
               </div>
