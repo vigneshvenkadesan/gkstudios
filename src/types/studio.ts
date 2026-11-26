@@ -268,6 +268,8 @@ export interface EventProject {
   eventType: EventCategory;
   eventDate: string; // YYYY-MM-DD
   endDate?: string;
+  eventTime?: string;
+  eventEndTime?: string;
   venue: string;
   packageName: string;
   assignedCrew: string;
@@ -487,6 +489,8 @@ export interface CalendarDayEntry {
   bookingId?: string;
   phone?: string;
   time?: string;
+  endDate?: string;
+  eventEndTime?: string;
   requestedServices?: BookingServiceOption[];
   durationTier?: DurationTier;
   optedServices?: OptedServiceSnapshot[];

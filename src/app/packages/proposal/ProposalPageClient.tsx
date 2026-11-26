@@ -72,7 +72,12 @@ import {
 } from '@/src/lib/pricing';
 import { CAMERA_TEAM_GUIDES, CameraTeamMemberGuide } from '@/src/config/cameraGuide';
 import { CameraDemoShowcaseSection } from '@/src/components/packages/CameraDemoShowcaseSection';
-import { buildWhatsAppUrl, formatINR, toISODate } from '@/src/lib/utils';
+import {
+  buildWhatsAppUrl,
+  formatINR,
+  removeAlbumPhotoSelectionNote,
+  toISODate,
+} from '@/src/lib/utils';
 import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { Button } from '@/src/components/ui/button';
 import { PackageCardSkeleton } from '@/src/components/ui/skeleton';
@@ -1239,11 +1244,17 @@ export function ProposalPageClient() {
     const dynamicSections = getDynamicPackageDisplaySections(
       customizedActiveServiceItems,
       services,
-      basePackage.durationTier
+      basePackage.durationTier,
+      basePackage.deliverables
     );
     const packageDeliverables = parseDeliverables(
       sanitizePackageDeliverables(basePackage.deliverables)
-    );
+    )
+      .map((item) => ({
+        ...item,
+        text: removeAlbumPhotoSelectionNote(item.text),
+      }))
+      .filter((item) => item.text);
     const standardDeliverables = [
       dynamicSections.deliverables,
       ...packageDeliverables
@@ -2207,14 +2218,58 @@ export function ProposalPageClient() {
                       const featureService = services.find(
                         (service) => service.slug === featureServiceSlug
                       );
-                      const featureItem = basePackage?.includedServices?.find(
-                        (item) => featureServiceSlugs.includes(item.serviceSlug)
+                      const featureItems =
+                        basePackage?.includedServices?.filter((item) =>
+                          featureServiceSlugs.includes(item.serviceSlug)
+                        ) || [];
+                      const featureItem = featureItems[0];
+                      const featureServiceNames = Array.from(
+                        new Set(
+                          featureItems
+                            .map((item) => {
+                              const service = services.find(
+                                (candidate) => candidate.slug === item.serviceSlug
+                              );
+                              return service
+                                ? `${service.name} × ${item.quantity}`
+                                : undefined;
+                            })
+                            .filter((name): name is string => Boolean(name))
+                        )
                       );
+                      const featureDisplayName =
+                        featureServiceNames.join(' + ') || featureService?.name || el.label;
                       const featureDurationTier =
                         serviceDurationOverrides[featureServiceSlug || ''] ??
                         featureItem?.durationTier ??
                         basePackage?.durationTier ??
                         durationTier;
+                      const featureLivePrice = featureItems.length
+                        ? featureItems.reduce((total, item) => {
+                            const itemTier =
+                              serviceDurationOverrides[item.serviceSlug] ??
+                              item.durationTier ??
+                              basePackage?.durationTier ??
+                              durationTier;
+                            const quantity =
+                              item.serviceSlug === albumServiceSlug
+                                ? customAlbumSheets
+                                : item.serviceSlug === traditionalCameraSlug
+                                  ? traditionalCameraQuantity
+                                  : item.quantity;
+                            return total + getServiceCost(item.serviceSlug, quantity, itemTier);
+                          }, 0)
+                        : featureServiceSlug
+                          ? getServiceCost(
+                              featureServiceSlug,
+                              featureKey === 'printedAlbum'
+                                ? customAlbumSheets
+                                : featureKey === 'traditionalPhoto'
+                                  ? traditionalCameraQuantity
+                                  : 1,
+                              featureDurationTier
+                            )
+                          : null;
                       return (
                         <div
                           key={el.id}
@@ -2253,7 +2308,7 @@ export function ProposalPageClient() {
                                         : 'text-rose-200 line-through decoration-rose-400/60'
                                     }`}
                                   >
-                                    {el.label}
+                                    {featureDisplayName}
                                   </span>
                                 </div>
                                 {el.description && (
@@ -2272,7 +2327,9 @@ export function ProposalPageClient() {
                                     : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
                                 }`}
                               >
-                                {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
+                                {isChecked
+                                  ? `Included · ${featureLivePrice === null ? 'Rate unavailable' : formatINR(featureLivePrice)}`
+                                  : `Deducted: ${featureLivePrice === null ? 'Rate unavailable' : formatINR(featureLivePrice)}`}
                               </span>
                             )}
                           </div>

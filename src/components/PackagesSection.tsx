@@ -4,10 +4,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import {
   ArrowRight,
-  BookOpen,
-  Camera,
-  Check,
-  Film,
   LayoutGrid,
   Layers,
   Loader2,
@@ -15,13 +11,16 @@ import {
   Phone,
   RefreshCw,
   Sparkles,
-  Star,
   Sliders,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useStudio } from '@/src/context/StudioContext';
 import { PackageDeliverables, StudioPackage, StudioEvent } from '@/src/types/studio';
-import { buildWhatsAppUrl, formatINR } from '@/src/lib/utils';
+import {
+  buildWhatsAppUrl,
+  formatINR,
+  removeAlbumPhotoSelectionNote,
+} from '@/src/lib/utils';
 import {
   calculatePackageBasePrice,
   getDynamicPackageDisplaySections,
@@ -35,6 +34,8 @@ import { EventCategoryTabs } from './packages/EventCategoryTabs';
 import { PackageCardSkeleton } from './packages/PackageCardSkeleton';
 import { FastIntakeWizard } from './packages/FastIntakeWizard';
 import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
+import { ComplementaryHighlightText } from '@/src/components/ComplementaryHighlightText';
+import { PackageGridShareActions } from '@/src/components/packages/PackageGridShareActions';
 
 interface PackagesSectionProps {
   selectedPackageId: string;
@@ -82,12 +83,36 @@ export function PackagesSection({
   // Mode: 'intake' (2-Question Intake) vs 'grid' (Classic All Packages Grid)
   const [viewMode, setViewMode] = useState<'intake' | 'grid'>('grid');
   const [pendingPackageId, setPendingPackageId] = useState<string | null>(null);
+  const [isAdminSession, setIsAdminSession] = useState(false);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('wedding');
   const [selectedEventId, setSelectedEventId] = useState<string>('wedding');
 
   const t = (key: Parameters<typeof translate>[1]) => translate('en', key);
   const prefersReducedMotion = Boolean(useReducedMotion());
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    void fetch('/api/admin/auth', { cache: 'no-store', credentials: 'same-origin' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Admin session check failed (${response.status}).`);
+        }
+        return (await response.json()) as { authenticated?: boolean };
+      })
+      .then((data) => {
+        if (isCurrent) setIsAdminSession(data.authenticated === true);
+      })
+      .catch((error: unknown) => {
+        console.error('Unable to verify admin session for package sharing:', error);
+        if (isCurrent) setIsAdminSession(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   // Sync preselectedEventId if passed from outside
   useEffect(() => {
@@ -307,280 +332,217 @@ export function PackagesSection({
                 </div>
               </div>
             ) : (
-              /* Package Cards Grid - Center aligned horizontally */
-              <div className="flex flex-wrap justify-center items-stretch gap-6 content-auto">
-                {matchingPackages.map((pkg, idx) => {
-                  const copy = getPackageCopy(pkg);
-                  const isSelected = selectedPackageId === pkg.id;
+              <div className="space-y-4">
+                {isAdminSession && (
+                  <div className="flex justify-end">
+                    <PackageGridShareActions
+                      packages={matchingPackages}
+                      eventName={currentEvent?.name || 'Event'}
+                      services={services}
+                    />
+                  </div>
+                )}
+                <div className="flex flex-wrap items-stretch justify-center gap-5 content-auto">
+                  {matchingPackages.map((pkg, idx) => {
+                    const copy = getPackageCopy(pkg);
+                    const isSelected = selectedPackageId === pkg.id;
+                    const isRecommended = Boolean(pkg.highlighted || pkg.featured);
 
-                  const isEssential = pkg.sortOrder === 1 || pkg.name.toLowerCase().includes('essential');
-                  const isGrand = Boolean(
-                    pkg.name.toLowerCase().includes('grand') ||
-                    pkg.id.toLowerCase().includes('grand')
-                  );
-                  const isSignature = Boolean(
-                    pkg.highlighted ||
-                    pkg.sortOrder === 2 ||
-                    pkg.name.toLowerCase().includes('signature') ||
-                    pkg.id.toLowerCase().includes('signature') ||
-                    pkg.id === 'pkg-grand'
-                  );
-                  const isPremium = Boolean(
-                    pkg.sortOrder === 3 ||
-                    pkg.name.toLowerCase().includes('royal') ||
-                    pkg.name.toLowerCase().includes('premium') ||
-                    pkg.id.toLowerCase().includes('royal') ||
-                    pkg.id.toLowerCase().includes('premium')
-                  );
+                    const pkgImg = pkg.imageUrl || pkg.image;
+                    const dynamicSections = getDynamicPackageDisplaySections(
+                      pkg.includedServices,
+                      services,
+                      pkg.durationTier,
+                      copy.deliverables
+                    );
+                    const packageDeliverableItems = parseDeliverables(
+                      sanitizePackageDeliverables(copy.deliverables)
+                    );
+                    const standardDeliverables = [
+                      dynamicSections.deliverables,
+                      ...packageDeliverableItems.map((item) => {
+                        const text = removeAlbumPhotoSelectionNote(item.text);
+                        if (!text) return '';
+                        return item.category.toLowerCase() === 'deliverables'
+                          ? text
+                          : `${item.category}: ${text}`;
+                      }),
+                    ]
+                      .filter(Boolean)
+                      .join(', ');
+                    const parsedDeliverables = [
+                      ...(dynamicSections.coverage
+                        ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
+                        : []),
+                      ...(dynamicSections.albums
+                        ? [{ category: 'Albums', text: dynamicSections.albums }]
+                        : []),
+                      ...(standardDeliverables
+                        ? [{ category: 'Deliverables', text: standardDeliverables }]
+                        : []),
+                    ];
 
-                  const pkgImg = pkg.imageUrl || pkg.image;
-                  const dynamicSections = getDynamicPackageDisplaySections(
-                    pkg.includedServices,
-                    services,
-                    pkg.durationTier
-                  );
-                  const packageDeliverableItems = parseDeliverables(
-                    sanitizePackageDeliverables(copy.deliverables)
-                  );
-                  const standardDeliverables = [
-                    dynamicSections.deliverables,
-                    ...packageDeliverableItems.map((item) =>
-                      item.category.toLowerCase() === 'deliverables'
-                        ? item.text
-                        : `${item.category}: ${item.text}`
-                    ),
-                  ]
-                    .filter(Boolean)
-                    .join(', ');
-                  const parsedDeliverables = [
-                    ...(dynamicSections.coverage
-                      ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
-                      : []),
-                    ...(dynamicSections.albums
-                      ? [{ category: 'Albums', text: dynamicSections.albums }]
-                      : []),
-                    ...(standardDeliverables
-                      ? [{ category: 'Deliverables', text: standardDeliverables }]
-                      : []),
-                  ];
-
-                  return (
-                    <motion.article
-                      key={pkg.id}
-                      initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, amount: 0.15 }}
-                      transition={{
-                        duration: 0.5,
-                        delay: idx * 0.08,
-                        ease: [0.16, 1, 0.3, 1],
-                      }}
-                      className={`group relative flex flex-col justify-between overflow-hidden rounded-sm border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1.5 motion-reduce:hover:translate-y-0 w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] max-w-[380px] ${
-                        isSelected
-                          ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_18px_45px_rgba(4,20,18,0.45)] ring-2 ring-[#D8C78E]'
-                          : isSignature
-                          ? 'border-2 border-[#D8C78E] bg-[#0E423E] shadow-[0_16px_45px_rgba(216,199,142,0.25)] ring-1 ring-[#D8C78E]/40 lg:-translate-y-2 hover:-translate-y-3 z-10'
-                          : isPremium
-                          ? 'border-[#C5B378]/35 bg-[#0A3330] hover:border-[#D8C78E]/60 shadow-[0_14px_32px_rgba(4,20,18,0.3)]'
-                          : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935] hover:shadow-[0_14px_32px_rgba(4,20,18,0.28)]'
-                      }`}
-                    >
-                      {/* Top accent highlight strip */}
-                      <div
-                        aria-hidden="true"
-                        className={`w-full transition-colors duration-300 ${
-                          isSignature
-                            ? 'h-[3px] bg-gradient-to-r from-[#C5B378] via-[#F4E8C1] to-[#C5B378]'
-                            : isPremium
-                            ? 'h-[2px] bg-gradient-to-r from-[#C5B378] to-amber-400'
-                            : isSelected
-                            ? 'h-[2px] bg-[#D8C78E]'
-                            : 'h-[2px] bg-transparent group-hover:bg-[#C5B378]/35'
+                    return (
+                      <motion.article
+                        key={pkg.id}
+                        initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.15 }}
+                        transition={{
+                          duration: 0.5,
+                          delay: idx * 0.08,
+                          ease: [0.16, 1, 0.3, 1],
+                        }}
+                        className={`group relative flex w-full max-w-[380px] flex-col overflow-hidden rounded-xl border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1 motion-reduce:hover:translate-y-0 sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)] xl:w-[calc(25%-15px)] ${
+                          isSelected
+                            ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_18px_45px_rgba(4,20,18,0.45)] ring-2 ring-[#D8C78E]'
+                            : isRecommended
+                              ? 'z-10 border-2 border-[#D8C78E] bg-[#0E423E] shadow-[0_16px_45px_rgba(216,199,142,0.2)] ring-1 ring-[#D8C78E]/35 xl:-translate-y-1'
+                              : 'border-[#C5B378]/20 bg-[#092E2B] shadow-[0_10px_28px_rgba(4,20,18,0.24)] hover:border-[#C5B378]/55 hover:bg-[#0C3935] hover:shadow-[0_16px_36px_rgba(4,20,18,0.35)]'
                         }`}
-                      />
+                      >
+                        <div
+                          aria-hidden="true"
+                          className={`h-1 w-full ${
+                            isRecommended
+                              ? 'bg-gradient-to-r from-[#C5B378] via-[#F4E8C1] to-[#C5B378]'
+                              : 'bg-gradient-to-r from-transparent via-[#C5B378]/45 to-transparent'
+                          }`}
+                        />
 
-                      {pkgImg && (
-                        <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#041513] border-b border-[#C5B378]/15">
-                          <Image
-                            src={pkgImg}
-                            alt={copy.name}
-                            fill
-                            decoding="async"
-                            loading={idx < 2 ? 'eager' : 'lazy'}
-                            priority={idx < 2}
-                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                            quality={90}
-                            placeholder="blur"
-                            blurDataURL={SHIMMER_BLUR_DATA_URL}
-                            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/25" />
-                          <div className="absolute top-2.5 right-2.5 z-10">
-                            {isGrand ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#D8C78E] uppercase shadow-xs">
-                                👑 Grand Tier
-                              </span>
-                            ) : isSignature ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#C5B378] to-[#D8C78E] px-3 py-1 text-[10px] font-bold tracking-wider text-[#061E1C] uppercase shadow-[0_2px_12px_rgba(216,199,142,0.45)]">
+                        {pkgImg && (
+                          <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-[#C5B378]/15 bg-[#041513]">
+                            <Image
+                              src={pkgImg}
+                              alt={copy.name}
+                              fill
+                              decoding="async"
+                              loading={idx < 2 ? 'eager' : 'lazy'}
+                              priority={idx < 2}
+                              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                              quality={90}
+                              placeholder="blur"
+                              blurDataURL={SHIMMER_BLUR_DATA_URL}
+                              className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/20" />
+                            {isRecommended && (
+                              <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#C5B378] to-[#E8D79F] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#061E1C] shadow-[0_2px_12px_rgba(216,199,142,0.4)]">
                                 <Sparkles className="h-3 w-3 fill-[#061E1C]" />
-                                Signature · Most Popular
-                              </span>
-                            ) : isPremium ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-amber-400/50 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-amber-300 uppercase shadow-xs">
-                                👑 Premium Tier
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#072421] border border-[#C5B378]/40 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-[#D8C78E] uppercase shadow-xs">
-                                ✨ Essential Tier
+                                Recommended
                               </span>
                             )}
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      <div className="flex flex-1 flex-col p-6">
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="font-mono tabular-nums text-[#D8C78E]/70">
-                            {String(idx + 1).padStart(2, '0')}
-                          </span>
-                          {!pkgImg && (
-                            <div>
-                              {isGrand ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0E423E] border border-[#C5B378]/30 px-2.5 py-0.5 text-[10px] font-semibold text-[#D8C78E] uppercase tracking-wider">
-                                  👑 Grand Plan
-                                </span>
-                              ) : isSignature ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#D8C78E] px-2.5 py-0.5 text-[10px] font-bold text-[#061E1C] uppercase tracking-wider shadow">
-                                  <Sparkles className="h-3 w-3 fill-[#061E1C]" />
-                                  Signature Plan
-                                </span>
-                              ) : isPremium ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
-                                  👑 Premium Plan
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#0E423E] border border-[#C5B378]/30 px-2.5 py-0.5 text-[10px] font-semibold text-[#D8C78E] uppercase tracking-wider">
-                                  ✨ Essential Plan
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <div className="flex flex-1 flex-col p-5 sm:p-6">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="font-mono tabular-nums text-[#D8C78E]/70">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                            {!pkgImg && isRecommended && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D8C78E] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#061E1C]">
+                                <Sparkles className="h-3 w-3 fill-[#061E1C]" />
+                                Recommended
+                              </span>
+                            )}
+                          </div>
 
-                        <div className="mt-4 space-y-1.5">
-                          {isSignature && (
-                            <div className="inline-flex items-center gap-1.5 rounded-full bg-[#D8C78E]/15 border border-[#D8C78E]/40 px-2.5 py-0.5 text-[10px] font-bold text-[#D8C78E] uppercase tracking-wider w-fit">
-                              <Star className="h-3 w-3 fill-[#D8C78E]" />
-                              Signature Recommended
-                            </div>
-                          )}
-                          <h3 className="font-serif text-2xl font-semibold text-white leading-snug">
-                            {copy.name}
-                          </h3>
-                          <p className="text-xs text-[#D8C78E]/90">{copy.audience}</p>
-                          <p className="text-xs leading-relaxed text-[#E6ECEB]/75">{copy.duration}</p>
-                        </div>
+                          <div className="mt-4 space-y-1.5">
+                            <h3 className="font-serif text-xl font-semibold leading-snug text-white sm:text-2xl">
+                              {copy.name}
+                            </h3>
+                            <p className="text-xs text-[#D8C78E]/90">{copy.audience}</p>
+                            <p className="text-xs leading-relaxed text-[#E6ECEB]/75">{copy.duration}</p>
+                          </div>
 
-                        <div className="mt-5 pb-5 border-b border-[#C5B378]/16">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-semibold text-white tabular-nums tracking-tight">
+                          <div className="mt-5 border-b border-[#C5B378]/20 pb-5">
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E6ECEB]/55">
+                              {t('packages.starting')}
+                            </p>
+                            <span className="text-3xl font-semibold tabular-nums tracking-tight text-white sm:text-4xl">
                               {formatINR(pkg.price)}
                             </span>
-                            <span className="text-xs text-[#E6ECEB]/60">{t('packages.starting')}</span>
+                          </div>
+
+                          {/* Categorized Deliverables Breakdown */}
+                          <div className="mt-5 flex-1 space-y-4">
+                            {parsedDeliverables.map((item, dIdx) => {
+                              const isCrew =
+                                item.category.toLowerCase().includes('crew') ||
+                                item.category.toLowerCase().includes('coverage');
+                              const isAlbum =
+                                item.category.toLowerCase().includes('album') ||
+                                item.category.toLowerCase().includes('frame');
+                              const isDeliverables = item.category
+                                .toLowerCase()
+                                .includes('deliverable');
+                              const deliverablesText = item.text.replace(/\s*\+\s*/g, ', ');
+                              const listItems = isCrew
+                                ? item.text.split(/\s*(?:\+|,|&)\s*/).filter(Boolean)
+                                : isAlbum
+                                  ? [item.text]
+                                  : isDeliverables
+                                    ? deliverablesText.split(/\s*,\s*/).filter(Boolean)
+                                    : null;
+
+                              return (
+                                <div key={dIdx} className="space-y-1.5">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#D8C78E]">
+                                    {item.category}
+                                  </p>
+                                  {listItems ? (
+                                    <ul className="space-y-1.5 text-xs leading-relaxed text-[#E6ECEB]/88">
+                                      {listItems.map((listItem, listIndex) => (
+                                        <li key={`${listIndex}-${listItem}`} className="flex gap-2">
+                                          <span aria-hidden="true" className="text-[#D8C78E]">•</span>
+                                          <ComplementaryHighlightText text={listItem} />
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-xs leading-relaxed text-[#E6ECEB]/88">
+                                      <ComplementaryHighlightText text={item.text} />
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-6 border-t border-[#C5B378]/20 pt-4">
+                            <Button
+                              className={`w-full justify-between transition-all duration-200 ${
+                                isSelected || isRecommended
+                                  ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] font-bold text-[#061E1C] shadow-[0_4px_16px_rgba(216,199,142,0.2)] hover:brightness-105'
+                                  : 'border border-[#C5B378]/50 text-white hover:border-[#D8C78E] hover:bg-[#C5B378]/10'
+                              }`}
+                              variant={isSelected || isRecommended ? 'default' : 'outline'}
+                              disabled={pendingPackageId !== null}
+                              aria-busy={pendingPackageId === pkg.id}
+                              onClick={() => {
+                                setPendingPackageId(pkg.id);
+                                onSelectPackage(pkg, pkg.eventId || selectedEventId);
+                              }}
+                            >
+                              {pendingPackageId === pkg.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Opening plan...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
+                                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                                </>
+                              )}
+                            </Button>
                           </div>
                         </div>
-
-                        {/* Categorized Deliverables Breakdown */}
-                        <div className="mt-5 flex-1 space-y-4">
-                          {parsedDeliverables.map((item, dIdx) => {
-                            const isCrew =
-                              item.category.toLowerCase().includes('crew') ||
-                              item.category.toLowerCase().includes('coverage');
-                            const isAlbum =
-                              item.category.toLowerCase().includes('album') ||
-                              item.category.toLowerCase().includes('frame');
-                            const isDigital =
-                              item.category.toLowerCase().includes('digital') ||
-                              item.category.toLowerCase().includes('video');
-                            const isDeliverables = item.category
-                              .toLowerCase()
-                              .includes('deliverable');
-                            const deliverablesText = item.text.replace(/\s*\+\s*/g, ', ');
-                            const listItems = isCrew
-                              ? item.text.split(/\s*(?:\+|,|&)\s*/).filter(Boolean)
-                              : isAlbum
-                                ? [item.text]
-                                : isDeliverables
-                                  ? deliverablesText.split(/\s*,\s*/).filter(Boolean)
-                                  : null;
-
-                            return (
-                              <div key={dIdx} className="space-y-1">
-                                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#D8C78E]">
-                                  {isCrew ? (
-                                    <Camera className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />
-                                  ) : isAlbum ? (
-                                    <BookOpen className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />
-                                  ) : isDigital ? (
-                                    <Film className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />
-                                  ) : (
-                                    <Check className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />
-                                  )}
-                                  <span>{item.category}</span>
-                                </div>
-                                {listItems ? (
-                                  <ul className="space-y-1 pl-5 text-xs leading-relaxed text-[#E6ECEB]/88 sm:text-[13px]">
-                                    {listItems.map((listItem, listIndex) => (
-                                      <li key={`${listIndex}-${listItem}`} className="flex gap-1.5">
-                                        <span aria-hidden="true" className="text-[#D8C78E]">•</span>
-                                        <span>{listItem}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="pl-5 text-xs leading-relaxed text-[#E6ECEB]/88 sm:text-[13px]">
-                                    {item.text}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div className="mt-7 pt-3 border-t border-[#C5B378]/15">
-                          <Button
-                            className={`w-full justify-between transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:hover:translate-y-0 ${
-                              isSignature
-                                ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-bold shadow-[0_4px_16px_rgba(216,199,142,0.35)] hover:brightness-105'
-                                : isSelected
-                                ? 'bg-[#D8C78E] text-[#061E1C] font-semibold'
-                                : 'border border-[#C5B378]/50 text-white hover:bg-[#C5B378]/15 hover:border-[#D8C78E]'
-                            }`}
-                            variant={isSignature || isSelected ? 'default' : 'outline'}
-                            disabled={pendingPackageId !== null}
-                            aria-busy={pendingPackageId === pkg.id}
-                            onClick={() => {
-                              setPendingPackageId(pkg.id);
-                              onSelectPackage(pkg, pkg.eventId || selectedEventId);
-                            }}
-                          >
-                            {pendingPackageId === pkg.id ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Opening plan...</span>
-                              </>
-                            ) : (
-                              <>
-                                <span>{t(isSelected ? 'packages.selected' : 'packages.select')}</span>
-                                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </motion.article>
-                  );
-                })}
+                      </motion.article>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

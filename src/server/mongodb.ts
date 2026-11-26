@@ -244,6 +244,8 @@ const CalendarScheduleSchema = new Schema<CalendarScheduleDocument>(
     durationTier: String,
     optedServices: { type: Schema.Types.Mixed, default: [] },
     totalAmount: Number,
+    endDate: String,
+    eventEndTime: String,
   },
   { collection: 'calendar_schedule', strict: false, timestamps: false }
 );
@@ -274,7 +276,9 @@ const EventProjectSchema = new Schema<EventProjectDocument>(
     phone: { type: String, required: true },
     eventType: { type: String, required: true },
     eventDate: { type: String, required: true },
+    eventTime: String,
     endDate: String,
+    eventEndTime: String,
     venue: { type: String, required: true },
     packageName: { type: String, required: true },
     assignedCrew: { type: String, required: true },

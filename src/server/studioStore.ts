@@ -799,7 +799,9 @@ function toPlainEventProject(project: EventProject & { _id?: unknown; packageSna
     phone: String(project.phone),
     eventType: project.eventType,
     eventDate: String(project.eventDate),
+    ...(project.eventTime ? { eventTime: String(project.eventTime) } : {}),
     ...(project.endDate ? { endDate: String(project.endDate) } : {}),
+    ...(project.eventEndTime ? { eventEndTime: String(project.eventEndTime) } : {}),
     venue: String(project.venue),
     packageName: String(project.packageName),
     assignedCrew: String(project.assignedCrew),
@@ -970,6 +972,8 @@ export async function getStudioState(): Promise<StudioState> {
       ...(plain.bookingId ? { bookingId: String(plain.bookingId) } : {}),
       ...(plain.phone ? { phone: String(plain.phone) } : {}),
       ...(plain.time ? { time: String(plain.time) } : {}),
+      ...(plain.endDate ? { endDate: String(plain.endDate) } : {}),
+      ...(plain.eventEndTime ? { eventEndTime: String(plain.eventEndTime) } : {}),
       ...(Array.isArray(plain.requestedServices) ? { requestedServices: plain.requestedServices } : {}),
       ...(plain.durationTier ? { durationTier: plain.durationTier } : {}),
       ...(Array.isArray(plain.optedServices) ? { optedServices: plain.optedServices } : {}),
@@ -1256,6 +1260,8 @@ export async function processBookingOnServer(input: {
         bookingId: targetBooking.id,
         phone: targetBooking.phone,
         time: resolvedEventTime || targetBooking.eventTime,
+        ...(targetBooking.endDate ? { endDate: targetBooking.endDate } : {}),
+        ...(targetBooking.eventEndTime ? { eventEndTime: targetBooking.eventEndTime } : {}),
         requestedServices: targetBooking.requestedServices,
         durationTier: targetBooking.durationTier,
         optedServices: targetBooking.optedServices,
@@ -1303,7 +1309,9 @@ export async function processBookingOnServer(input: {
         phone: targetBooking.phone,
         eventType: targetBooking.eventType,
         eventDate: targetBooking.preferredDate,
+        eventTime: targetBooking.eventTime,
         endDate: targetBooking.endDate,
+        eventEndTime: targetBooking.eventEndTime,
         venue: targetBooking.venue,
         packageName: resolvedPkgName,
         assignedCrew: resolvedCrew,
@@ -1427,6 +1435,9 @@ export async function upsertCalendarEntryOnServer(
           ? entry.eventType
           : 'Weddings') as any,
         eventDate: entry.date,
+        eventTime: entry.time?.trim() || '',
+        endDate: entry.endDate?.trim() || '',
+        eventEndTime: entry.eventEndTime?.trim() || '',
         venue: entry.venue?.trim() || 'To be confirmed',
         packageName:
           entry.packageName ||
@@ -1464,6 +1475,9 @@ export async function upsertCalendarEntryOnServer(
           phone: projectPayload.phone || '',
           eventType: projectPayload.eventType || 'Weddings',
           eventDate: entry.date,
+          eventTime: projectPayload.eventTime || '',
+          endDate: projectPayload.endDate || '',
+          eventEndTime: projectPayload.eventEndTime || '',
           venue: projectPayload.venue || 'To be confirmed',
           packageName: projectPayload.packageName || 'Signature Package',
           assignedCrew: projectPayload.assignedCrew || 'G Krishna + Studio Unit',
@@ -1792,9 +1806,9 @@ export async function addEventPaymentOnServer(
   }
 
   const eventDate = project.eventDate || matchingBooking?.preferredDate || '';
-  const eventTime = matchingBooking?.eventTime || '';
+  const eventTime = project.eventTime || matchingBooking?.eventTime || '';
   const eventEndDate = project.endDate || matchingBooking?.endDate || '';
-  const eventEndTime = matchingBooking?.eventEndTime || '';
+  const eventEndTime = project.eventEndTime || matchingBooking?.eventEndTime || '';
   const venue = project.venue || matchingBooking?.venue || '';
   const schedulePlan =
     matchingBooking?.notes?.includes('Plan:')

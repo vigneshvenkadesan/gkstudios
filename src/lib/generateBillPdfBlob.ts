@@ -7,6 +7,7 @@ import {
   formatDateDisplay,
   formatTimeWithAmPm,
   formatINR,
+  getAlbumPhotoSelectionNote,
   getBillDisplayDeliverables,
   getBillPaymentHistory,
   getBillServiceRateTotal,
@@ -162,22 +163,29 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
   const optedServices =
     bill.packageDetails?.optedServices?.length ? bill.packageDetails.optedServices : bill.optedServices || [];
   const printableDeliverables = getBillDisplayDeliverables(bill.packageDetails.deliverables);
+  const albumSelectionNote = getAlbumPhotoSelectionNote(bill.packageDetails.deliverables);
+  const albumServiceIndex = optedServices.findIndex(
+    (service) => service.serviceSlug.startsWith('photo-album') || /album/i.test(service.name)
+  );
+  const activeAlbumServiceIndex = includedServices.findIndex((service) =>
+    /album/i.test(service.en || service.key || '')
+  );
   const packagePrice = bill.financials.packagePrice ?? bill.financials.totalPackageAmount;
   const discountAmount = bill.financials.discountAmount ?? 0;
   const scopeRows = [
     ...optedServices.map(
-      (service) => `
+      (service, index) => `
         <tr style="border-top:1px solid #e2e8f0;">
-          <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.name))}${service.durationTier ? ` <span style="font-size:8px;color:#64748b;">(${service.durationTier === 'fullDay' ? 'Full Day' : service.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})</span>` : ''}</td>
+          <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.name))}${albumSelectionNote && index === albumServiceIndex ? ` - ${escapeHtml(albumSelectionNote)}` : ''}${service.durationTier ? ` <span style="font-size:8px;color:#64748b;">(${service.durationTier === 'fullDay' ? 'Full Day' : service.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})</span>` : ''}</td>
           <td style="padding:6px 8px;text-align:center;color:#475569;">${service.quantity}</td>
           <td colspan="2" style="padding:6px 8px;text-align:right;color:#64748b;">Included</td>
         </tr>`
     ),
     ...(optedServices.length === 0
       ? includedServices.map(
-          (service) => `
+          (service, index) => `
             <tr style="border-top:1px solid #e2e8f0;">
-              <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.en))}${service.ta ? `<span style="display:block;color:#64748b;font-size:8px;">${escapeHtml(service.ta)}</span>` : ''}</td>
+              <td style="padding:6px 8px;color:#1e293b;font-weight:600;">${escapeHtml(englishOnlyName(service.en))}${albumSelectionNote && index === activeAlbumServiceIndex ? ` - ${escapeHtml(albumSelectionNote)}` : ''}${service.ta ? `<span style="display:block;color:#64748b;font-size:8px;">${escapeHtml(service.ta)}</span>` : ''}</td>
               <td colspan="2" style="padding:6px 8px;text-align:right;color:#64748b;">Included</td>
             </tr>`
         )
@@ -185,7 +193,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
     ...printableDeliverables.map(
       ({ category, text, isComplimentary }) => `
         <tr style="border-top:1px solid #e2e8f0;background:${isComplimentary ? '#ecfdf5' : '#f8fafc'};">
-          <td style="padding:6px 8px;color:${isComplimentary ? '#065f46' : '#475569'};font-weight:${isComplimentary ? '700' : '400'};"><strong style="color:#072421;">${escapeHtml(englishOnlyName(category))}:</strong> ${escapeHtml(englishOnlyName(text))}${isComplimentary ? ' <strong>(Complimentary)</strong>' : ''}</td>
+          <td style="padding:6px 8px;color:${isComplimentary ? '#065f46' : '#475569'};font-weight:${isComplimentary ? '700' : '400'};">${category ? `<strong style="color:#072421;">${escapeHtml(englishOnlyName(category))}:</strong> ` : ''}${escapeHtml(englishOnlyName(text))}${isComplimentary ? ' <strong>(Complimentary)</strong>' : ''}</td>
           <td style="padding:6px 8px;text-align:center;color:#64748b;">—</td>
           <td colspan="1" style="padding:6px 8px;text-align:right;color:${isComplimentary ? '#065f46' : '#64748b'};font-weight:${isComplimentary ? '700' : '400'};">${isComplimentary ? formatINR(0) : 'Included'}</td>
         </tr>`

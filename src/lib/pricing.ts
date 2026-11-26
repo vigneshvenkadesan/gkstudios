@@ -3,11 +3,13 @@ import {
   BookingServiceOption,
   DurationTier,
   OptedServiceSnapshot,
+  PackageDeliverables,
   PackageIncludedFeatures,
   PackageIncludedService,
   StudioPackage,
   StudioService,
 } from '../types/studio';
+import { getAlbumPhotoSelectionNote } from './utils';
 
 export const DURATION_TIER_LABELS: Record<DurationTier, { en: string; ta: string; duration: string }> = {
   threeHours: {
@@ -222,7 +224,8 @@ const COVERAGE_SERVICE_LABELS: Record<string, string> = {
 export function getDynamicPackageDisplaySections(
   activeServiceItems: PackageIncludedService[] | undefined,
   services: StudioService[],
-  packageDurationTier?: DurationTier
+  packageDurationTier?: DurationTier,
+  packageDeliverables?: PackageDeliverables | string[]
 ): { coverage: string | null; albums: string | null; deliverables: string | null } {
   const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
   const servicesBySlug = new Map(services.map((service) => [service.slug, service]));
@@ -252,6 +255,7 @@ export function getDynamicPackageDisplaySections(
     );
   };
   const albumItems = items.filter((item) => item.serviceSlug.startsWith('photo-album'));
+  const albumSelectionNote = getAlbumPhotoSelectionNote(packageDeliverables);
   const deliverableItems = items.filter((item) => {
     if (item.serviceSlug.startsWith('photo-album')) return false;
     return servicesBySlug.get(item.serviceSlug)?.category
@@ -318,7 +322,7 @@ export function getDynamicPackageDisplaySections(
                   .replace(/^photo-album-?/, 'Photo Album ')
                   .replace(/-/g, ' ')
                   .trim();
-              return `${name} · ${item.quantity * 2} pages`;
+              return `${name}${albumSelectionNote ? ` - ${albumSelectionNote}` : ''} · ${item.quantity * 2} pages`;
             })
             .join(', ')
         : null,

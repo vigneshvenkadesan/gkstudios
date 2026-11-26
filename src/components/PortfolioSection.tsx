@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import { SHIMMER_BLUR_DATA_URL, usePreloadImagesOnApproach } from '@/src/lib/imageBlur';
+import { ComplementaryHighlightText } from '@/src/components/ComplementaryHighlightText';
 
 interface PortfolioSectionProps {
   onBookCategory: (category: EventCategory) => void;
@@ -383,7 +384,14 @@ export function PortfolioSection({
                     {localizePortfolioText(locale, lightboxItem.id, 'title', lightboxItem.title)}
                   </DialogTitle>
                   <DialogDescription className="hidden text-sm leading-relaxed text-[#E6ECEB]/82 pt-1 sm:block">
-                    {localizePortfolioText(locale, lightboxItem.id, 'notes', lightboxItem.shootNotes)}
+                    <ComplementaryHighlightText
+                      text={localizePortfolioText(
+                        locale,
+                        lightboxItem.id,
+                        'notes',
+                        lightboxItem.shootNotes
+                      )}
+                    />
                   </DialogDescription>
                 </DialogHeader>
 

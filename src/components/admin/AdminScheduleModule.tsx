@@ -37,7 +37,13 @@ import {
   getPackageBookingServiceOptions,
   sanitizePackageDeliverables,
 } from '@/src/lib/pricing';
-import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
+import {
+  buildWhatsAppUrl,
+  formatDateDisplay,
+  formatINR,
+  formatTimeWithAmPm,
+  toISODate,
+} from '@/src/lib/utils';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
 import { QuotePdfActions } from '@/src/components/admin/QuotePdfActions';
@@ -67,6 +73,23 @@ const SCHEDULE_SERVICE_SLUGS: Record<BookingServiceOption, string> = {
   TV: 'led-tv',
   'LED Wall': 'led-wall',
 };
+
+function toTimeInputValue(value?: string): string {
+  const match = value?.trim().match(/(?:^|[^\d])(\d{1,2}):([0-5]\d)\s*(AM|PM)?/i);
+  if (!match) return '';
+
+  let hour = Number(match[1]);
+  const meridiem = match[3]?.toUpperCase();
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return '';
+    if (meridiem === 'PM' && hour < 12) hour += 12;
+    if (meridiem === 'AM' && hour === 12) hour = 0;
+  } else if (hour > 23) {
+    return '';
+  }
+
+  return `${String(hour).padStart(2, '0')}:${match[2]}`;
+}
 
 type CalendarView = 'day' | 'week' | 'month' | '3-months' | '6-months' | 'year';
 
@@ -107,6 +130,8 @@ export function AdminScheduleModule() {
   const [venue, setVenue] = useState('');
   const [phone, setPhone] = useState('');
   const [eventTime, setEventTime] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [eventEndTime, setEventEndTime] = useState('');
   const [assignedCrew, setAssignedCrew] = useState('G Krishna + Studio Unit');
   const [notes, setNotes] = useState('');
   const [requestedServices, setRequestedServices] = useState<BookingServiceOption[]>([]);
@@ -250,6 +275,8 @@ export function AdminScheduleModule() {
 
       setPhone(entry.phone || matchedBooking?.phone || '');
       setEventTime(entry.time || matchedBooking?.eventTime || '');
+      setEndDate(entry.endDate || matchedBooking?.endDate || '');
+      setEventEndTime(entry.eventEndTime || matchedBooking?.eventEndTime || '');
       setRequestedServices(
         entry.requestedServices && entry.requestedServices.length > 0
           ? entry.requestedServices
@@ -294,6 +321,8 @@ export function AdminScheduleModule() {
       setVenue('');
       setPhone('');
       setEventTime('');
+      setEndDate('');
+      setEventEndTime('');
       setNotes('');
       setLinkedBookingId(undefined);
 
@@ -318,36 +347,27 @@ export function AdminScheduleModule() {
     setDialogOpen(true);
   };
 
-  const toggleService = (service: BookingServiceOption) => {
-    setRequestedServices((prev) =>
-      prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]
-    );
-  };
-
-  const handleServiceDurationChange = (service: BookingServiceOption, tier: DurationTier) => {
-    const slug = SCHEDULE_SERVICE_SLUGS[service];
-    const nextTiers = { ...serviceDurationTiers, [slug]: tier };
-    setServiceDurationTiers(nextTiers);
-    const selectedPackage = packages.find((pkg) => pkg.id === packageId);
-    if (selectedPackage?.includedServices) {
-      const includedServices = selectedPackage.includedServices.map((item) => ({
-        ...item,
-        durationTier:
-          nextTiers[item.serviceSlug] ??
-          item.durationTier ??
-          selectedPackage.durationTier ??
-          'fullDay',
-      }));
-      setTotalPackageAmount(
-        calculatePackageBasePrice({ ...selectedPackage, includedServices }, services)
-      );
-    }
-  };
-
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate || !title.trim() || !eventType || !venue.trim() || !phone.trim()) {
       toast.error('Please provide the event title, category, venue, and phone number.');
+      return;
+    }
+
+    if (endDate && endDate < selectedDate) {
+      toast.error('Event end date must be on or after the start date.');
+      return;
+    }
+
+    const startTimeValue = toTimeInputValue(eventTime);
+    const endTimeValue = toTimeInputValue(eventEndTime);
+    if (
+      startTimeValue &&
+      endTimeValue &&
+      (!endDate || endDate === selectedDate) &&
+      endTimeValue <= startTimeValue
+    ) {
+      toast.error('Event end time must be later than the start time.');
       return;
     }
 
@@ -389,7 +409,9 @@ export function AdminScheduleModule() {
         clientName: clientName.trim() || undefined,
         venue: venue.trim() || undefined,
         phone: phone.trim() || undefined,
-        time: eventTime.trim() || undefined,
+        time: eventTime.trim() ? formatTimeWithAmPm(eventTime) : undefined,
+        endDate: endDate || undefined,
+        eventEndTime: eventEndTime.trim() ? formatTimeWithAmPm(eventEndTime) : undefined,
         assignedCrew: assignedCrew.trim() || undefined,
         notes: notes.trim() || undefined,
         bookingId: linkedBookingId,
@@ -490,6 +512,8 @@ export function AdminScheduleModule() {
         venue: entry.venue || matched.venue,
         clientName: entry.clientName || matched.clientName,
         time: entry.time || matched.eventTime,
+        endDate: entry.endDate || matched.endDate,
+        eventEndTime: entry.eventEndTime || matched.eventEndTime,
       };
     });
   }, [calendarEntries, bookings]);
@@ -508,6 +532,59 @@ export function AdminScheduleModule() {
     () => (linkedBookingId ? bookings.find((b) => b.id === linkedBookingId) : undefined),
     [bookings, linkedBookingId]
   );
+  const scheduleOptedServiceRows = useMemo<
+    Array<Pick<OptedServiceSnapshot, 'serviceSlug' | 'name' | 'quantity'>>
+  >(() => {
+    const savedEntry = calendarEntries.find((entry) => entry.id === editingEntryId);
+    const savedOptedServices =
+      savedEntry?.optedServices?.length ? savedEntry.optedServices : matchedBooking?.optedServices;
+    const savedPackageId = savedEntry?.packageId || matchedBooking?.packageId;
+
+    if (
+      savedOptedServices?.length &&
+      (savedPackageId === packageId || !packageId)
+    ) {
+      return savedOptedServices;
+    }
+
+    const selectedPackage = packages.find((pkg) => pkg.id === packageId);
+    if (selectedPackage) {
+      const includedServices = selectedPackage.includedServices?.map((item) => ({
+        ...item,
+        durationTier:
+          serviceDurationTiers[item.serviceSlug] ??
+          item.durationTier ??
+          selectedPackage.durationTier ??
+          'fullDay',
+      }));
+      const packageServices = buildOptedServicesForPackage(
+        { ...selectedPackage, includedServices },
+        services
+      ).optedServices;
+      if (packageServices.length) return packageServices;
+    }
+
+    if (savedOptedServices?.length) return savedOptedServices;
+
+    return requestedServices.map((serviceName) => {
+      const serviceSlug = SCHEDULE_SERVICE_SLUGS[serviceName];
+      const service = services.find((item) => item.slug === serviceSlug);
+      return {
+        serviceSlug,
+        name: service?.name || serviceName,
+        quantity: 1,
+      };
+    });
+  }, [
+    calendarEntries,
+    editingEntryId,
+    matchedBooking,
+    packageId,
+    packages,
+    requestedServices,
+    serviceDurationTiers,
+    services,
+  ]);
   const calendarQuote = useMemo<StudioQuotePdfData>(() => {
     const selectedPackage = packages.find((pkg) => pkg.id === packageId);
     const packageItems = selectedPackage?.includedServices?.map((item) => ({
@@ -542,10 +619,10 @@ export function AdminScheduleModule() {
       clientPhone: phone.trim() || matchedBooking?.phone || '',
       eventName: englishOnlyName(eventType),
       eventDate: selectedDate,
-      eventTime: eventTime.trim() || matchedBooking?.eventTime || 'To be confirmed',
+      eventTime: eventTime.trim() ? formatTimeWithAmPm(eventTime) : 'To be confirmed',
       schedulePlan: selectedPackage?.duration || 'To be confirmed',
-      ...(matchedBooking?.endDate ? { endDate: matchedBooking.endDate } : {}),
-      ...(matchedBooking?.eventEndTime ? { eventEndTime: matchedBooking.eventEndTime } : {}),
+      ...(endDate ? { endDate } : {}),
+      ...(eventEndTime.trim() ? { eventEndTime: formatTimeWithAmPm(eventEndTime) } : {}),
       venue: venue.trim() || matchedBooking?.venue || 'To be confirmed',
       packageName: packageName || selectedPackage?.name || 'Custom Plan',
       totalAmount: totalPackageAmount > 0 ? totalPackageAmount : total,
@@ -558,6 +635,8 @@ export function AdminScheduleModule() {
   }, [
     clientName,
     editingEntryId,
+    endDate,
+    eventEndTime,
     eventTime,
     eventType,
     matchedBooking,
@@ -857,7 +936,18 @@ export function AdminScheduleModule() {
                         </div>
                         {entry.time && (
                           <span className="font-mono text-xs text-[#D8C78E] bg-[#072421] px-2 py-0.5 rounded border border-[#C5B378]/20">
-                            {entry.time}
+                            {formatTimeWithAmPm(entry.time)}
+                          </span>
+                        )}
+                        {(entry.endDate || entry.eventEndTime) && (
+                          <span className="font-mono text-xs text-[#E6ECEB]/75">
+                            End:{' '}
+                            {[
+                              entry.endDate ? formatDateDisplay(entry.endDate) : '',
+                              entry.eventEndTime ? formatTimeWithAmPm(entry.eventEndTime) : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </span>
                         )}
                       </div>
@@ -1066,7 +1156,18 @@ export function AdminScheduleModule() {
                       </span>
                       {entry.time && (
                         <span className="font-mono text-[11px] text-[#E6ECEB]/80 bg-[#072421] px-1.5 py-0.5 rounded border border-white/10">
-                          {entry.time}
+                          {formatTimeWithAmPm(entry.time)}
+                        </span>
+                      )}
+                      {(entry.endDate || entry.eventEndTime) && (
+                        <span className="font-mono text-[11px] text-[#E6ECEB]/65">
+                          End:{' '}
+                          {[
+                            entry.endDate ? formatDateDisplay(entry.endDate) : '',
+                            entry.eventEndTime ? formatTimeWithAmPm(entry.eventEndTime) : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </span>
                       )}
                       <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
@@ -1304,40 +1405,72 @@ export function AdminScheduleModule() {
 
           <form onSubmit={handleSaveEntry} className="space-y-4 pt-1">
             {/* SECTION 1: Event & Client Information */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Event Date *</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Start Date *</label>
                 <input
                   type="date"
                   required
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    setSelectedDate(nextDate);
+                    setEndDate((currentEndDate) =>
+                      currentEndDate && currentEndDate < nextDate ? nextDate : currentEndDate
+                    );
+                  }}
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Shift / Time</label>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event Start Time</label>
                 <input
-                  type="text"
-                  value={eventTime}
+                  type="time"
+                  value={toTimeInputValue(eventTime)}
                   onChange={(e) => setEventTime(e.target.value)}
-                  placeholder="e.g., 06:00 AM Muhurtham"
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+                <p className="text-[11px] text-[#E6ECEB]/55">
+                  {eventTime ? formatTimeWithAmPm(eventTime) : 'Optional'}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#D8C78E]">Event End Date</label>
+                <input
+                  type="date"
+                  min={selectedDate}
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#D8C78E]">Availability Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as 'Booked' | 'Limited')}
-                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
-                >
-                  <option value="Booked">Booked (Full Crew Deployed)</option>
-                  <option value="Limited">Limited (1 Slot Remaining)</option>
-                </select>
+                <label className="block text-xs font-medium text-[#D8C78E]">Event End Time</label>
+                <input
+                  type="time"
+                  value={toTimeInputValue(eventEndTime)}
+                  onChange={(e) => setEventEndTime(e.target.value)}
+                  className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 font-mono text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+                />
+                <p className="text-[11px] text-[#E6ECEB]/55">
+                  {eventEndTime ? formatTimeWithAmPm(eventEndTime) : 'Optional'}
+                </p>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#D8C78E]">Availability Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'Booked' | 'Limited')}
+                className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#072421] px-3 text-sm text-white focus:border-[#D8C78E] focus:outline-none"
+              >
+                <option value="Booked">Booked (Full Crew Deployed)</option>
+                <option value="Limited">Limited (1 Slot Remaining)</option>
+              </select>
             </div>
 
             <div className="space-y-1.5">
@@ -1510,60 +1643,35 @@ export function AdminScheduleModule() {
             </div>
 
             {/* SECTION 2: DEDICATED CAMERA & EQUIPMENT REQUIREMENTS */}
-            <div className="space-y-2.5 rounded-xl border border-[#C5B378]/30 bg-[#072421] p-4">
+            <div className="space-y-2 rounded-xl border border-[#C5B378]/30 bg-[#072421] p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Camera className="h-4 w-4 text-[#D8C78E]" />
                   <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E]">
-                    Camera &amp; Equipment Requirements
+                    Opted Services
                   </span>
                 </div>
                 <span className="text-[11px] font-mono text-[#D8C78E]">
-                  {requestedServices.length} {requestedServices.length === 1 ? 'service' : 'services'} selected
+                  {scheduleOptedServiceRows.length}{' '}
+                  {scheduleOptedServiceRows.length === 1 ? 'service' : 'services'} selected
                 </span>
               </div>
-              <p className="text-xs text-[#E6ECEB]/70">
-                Specify camera units, traditional video, candid photography, drone, and display screens needed:
-              </p>
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                {BOOKING_SERVICE_OPTIONS.map((service) => {
-                  const isSelected = requestedServices.includes(service);
-                  const slug = SCHEDULE_SERVICE_SLUGS[service];
-                  const serviceInfo = services.find((item) => item.slug === slug);
-                  return (
-                    <div key={service} className="flex items-center gap-1 rounded-md border border-[#C5B378]/20 bg-[#092E2B] px-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleService(service)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-all cursor-pointer',
-                        isSelected
-                          ? 'border-[#C5B378] bg-[#C5B378]/25 text-[#D8C78E] shadow-sm'
-                          : 'border-white/15 bg-[#092E2B]/80 text-[#E6ECEB]/70 hover:border-white/30 hover:text-white'
-                      )}
+              {scheduleOptedServiceRows.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {scheduleOptedServiceRows.map((service, index) => (
+                    <span
+                      key={`${service.serviceSlug}-${index}`}
+                      className="inline-flex max-w-full items-center gap-1 rounded border border-[#C5B378]/20 bg-[#092E2B] px-2 py-1 text-[10px] leading-tight text-[#E6ECEB]/90"
                     >
-                      <span className="font-bold">{isSelected ? '✓' : '+'}</span>
-                      <span>{service}</span>
-                    </button>
-                    {isSelected && serviceInfo?.pricingType === 'tiered' && (
-                      <select
-                        aria-label={`${service} duration tier`}
-                        value={serviceDurationTiers[slug] ?? 'halfDay'}
-                        onChange={(event) =>
-                          handleServiceDurationChange(service, event.target.value as DurationTier)
-                        }
-                        className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1 text-[10px] text-white"
-                      >
-                        <option value="threeHours">3h</option>
-                        <option value="halfDay">Half</option>
-                        <option value="fullDay">Full</option>
-                      </select>
-                    )}
-                    </div>
-                  );
-                })}
-              </div>
+                      <CheckCircle2 className="h-3 w-3 shrink-0 text-[#D8C78E]" />
+                      <span>{service.name}</span>
+                      <span className="shrink-0 font-mono text-[#D8C78E]">×{service.quantity}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#E6ECEB]/55">No services selected for this event.</p>
+              )}
             </div>
 
             {/* SECTION 3: Crew Assignment */}

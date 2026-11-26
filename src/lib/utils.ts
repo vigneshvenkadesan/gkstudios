@@ -16,6 +16,36 @@ export interface BillPaymentEntry {
   method: string;
 }
 
+const ALBUM_PHOTO_SELECTION_NOTE =
+  /\bmust\s+select\s+([\d,]+)\s*(?:to|[-–—])\s*([\d,]+)\s+photos?\s+for\s+albums?\b[.!]?/i;
+const ALBUM_PHOTO_SELECTION_NOTE_GLOBAL =
+  /\bmust\s+select\s+([\d,]+)\s*(?:to|[-–—])\s*([\d,]+)\s+photos?\s+for\s+albums?\b[.!]?/gi;
+
+export function getAlbumPhotoSelectionNote(
+  deliverables: Record<string, string | undefined> | string[] | undefined
+): string | null {
+  const values = Array.isArray(deliverables)
+    ? deliverables
+    : Object.values(deliverables || {});
+
+  for (const value of values) {
+    if (!value) continue;
+    const match = value.match(ALBUM_PHOTO_SELECTION_NOTE);
+    if (match) return `Must select ${match[1]} to ${match[2]} photos`;
+  }
+
+  return null;
+}
+
+export function removeAlbumPhotoSelectionNote(text: string): string {
+  return text
+    .replace(ALBUM_PHOTO_SELECTION_NOTE_GLOBAL, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([,+;])\s*(?:[,+;]\s*)+/g, '$1 ')
+    .replace(/^[,+;]\s*|[,+;]\s*$/g, '')
+    .trim();
+}
+
 export function getBillDisplayDeliverables(
   deliverables: Record<string, string> | undefined
 ): BillDisplayDeliverable[] {
@@ -23,8 +53,8 @@ export function getBillDisplayDeliverables(
   return Object.entries(deliverables || {}).filter(
     ([category]) => !hiddenCategories.has(category.trim().toLowerCase())
   ).flatMap(([category, value]) =>
-    value.split(',').map((text) => text.trim()).filter(Boolean).map((text) => ({
-      category,
+    value.split(',').map(removeAlbumPhotoSelectionNote).filter(Boolean).map((text) => ({
+      category: category.trim().toLowerCase() === 'deliverables' ? '' : category,
       text,
       isComplimentary: /^complementary/i.test(text),
     }))

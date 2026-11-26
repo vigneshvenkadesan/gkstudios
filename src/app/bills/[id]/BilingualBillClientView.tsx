@@ -22,6 +22,7 @@ import {
   formatDateDisplay,
   formatTimeWithAmPm,
   formatINR,
+  getAlbumPhotoSelectionNote,
   getBillDisplayDeliverables,
   getBillPaymentHistory,
 } from '@/src/lib/utils';
@@ -102,6 +103,13 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
   const billOptedServices =
     bill.packageDetails?.optedServices?.length ? bill.packageDetails.optedServices : bill.optedServices || [];
   const printableDeliverables = getBillDisplayDeliverables(bill.packageDetails?.deliverables);
+  const albumSelectionNote = getAlbumPhotoSelectionNote(bill.packageDetails?.deliverables);
+  const albumServiceIndex = billOptedServices.findIndex(
+    (service) => service.serviceSlug.startsWith('photo-album') || /album/i.test(service.name)
+  );
+  const activeAlbumServiceIndex = activeServices.findIndex((service) =>
+    /album/i.test(service.en || service.key || '')
+  );
   const packagePrice = bill.financials.packagePrice ?? bill.financials.totalPackageAmount;
   const discountAmount = bill.financials.discountAmount ?? 0;
 
@@ -327,6 +335,7 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                   <tr key={`service-${svc.serviceSlug}-${i}`} className="border-t border-slate-200">
                     <td className="p-2 font-semibold text-slate-900">
                       {englishOnlyName(svc.name)}
+                      {albumSelectionNote && i === albumServiceIndex ? ` - ${albumSelectionNote}` : ''}
                       {svc.durationTier ? ` (${svc.durationTier === 'fullDay' ? 'Full Day' : svc.durationTier === 'threeHours' ? '3 Hours' : 'Half Day'})` : ''}
                     </td>
                     <td className="p-2 text-center text-slate-600">{svc.quantity}</td>
@@ -335,7 +344,10 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                 ))}
                 {billOptedServices.length === 0 && activeServices.map((svc, i) => (
                   <tr key={`legacy-${svc.key}-${i}`} className="border-t border-slate-200">
-                    <td className="p-2 font-semibold text-slate-900">{englishOnlyName(svc.en)}</td>
+                    <td className="p-2 font-semibold text-slate-900">
+                      {englishOnlyName(svc.en)}
+                      {albumSelectionNote && i === activeAlbumServiceIndex ? ` - ${albumSelectionNote}` : ''}
+                    </td>
                     <td colSpan={3} className="p-2 text-right text-slate-500">Included</td>
                   </tr>
                 ))}
@@ -345,7 +357,7 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                     className={`border-t border-slate-200 ${isComplimentary ? 'bg-emerald-50' : 'bg-slate-50'}`}
                   >
                     <td className={`p-2 ${isComplimentary ? 'font-bold text-emerald-800' : 'text-slate-700'}`}>
-                      <strong className="text-slate-900">{englishOnlyName(category)}:</strong>{' '}
+                      {category && <><strong className="text-slate-900">{englishOnlyName(category)}:</strong>{' '}</>}
                       {englishOnlyName(text)}
                       {isComplimentary && <span className="ml-1 font-bold">(Complimentary)</span>}
                     </td>
