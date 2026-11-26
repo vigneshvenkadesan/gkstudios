@@ -631,7 +631,7 @@ export async function createProposalTokenOnServer(bookingId: string): Promise<st
   const bookings = await requireBookingModel();
   const booking = await bookings.findOne({ id: bookingId }).lean().exec();
   if (!booking) throw new Error('Booking request not found.');
-  if (booking.status === 'Confirmed' || booking.status === 'Declined') {
+  if (booking.status === 'Declined') {
     throw new Error('This inquiry is no longer accepting proposal changes.');
   }
   if (typeof booking.proposalToken === 'string' && booking.proposalToken) {
@@ -667,7 +667,10 @@ export async function updateBookingProposalOnServer(
   const bookings = await requireBookingModel();
   const current = await bookings.findOne({ proposalToken: token }).lean().exec();
   if (!current) throw new Error('Proposal link not found.');
-  if (current.status === 'Confirmed' || current.status === 'Declined') {
+  if (
+    current.status === 'Declined' ||
+    (current.status === 'Confirmed' && actor === 'client')
+  ) {
     throw new Error('This inquiry is no longer accepting proposal changes.');
   }
 
@@ -691,11 +694,11 @@ export async function updateBookingProposalOnServer(
           ...(input.eventEndTime ? {} : { eventEndTime: 1 }),
         }
       : undefined;
-  await bookings.updateOne(
+  const result = await bookings.updateOne(
     {
       id: current.id,
       proposalToken: token,
-      status: { $nin: ['Confirmed', 'Declined'] },
+      status: { $nin: actor === 'admin' ? ['Declined'] : ['Confirmed', 'Declined'] },
     },
     {
       $set: {
@@ -706,6 +709,72 @@ export async function updateBookingProposalOnServer(
       ...(unset ? { $unset: unset } : {}),
     }
   );
+  if (result.matchedCount === 0) {
+    throw new Error('This inquiry is no longer accepting proposal changes.');
+  }
+
+  if (actor === 'admin' && current.status === 'Confirmed') {
+    const eventProjects = await requireEventProjectModel();
+    const existingProjects = await eventProjects
+      .find({ bookingId: current.id })
+      .lean()
+      .exec();
+    const existingProject = existingProjects[0];
+    const projectUpdate = {
+      clientName: input.clientName,
+      phone: input.phone,
+      eventType: input.eventType,
+      eventDate: input.preferredDate,
+      venue: input.venue,
+      packageName: input.packageName,
+      agreedAmount: Math.max(
+        0,
+        input.quotedAmount -
+          Number(existingProject?.extraCharges || 0) +
+          Number(existingProject?.discount || 0)
+      ),
+      totalAmount: input.totalAmount ?? input.quotedAmount,
+      requestedServices: input.requestedServices,
+      durationTier: input.durationTier,
+      optedServices: input.optedServices,
+      packageSnapshot: input.packageSnapshot,
+      ...(input.endDate ? { endDate: input.endDate } : {}),
+    };
+    if (existingProjects.length > 0) {
+      await eventProjects.updateMany(
+        { bookingId: current.id },
+        {
+          $set: projectUpdate,
+          ...(!input.endDate ? { $unset: { endDate: 1 } } : {}),
+        }
+      );
+    }
+
+    const schedule = await requireCalendarScheduleModel();
+    const scheduleUpdate = {
+      date: input.preferredDate,
+      eventType: input.eventType,
+      clientName: input.clientName,
+      phone: input.phone,
+      venue: input.venue,
+      ...(input.eventTime ? { time: input.eventTime } : {}),
+      bookingId: current.id,
+      packageId: input.packageId,
+      packageName: input.packageName,
+      totalPackageAmount: input.quotedAmount,
+      totalAmount: input.totalAmount ?? input.quotedAmount,
+      requestedServices: input.requestedServices,
+      durationTier: input.durationTier,
+      optedServices: input.optedServices,
+    };
+    await schedule.updateMany(
+      { bookingId: current.id },
+      {
+        $set: scheduleUpdate,
+        ...(!input.eventTime ? { $unset: { time: 1 } } : {}),
+      }
+    );
+  }
 
   const saved = await bookings.findOne({ id: current.id }).lean().exec();
   if (!saved) throw new Error('Booking request not found.');
@@ -1364,6 +1433,9 @@ export async function upsertCalendarEntryOnServer(
           `${entry.packageTier || 'Signature'} Package`,
         assignedCrew: entry.assignedCrew || 'G Krishna + Studio Unit',
         deliveryNotes: entry.notes?.trim() || 'No delivery notes provided.',
+        requestedServices: entry.requestedServices || [],
+        ...(entry.durationTier ? { durationTier: entry.durationTier } : {}),
+        optedServices: entry.optedServices || [],
       };
 
       if (agreedAmount > 0) {

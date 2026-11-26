@@ -13,7 +13,6 @@ import {
   Layers,
   Loader2,
   ShieldCheck,
-  Sparkles,
   Wallet,
 } from 'lucide-react';
 import {
@@ -147,10 +146,6 @@ export function TermsAndConditionsModal({
 
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-sm text-[#E6ECEB]/85">
-          <p className="font-medium text-white/95 text-sm sm:text-base leading-relaxed border-l-2 border-[#D8C78E] pl-3 py-0.5">
-            {t('terms.intro')}
-          </p>
-
           <div className="space-y-4">
             {/* Condition 1 */}
             <div className="rounded-lg border border-[#C5B378]/15 bg-[#092E2B]/50 p-4 transition-colors hover:border-[#C5B378]/30">
@@ -227,8 +222,7 @@ export function TermsAndConditionsModal({
                     </h3>
                   </div>
                   <p className="text-xs sm:text-sm text-[#E6ECEB]/85 leading-relaxed pl-1">
-                    {t('terms.uncollected.before')} {highlightBadge(t('terms.days120'))}
-                    {t('terms.uncollected.after')}
+                    {t('terms.uncollected.description')}
                   </p>
                 </div>
               </div>
@@ -268,8 +262,7 @@ export function TermsAndConditionsModal({
                     </h3>
                   </div>
                   <p className="text-xs sm:text-sm text-[#E6ECEB]/85 leading-relaxed pl-1">
-                    {t('terms.sheets.before')} {highlightBadge(t('terms.sheets.price'))}{' '}
-                    {t('terms.sheets.after')}
+                    {t('terms.sheets.description')}
                   </p>
                 </div>
               </div>
@@ -304,13 +297,13 @@ export function TermsAndConditionsModal({
                 </div>
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-[#D8C78E]" />
+                    <ShieldCheck className="h-4 w-4 text-[#D8C78E]" />
                     <h3 className="font-semibold text-white text-sm sm:text-base">
-                      {t('terms.complimentary.title')}
+                      {t('terms.afterDelivery.title')}
                     </h3>
                   </div>
                   <p className="text-xs sm:text-sm text-[#E6ECEB]/85 leading-relaxed pl-1">
-                    {t('terms.complimentary.description')}
+                    {t('terms.afterDelivery.description')}
                   </p>
                 </div>
               </div>
@@ -331,46 +324,6 @@ export function TermsAndConditionsModal({
                   </div>
                   <p className="text-xs sm:text-sm text-[#E6ECEB]/85 leading-relaxed pl-1">
                     {t('terms.confirmation.description')}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Condition 9 */}
-            <div className="rounded-lg border border-[#C5B378]/15 bg-[#092E2B]/50 p-4 transition-colors hover:border-[#C5B378]/30">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#C5B378]/15 text-xs font-semibold text-[#D8C78E]">
-                  9
-                </div>
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-[#D8C78E]" />
-                    <h3 className="font-semibold text-white text-sm sm:text-base">
-                      {t('terms.afterDelivery.title')}
-                    </h3>
-                  </div>
-                  <p className="text-xs sm:text-sm text-[#E6ECEB]/85 leading-relaxed pl-1">
-                    {t('terms.afterDelivery.description')}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Condition 10 */}
-            <div className="rounded-lg border border-[#C5B378]/15 bg-[#092E2B]/50 p-4 transition-colors hover:border-[#C5B378]/30">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#C5B378]/15 text-xs font-semibold text-[#D8C78E]">
-                  10
-                </div>
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-[#D8C78E]" />
-                    <h3 className="font-semibold text-white text-sm sm:text-base">
-                      {t('terms.agreement.title')}
-                    </h3>
-                  </div>
-                  <p className="text-xs sm:text-sm text-[#E6ECEB]/85 leading-relaxed pl-1">
-                    {t('terms.agreement.description')}
                   </p>
                 </div>
               </div>

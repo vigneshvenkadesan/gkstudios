@@ -35,12 +35,15 @@ import {
   calculatePackageBasePrice,
   buildOptedServicesForPackage,
   getPackageBookingServiceOptions,
+  sanitizePackageDeliverables,
 } from '@/src/lib/pricing';
 import { buildWhatsAppUrl, cn, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
+import { QuotePdfActions } from '@/src/components/admin/QuotePdfActions';
 import { useEvents } from '@/src/hooks/useEvents';
 import { getPackageTierInfo } from '@/src/lib/packageTiers';
+import type { StudioQuotePdfData } from '@/src/lib/generateBillPdfBlob';
 import { StudioCalendar } from '@/src/components/ui/calendar';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
@@ -113,6 +116,8 @@ export function AdminScheduleModule() {
   const [packageName, setPackageName] = useState<string>('');
   const [packageTier, setPackageTier] = useState<'Essential' | 'Signature' | 'Premium'>('Signature');
   const [totalPackageAmount, setTotalPackageAmount] = useState<number>(0);
+  const [proposalEditorUrl, setProposalEditorUrl] = useState('');
+  const [isCreatingProposalLink, setIsCreatingProposalLink] = useState(false);
   const [whatsAppModalBooking, setWhatsAppModalBooking] = useState<WhatsAppRecipientDetails | null>(
     null
   );
@@ -219,6 +224,7 @@ export function AdminScheduleModule() {
   const handleSelectDate = (isoDate: string, entry?: CalendarDayEntry) => {
     setSelectedDate(isoDate);
     setEditingEntryId(entry?.id);
+    setProposalEditorUrl('');
 
     if (entry) {
       setStatus(entry.status);
@@ -502,6 +508,113 @@ export function AdminScheduleModule() {
     () => (linkedBookingId ? bookings.find((b) => b.id === linkedBookingId) : undefined),
     [bookings, linkedBookingId]
   );
+  const calendarQuote = useMemo<StudioQuotePdfData>(() => {
+    const selectedPackage = packages.find((pkg) => pkg.id === packageId);
+    const packageItems = selectedPackage?.includedServices?.map((item) => ({
+      ...item,
+      durationTier:
+        serviceDurationTiers[item.serviceSlug] ??
+        item.durationTier ??
+        selectedPackage.durationTier ??
+        'halfDay',
+    }));
+    const customItems = requestedServices.map((service) => {
+      const serviceSlug = SCHEDULE_SERVICE_SLUGS[service];
+      return {
+        serviceSlug,
+        quantity: 1,
+        durationTier: serviceDurationTiers[serviceSlug] ?? 'halfDay',
+      };
+    });
+    const { snapshots, total } = calculateCustomizedEventPrice(
+      packageItems?.length ? packageItems : customItems,
+      services,
+      selectedPackage?.durationTier ?? 'halfDay'
+    );
+    const deliverables = sanitizePackageDeliverables(
+      selectedPackage?.deliverables ?? matchedBooking?.packageSnapshot?.deliverables
+    );
+    const quoteId = editingEntryId || matchedBooking?.referenceCode || selectedDate;
+
+    return {
+      quoteNumber: `GKS-Q-CAL-${quoteId.replace(/[^a-zA-Z0-9-]/g, '').slice(-24)}`,
+      clientName: clientName.trim() || matchedBooking?.clientName || 'Client',
+      clientPhone: phone.trim() || matchedBooking?.phone || '',
+      eventName: englishOnlyName(eventType),
+      eventDate: selectedDate,
+      eventTime: eventTime.trim() || matchedBooking?.eventTime || 'To be confirmed',
+      schedulePlan: selectedPackage?.duration || 'To be confirmed',
+      ...(matchedBooking?.endDate ? { endDate: matchedBooking.endDate } : {}),
+      ...(matchedBooking?.eventEndTime ? { eventEndTime: matchedBooking.eventEndTime } : {}),
+      venue: venue.trim() || matchedBooking?.venue || 'To be confirmed',
+      packageName: packageName || selectedPackage?.name || 'Custom Plan',
+      totalAmount: totalPackageAmount > 0 ? totalPackageAmount : total,
+      optedServices: snapshots,
+      deliverables: Object.entries(deliverables).map(([category, text]) => ({
+        category: englishOnlyName(category),
+        text: englishOnlyName(text),
+      })),
+    };
+  }, [
+    clientName,
+    editingEntryId,
+    eventTime,
+    eventType,
+    matchedBooking,
+    packageId,
+    packageName,
+    packages,
+    phone,
+    requestedServices,
+    selectedDate,
+    serviceDurationTiers,
+    services,
+    totalPackageAmount,
+    venue,
+  ]);
+
+  const handleCreateProposalEditorLink = async () => {
+    if (!matchedBooking) return;
+    setIsCreatingProposalLink(true);
+    try {
+      const response = await fetch(
+        `/api/bookings/${encodeURIComponent(matchedBooking.id)}/proposal`,
+        { method: 'POST' }
+      );
+      const result = (await response.json()) as { proposalToken?: string; error?: string };
+      if (!response.ok || !result.proposalToken) {
+        throw new Error(result.error || 'Could not create the proposal editor link.');
+      }
+
+      const selectedPackage = packages.find((pkg) => pkg.id === packageId);
+      const eventId =
+        matchedBooking.packageSnapshot?.customizerState?.eventId ||
+        selectedPackage?.eventId ||
+        activeEvents.find(
+          (event) => event.name.toLowerCase() === matchedBooking.eventType.toLowerCase()
+        )?.id ||
+        'wedding';
+      const durationTier =
+        matchedBooking.durationTier || selectedPackage?.durationTier || 'halfDay';
+      const params = new URLSearchParams({
+        proposal: result.proposalToken,
+        admin: '1',
+        event: eventId,
+        plan: durationTier === 'fullDay' ? 'full' : 'half',
+        guests: matchedBooking.packageSnapshot?.customizerState?.guests || 'classic',
+        tier: String(selectedPackage?.sortOrder ?? matchedBooking.packageSnapshot?.selectedTier ?? 2),
+      });
+      if (matchedBooking.packageId) params.set('package', matchedBooking.packageId);
+      setProposalEditorUrl(`/packages/proposal?${params.toString()}`);
+      toast.success('Proposal editor link is ready.');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Could not create the proposal editor link.'
+      );
+    } finally {
+      setIsCreatingProposalLink(false);
+    }
+  };
 
   const weekDates = useMemo(() => {
     const selected = new Date(`${selectedDate}T12:00:00`);
@@ -1157,6 +1270,37 @@ export function AdminScheduleModule() {
               )}
             </div>
           ) : null}
+
+          {eventType !== 'Studio Maintenance' && eventType !== 'Muhurtham Rush' && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#C5B378]/25 bg-[#072421] p-3">
+              <QuotePdfActions
+                quote={calendarQuote}
+                disabled={!selectedDate || (!clientName.trim() && !matchedBooking)}
+              />
+              {matchedBooking &&
+                matchedBooking.status !== 'Declined' &&
+                (proposalEditorUrl ? (
+                  <a
+                    href={proposalEditorUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-9 items-center rounded-md border border-[#C5B378]/40 px-3 text-sm font-medium text-[#D8C78E] hover:bg-[#C5B378]/10"
+                  >
+                    Open proposal editor
+                  </a>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCreateProposalEditorLink}
+                    disabled={isCreatingProposalLink}
+                  >
+                    {isCreatingProposalLink && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Edit proposal / services
+                  </Button>
+                ))}
+            </div>
+          )}
 
           <form onSubmit={handleSaveEntry} className="space-y-4 pt-1">
             {/* SECTION 1: Event & Client Information */}

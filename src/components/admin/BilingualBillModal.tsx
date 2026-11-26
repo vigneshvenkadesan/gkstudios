@@ -24,6 +24,7 @@ import { StudioBill } from '@/src/types/studio';
 import { Button } from '@/src/components/ui/button';
 import {
   formatDateDisplay,
+  formatTimeWithAmPm,
   formatINR,
   getBillDisplayDeliverables,
   getBillPaymentHistory,
@@ -316,11 +317,13 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                     <Clock className="h-3 w-3 text-slate-400" />
                     <span>
                       {bill.eventDetails.eventDate}
-                      {bill.eventDetails.eventTime ? ` · ${bill.eventDetails.eventTime}` : ''}
+                      {bill.eventDetails.eventTime
+                        ? ` · ${formatTimeWithAmPm(bill.eventDetails.eventTime)}`
+                        : ''}
                       {bill.eventDetails.eventEndDate
-                        ? ` — ${bill.eventDetails.eventEndDate}${bill.eventDetails.eventEndTime ? ` · ${bill.eventDetails.eventEndTime}` : ''}`
+                        ? ` — ${bill.eventDetails.eventEndDate}${bill.eventDetails.eventEndTime ? ` · ${formatTimeWithAmPm(bill.eventDetails.eventEndTime)}` : ''}`
                         : bill.eventDetails.eventEndTime
-                          ? ` — ${bill.eventDetails.eventEndTime}`
+                          ? ` — ${formatTimeWithAmPm(bill.eventDetails.eventEndTime)}`
                           : ''}
                     </span>
                   </p>
@@ -533,13 +536,13 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
                 <span className="font-semibold text-[#072421]">Page 1 of 2 • Official Payment Receipt</span>
               </div>
 
-              {/* ─── Page 2: Full Bilingual Terms & Conditions (10 Clauses) ─── */}
+              {/* ─── Page 2: Shared Bilingual Booking Guidelines ─── */}
               <div className="border-t-2 border-slate-300 pt-5 space-y-3 print-page-break-before print-avoid-break">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-[#072421]" />
                     <h4 className="font-serif text-sm font-bold uppercase tracking-wider text-[#072421]">
-                      Terms & Conditions / விதிமுறைகள் மற்றும் நிபந்தனைகள்
+                      Booking Guidelines & Terms / முன்பதிவு வழிகாட்டுதல்கள் மற்றும் நிபந்தனைகள்
                     </h4>
                   </div>
                   <span className="text-[10px] text-slate-500 font-medium font-mono">
@@ -549,16 +552,16 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
 
                 <div className="grid grid-cols-1 gap-2.5 text-[10px] text-slate-700 leading-relaxed">
                   {termsList.map((term: BillTermItem, idx: number) => {
-                    const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
-                    const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+                    const titleEn = term.title?.en ? `${term.title.en}: ` : '';
+                    const titleTa = term.title?.ta ? `${term.title.ta}: ` : '';
 
                     return (
                       <div key={idx} className="border-b border-slate-100 pb-2 last:border-none">
                         <p className="font-bold text-slate-900 leading-snug">
-                          {idx + 1}. {term.en}{titleEn}
+                          {idx + 1}. {titleEn}{term.en}
                         </p>
                         <p className="text-slate-600 mt-0.5 font-sans leading-relaxed">
-                          {term.ta}{titleTa}
+                          {titleTa}{term.ta}
                         </p>
                       </div>
                     );

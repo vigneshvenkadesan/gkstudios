@@ -158,9 +158,9 @@ const BASE_FEATURE_DEFINITIONS: Record<string, FeatureMeta> = {
   },
   printedAlbum: {
     key: 'printedAlbum',
-    label: 'Printed Heirloom Album & Presentation Box',
+    label: 'Photo Album',
     defaultDeduction: -4000,
-    description: 'Layflat Karizma album with presentation keepsake box.',
+    description: '',
     downgradeLabel: 'Digital-Only (Remove Printed Album)',
   },
   drone: {
@@ -334,6 +334,7 @@ export function ProposalPageClient() {
   );
   const [selectedUpgradeIds, setSelectedUpgradeIds] = useState<string[]>(initialAddons);
   const [serviceDurationOverrides, setServiceDurationOverrides] = useState<Record<string, DurationTier>>({});
+  const [serviceQuantityOverrides, setServiceQuantityOverrides] = useState<Record<string, number>>({});
 
   // Album sheet customization state (synced with the selected package's catalog quantity)
   const [customAlbumSheets, setCustomAlbumSheets] = useState<number>(
@@ -530,6 +531,17 @@ export function ProposalPageClient() {
     setServiceDurationOverrides(
       isSavedPackage ? savedOverrides || inferredOverrides : {}
     );
+    const traditionalPhotoSlugs = targetPackage
+      ? getPackageFeatureServiceSlugs(targetPackage, services, 'traditionalPhoto')
+      : ['traditional-camera'];
+    const savedTraditionalCamera = isSavedPackage
+      ? optedServices.find((item) => traditionalPhotoSlugs.includes(item.serviceSlug))
+      : undefined;
+    setServiceQuantityOverrides(
+      savedTraditionalCamera
+        ? { [savedTraditionalCamera.serviceSlug]: savedTraditionalCamera.quantity }
+        : {}
+    );
     setCustomAlbumSheets(
       (isSavedPackage ? savedState?.albumSheets : undefined) ??
         savedAlbumSheets ??
@@ -659,6 +671,34 @@ export function ProposalPageClient() {
       ?.serviceSlug ||
     services.find((service) => service.isActive && service.slug.startsWith('photo-album'))?.slug ||
     'photo-album';
+  const traditionalPhotoSlugs = basePackage
+    ? getPackageFeatureServiceSlugs(basePackage, services, 'traditionalPhoto')
+    : ['traditional-camera'];
+  const traditionalCameraItem = basePackage?.includedServices?.find((item) =>
+    traditionalPhotoSlugs.includes(item.serviceSlug)
+  );
+  const traditionalCameraSlug =
+    traditionalCameraItem?.serviceSlug ||
+    traditionalPhotoSlugs.find((slug) => services.some((service) => service.slug === slug)) ||
+    'traditional-camera';
+  const traditionalCameraService = services.find(
+    (service) => service.slug === traditionalCameraSlug
+  );
+  const traditionalCameraMinimum =
+    traditionalCameraService?.pricingType === 'per_unit'
+      ? Math.max(1, Number(traditionalCameraService.minQuantity) || 1)
+      : 1;
+  const defaultTraditionalCameraQuantity = Math.max(
+    1,
+    Math.round(Number(traditionalCameraItem?.quantity) || 1)
+  );
+  const traditionalCameraQuantity = Math.max(
+    traditionalCameraMinimum,
+    Math.round(
+      Number(serviceQuantityOverrides[traditionalCameraSlug]) ||
+        defaultTraditionalCameraQuantity
+    )
+  );
 
   useEffect(() => {
     if (skipNextAlbumDefault.current) {
@@ -744,8 +784,11 @@ export function ProposalPageClient() {
         results.push({
           id: `inc-${k}`,
           featureKey: k,
-          label: meta.label,
-          description: meta.description,
+          label:
+            k === 'printedAlbum'
+              ? services.find((service) => service.slug === slug)?.name || meta.label
+              : meta.label,
+          description: k === 'printedAlbum' ? '' : meta.description,
           isBaseIncluded: true,
           priceDelta: deduction,
           downgradeLabel: meta.downgradeLabel,
@@ -811,11 +854,6 @@ export function ProposalPageClient() {
   ]);
 
   // ─── 3. Custom Plan Detection & Pricing Calculation ───
-  const isCustomModified =
-    unselectedIncludedIds.length > 0 ||
-    selectedUpgradeIds.length > 0 ||
-    customAlbumSheets !== defaultSheetsForTier;
-
   const albumSheetDelta = useMemo(() => {
     const albumIncluded = baseIncludedElements.some(
       (item) => item.featureKey === 'printedAlbum'
@@ -839,6 +877,46 @@ export function ProposalPageClient() {
     getServiceCost,
     albumServiceSlug,
   ]);
+
+  const traditionalCameraQuantityDelta = useMemo(() => {
+    const traditionalPhotoIncluded = baseIncludedElements.some(
+      (item) => item.featureKey === 'traditionalPhoto'
+    );
+    if (
+      !traditionalPhotoIncluded ||
+      unselectedIncludedIds.includes('inc-traditionalPhoto') ||
+      traditionalCameraQuantity === defaultTraditionalCameraQuantity
+    ) {
+      return 0;
+    }
+
+    const itemTier =
+      serviceDurationOverrides[traditionalCameraSlug] ??
+      traditionalCameraItem?.durationTier ??
+      basePackage?.durationTier ??
+      durationTier;
+    return (
+      getServiceCost(traditionalCameraSlug, traditionalCameraQuantity, itemTier) -
+      getServiceCost(traditionalCameraSlug, defaultTraditionalCameraQuantity, itemTier)
+    );
+  }, [
+    baseIncludedElements,
+    unselectedIncludedIds,
+    traditionalCameraQuantity,
+    defaultTraditionalCameraQuantity,
+    serviceDurationOverrides,
+    traditionalCameraSlug,
+    traditionalCameraItem,
+    basePackage?.durationTier,
+    durationTier,
+    getServiceCost,
+  ]);
+
+  const isCustomModified =
+    unselectedIncludedIds.length > 0 ||
+    selectedUpgradeIds.length > 0 ||
+    customAlbumSheets !== defaultSheetsForTier ||
+    traditionalCameraQuantity !== defaultTraditionalCameraQuantity;
 
   const { finalPrice, totalDelta, customizedModifications } = useMemo(() => {
     const base = basePackage?.price || 0;
@@ -874,16 +952,38 @@ export function ProposalPageClient() {
 
     if (albumSheetDelta !== 0) {
       const sheetDiff = customAlbumSheets - defaultSheetsForTier;
+      const albumName =
+        services.find((service) => service.slug === albumServiceSlug)?.name || 'Photo Album';
       mods.push({
         id: 'mod-album-sheets',
-        label: `${customAlbumSheets} Sheets Karizma Album (${sheetDiff > 0 ? `+${sheetDiff}` : sheetDiff} sheets)`,
+        label: `${albumName} (${sheetDiff > 0 ? '+' : ''}${sheetDiff} sheets)`,
         badge: sheetDiff > 0 ? `+${formatINR(albumSheetDelta)}` : formatINR(albumSheetDelta),
         isDeduction: sheetDiff < 0,
         amount: albumSheetDelta,
       });
     }
 
-    const delta = deductionSum + additionSum + albumSheetDelta;
+    if (traditionalCameraQuantityDelta !== 0) {
+      const cameraDifference =
+        traditionalCameraQuantity - defaultTraditionalCameraQuantity;
+      const cameraName = traditionalCameraService?.name || 'Traditional Camera';
+      mods.push({
+        id: 'mod-traditional-camera-quantity',
+        label: `${cameraName} (${traditionalCameraQuantity} ${traditionalCameraService?.unitLabel || 'cameras'}; ${cameraDifference > 0 ? '+' : ''}${cameraDifference})`,
+        badge:
+          traditionalCameraQuantityDelta > 0
+            ? `+${formatINR(traditionalCameraQuantityDelta)}`
+            : formatINR(traditionalCameraQuantityDelta),
+        isDeduction: traditionalCameraQuantityDelta < 0,
+        amount: traditionalCameraQuantityDelta,
+      });
+    }
+
+    const delta =
+      deductionSum +
+      additionSum +
+      albumSheetDelta +
+      traditionalCameraQuantityDelta;
     return {
       finalPrice: Math.max(0, base + delta),
       totalDelta: delta,
@@ -898,6 +998,11 @@ export function ProposalPageClient() {
     customAlbumSheets,
     defaultSheetsForTier,
     albumSheetDelta,
+    traditionalCameraQuantityDelta,
+    traditionalCameraQuantity,
+    defaultTraditionalCameraQuantity,
+    traditionalCameraService,
+    services,
   ]);
 
   // ─── 4. Derive Active Features & At-a-Glance Chips Dynamically (Zero Hardcoded Chips) ───
@@ -995,9 +1100,14 @@ export function ProposalPageClient() {
 
     // Album Chip
     if (printedAlbum) {
+      const albumSlug = basePackage?.includedServices?.find((item) =>
+        item.serviceSlug.startsWith('photo-album')
+      )?.serviceSlug;
+      const albumName =
+        services.find((service) => service.slug === albumSlug)?.name || 'Photo Album';
       chips.push({
         id: 'album',
-        label: 'Printed Album Included',
+        label: `${albumName} Included`,
         icon: <BookOpen className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />,
       });
     } else {
@@ -1071,6 +1181,8 @@ export function ProposalPageClient() {
             quantity:
               item.serviceSlug === albumServiceSlug && activeFeatures.printedAlbum
                 ? customAlbumSheets
+                : item.serviceSlug === traditionalCameraSlug
+                  ? traditionalCameraQuantity
                 : item.quantity,
           });
         });
@@ -1084,7 +1196,12 @@ export function ProposalPageClient() {
             ) || FEATURE_SERVICE_SLUGS[feature][0];
           activeItems.set(serviceSlug, {
             serviceSlug,
-            quantity: feature === 'printedAlbum' ? customAlbumSheets : 1,
+            quantity:
+              feature === 'printedAlbum'
+                ? customAlbumSheets
+                : feature === 'traditionalPhoto'
+                  ? traditionalCameraQuantity
+                  : 1,
             durationTier: serviceDurationOverrides[serviceSlug] ?? basePackage.durationTier ?? durationTier,
           });
         }
@@ -1105,6 +1222,8 @@ export function ProposalPageClient() {
   }, [
     basePackage,
     albumServiceSlug,
+    traditionalCameraSlug,
+    traditionalCameraQuantity,
     activeFeatures,
     customAlbumSheets,
     services,
@@ -1156,6 +1275,7 @@ export function ProposalPageClient() {
     setUnselectedIncludedIds([]);
     setSelectedUpgradeIds([]);
     setServiceDurationOverrides({});
+    setServiceQuantityOverrides({});
     updateUrlParams(
       activeEventId,
       activePlan,
@@ -1206,7 +1326,8 @@ export function ProposalPageClient() {
   const handleResetToDefault = () => {
     setUnselectedIncludedIds([]);
     setSelectedUpgradeIds([]);
-    setCustomAlbumSheets(selectedTierOrder === 3 ? 40 : selectedTierOrder === 1 ? 30 : 35);
+    setCustomAlbumSheets(defaultSheetsForTier);
+    setServiceQuantityOverrides({});
     updateUrlParams(
       activeEventId,
       activePlan,
@@ -1519,7 +1640,8 @@ export function ProposalPageClient() {
   };
 
   const proposalIsClosed =
-    proposalInquiry?.status === 'Confirmed' || proposalInquiry?.status === 'Declined';
+    proposalInquiry?.status === 'Declined' ||
+    (proposalInquiry?.status === 'Confirmed' && !isAdminProposalMode);
 
   if (rawProposalToken && !proposalLoadError && (isProposalLoading || !proposalHydrated)) {
     return (
@@ -1600,7 +1722,7 @@ export function ProposalPageClient() {
         {rawProposalToken && proposalInquiry && (
           <div className="rounded-sm border border-[#C5B378]/35 bg-[#0E423E] px-4 py-3 text-xs text-[#E6ECEB]/85">
             {isAdminProposalMode
-              ? `Editing proposal for ${proposalInquiry.clientName}. Save changes here; final confirmation remains in Leads & Inquiries.`
+              ? `Editing proposal for ${proposalInquiry.clientName}. Save changes here to update the booking plan and services.`
               : `Proposal for ${proposalInquiry.clientName}. Update the plan and send it back to GK STUDIOS for review.`}
             {proposalIsClosed && (
               <span className="ml-1 font-semibold text-amber-200">
@@ -2134,21 +2256,25 @@ export function ProposalPageClient() {
                                     {el.label}
                                   </span>
                                 </div>
-                                <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
-                                  {el.description}
-                                </p>
+                                {el.description && (
+                                  <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                    {el.description}
+                                  </p>
+                                )}
                               </div>
                             </button>
 
-                            <span
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                isChecked
-                                  ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
-                                  : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
-                              }`}
-                            >
-                              {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
-                            </span>
+                            {!(featureKey === 'printedAlbum' && isChecked) && (
+                              <span
+                                className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                  isChecked
+                                    ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
+                                    : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                                }`}
+                              >
+                                {isChecked ? 'Included in Base' : `Deducted: ${formatINR(el.priceDelta)}`}
+                              </span>
+                            )}
                           </div>
 
                           {isChecked && featureService?.pricingType === 'tiered' && featureServiceSlug && (
@@ -2176,39 +2302,97 @@ export function ProposalPageClient() {
                             </div>
                           )}
 
+                          {isAdminProposalMode &&
+                            featureKey === 'traditionalPhoto' &&
+                            isChecked &&
+                            featureServiceSlug && (
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#C5B378]/15 pt-2">
+                                <span className="text-[10px] text-[#D8C78E]">
+                                  {featureService?.name || 'Traditional Camera'} quantity
+                                </span>
+                                <div className="flex items-center rounded border border-[#C5B378]/40 bg-[#072421]">
+                                  <button
+                                    type="button"
+                                    disabled={traditionalCameraQuantity <= traditionalCameraMinimum}
+                                    onClick={() =>
+                                      setServiceQuantityOverrides((current) => ({
+                                        ...current,
+                                        [featureServiceSlug]: Math.max(
+                                          traditionalCameraMinimum,
+                                          traditionalCameraQuantity - 1
+                                        ),
+                                      }))
+                                    }
+                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+                                    title="Decrease camera count"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="min-w-[72px] border-x border-[#C5B378]/30 px-2.5 py-0.5 text-center font-mono text-xs font-bold text-white">
+                                    {traditionalCameraQuantity}{' '}
+                                    {featureService?.unitLabel
+                                      ? traditionalCameraQuantity > 1 &&
+                                        !featureService.unitLabel.endsWith('s')
+                                        ? `${featureService.unitLabel}s`
+                                        : featureService.unitLabel
+                                      : traditionalCameraQuantity > 1
+                                        ? 'cameras'
+                                        : 'camera'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={traditionalCameraQuantity >= 1000}
+                                    onClick={() =>
+                                      setServiceQuantityOverrides((current) => ({
+                                        ...current,
+                                        [featureServiceSlug]: Math.min(
+                                          1000,
+                                          traditionalCameraQuantity + 1
+                                        ),
+                                      }))
+                                    }
+                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+                                    title="Increase camera count"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
                           {/* Interactive Album Sheet Stepper (when Album is included) */}
                           {el.featureKey === 'printedAlbum' && isChecked && (
                             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#C5B378]/15 mt-0.5">
                               <span className="text-[11px] text-[#D8C78E] font-medium flex items-center gap-1.5">
                                 <BookOpen className="h-3.5 w-3.5" />
-                                Custom Album Sheets:
+                                Quantity:
                               </span>
                               <div className="flex items-center gap-2">
                                 <div className="flex items-center rounded border border-[#C5B378]/40 bg-[#072421]">
                                   <button
                                     type="button"
-                                    disabled={customAlbumSheets <= 20}
+                                    disabled={customAlbumSheets <= 1}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setCustomAlbumSheets((s) => Math.max(20, s - 5));
+                                      setCustomAlbumSheets((s) => Math.max(1, s - 1));
                                     }}
                                     className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
-                                    title="Decrease 5 sheets"
+                                    title="Decrease album sheets"
                                   >
                                     −
                                   </button>
                                   <span className="px-2.5 py-0.5 font-bold text-white text-xs font-mono border-x border-[#C5B378]/30">
-                                    {customAlbumSheets} sheets
+                                    {customAlbumSheets} {featureService?.unitLabel || 'sheets'}
                                   </span>
                                   <button
                                     type="button"
-                                    disabled={customAlbumSheets >= 60}
+                                    disabled={customAlbumSheets >= 1000}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setCustomAlbumSheets((s) => Math.min(60, s + 5));
+                                      setCustomAlbumSheets((s) => Math.min(1000, s + 1));
                                     }}
                                     className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
-                                    title="Increase 5 sheets"
+                                    title="Increase album sheets"
                                   >
                                     +
                                   </button>
@@ -2221,7 +2405,7 @@ export function ProposalPageClient() {
                                         : formatINR(albumSheetDelta)}
                                     </span>
                                   ) : (
-                                    'Standard Tier Base'
+                                    'Package quantity'
                                   )}
                                 </span>
                               </div>

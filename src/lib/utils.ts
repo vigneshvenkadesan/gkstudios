@@ -59,6 +59,25 @@ export function formatDateDisplay(isoDate: string): string {
   });
 }
 
+export function formatTimeWithAmPm(value?: string): string {
+  const time = value?.trim() || '';
+  if (!time) return '';
+
+  return time.replace(
+    /(^|[^\d])(\d{1,2}):([0-5]\d)(?:\s*(AM|PM))?(?=$|[^\d])/gi,
+    (match, prefix: string, rawHour: string, minutes: string, meridiem?: string) => {
+      const hour = Number(rawHour);
+      if (meridiem) {
+        if (hour < 1 || hour > 12) return match;
+        return `${prefix}${hour}:${minutes} ${meridiem.toUpperCase()}`;
+      }
+      if (hour > 23) return match;
+      const suffix = hour < 12 ? 'AM' : 'PM';
+      return `${prefix}${hour % 12 || 12}:${minutes} ${suffix}`;
+    }
+  );
+}
+
 export function getBillPaymentHistory(bill: StudioBill): BillPaymentEntry[] {
   const payments: BillPaymentEntry[] =
     bill.paymentHistory && bill.paymentHistory.length > 0

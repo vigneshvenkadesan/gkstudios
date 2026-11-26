@@ -20,6 +20,7 @@ import { Button } from '@/src/components/ui/button';
 import {
   buildWhatsAppUrl,
   formatDateDisplay,
+  formatTimeWithAmPm,
   formatINR,
   getBillDisplayDeliverables,
   getBillPaymentHistory,
@@ -111,9 +112,9 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
       ``,
       `🧾 Bill Number: ${bill.billNumber}`,
       `✨ Event: ${englishOnlyName(bill.eventDetails.eventName)}`,
-      `📅 Event Start: ${bill.eventDetails.eventDate}${bill.eventDetails.eventTime ? ` at ${bill.eventDetails.eventTime}` : ''}`,
+      `📅 Event Start: ${bill.eventDetails.eventDate}${bill.eventDetails.eventTime ? ` at ${formatTimeWithAmPm(bill.eventDetails.eventTime)}` : ''}`,
       ...(bill.eventDetails.eventEndDate || bill.eventDetails.eventEndTime
-        ? [`📅 Event End: ${bill.eventDetails.eventEndDate || bill.eventDetails.eventDate}${bill.eventDetails.eventEndTime ? ` at ${bill.eventDetails.eventEndTime}` : ''}`]
+        ? [`📅 Event End: ${bill.eventDetails.eventEndDate || bill.eventDetails.eventDate}${bill.eventDetails.eventEndTime ? ` at ${formatTimeWithAmPm(bill.eventDetails.eventEndTime)}` : ''}`]
         : []),
       `📍 Venue: ${bill.eventDetails.venue}`,
       `📦 Package: ${bill.packageDetails.basePackageName}`,
@@ -274,16 +275,15 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
                 <Calendar className="h-3 w-3 text-[#9A7B38]" />
                 <span>
                   Start: {bill.eventDetails.eventDate}
-                  {bill.eventDetails.eventTime ? ` · ${bill.eventDetails.eventTime}` : ''}
+                  {bill.eventDetails.eventTime
+                    ? ` · ${formatTimeWithAmPm(bill.eventDetails.eventTime)}`
+                    : ''}
                   {bill.eventDetails.eventEndDate
-                    ? ` — End: ${bill.eventDetails.eventEndDate}${bill.eventDetails.eventEndTime ? ` · ${bill.eventDetails.eventEndTime}` : ''}`
+                    ? ` — End: ${bill.eventDetails.eventEndDate}${bill.eventDetails.eventEndTime ? ` · ${formatTimeWithAmPm(bill.eventDetails.eventEndTime)}` : ''}`
                     : bill.eventDetails.eventEndTime
-                      ? ` — End: ${bill.eventDetails.eventEndTime}`
+                      ? ` — End: ${formatTimeWithAmPm(bill.eventDetails.eventEndTime)}`
                       : ''}
                 </span>
-              </p>
-              <p className="text-[11px] text-slate-600">
-                Schedule: {bill.eventDetails.schedulePlan}
               </p>
             </div>
           </div>
@@ -465,13 +465,13 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
           <span className="font-semibold text-[#072421]">Page 1 of 2 • Official Payment Receipt</span>
         </div>
 
-        {/* ─── Page 2: Terms & Conditions: Shared Bilingual Source of Truth (10 Clauses) ─── */}
+        {/* ─── Page 2: Shared Bilingual Booking Guidelines ─── */}
         <div className="space-y-3 border-t-2 border-slate-300 pt-5 print-page-break-before print-avoid-break">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <div className="flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-[#072421]" />
               <h4 className="font-serif text-sm font-bold uppercase tracking-wider text-[#072421]">
-                Terms & Conditions / விதிமுறைகள் மற்றும் நிபந்தனைகள்
+                Booking Guidelines & Terms / முன்பதிவு வழிகாட்டுதல்கள் மற்றும் நிபந்தனைகள்
               </h4>
             </div>
             <span className="text-[10px] text-slate-500 font-mono">
@@ -481,18 +481,18 @@ export function BilingualBillClientView({ bill }: BilingualBillClientViewProps) 
 
           <div className="rounded border border-slate-200 bg-slate-50/60 p-3 space-y-2.5 text-[10px] leading-relaxed text-slate-700">
             {termsList.map((term: BillTermItem, index: number) => {
-              const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
-              const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+              const titleEn = term.title?.en ? `${term.title.en}: ` : '';
+              const titleTa = term.title?.ta ? `${term.title.ta}: ` : '';
 
               return (
                 <div key={index} className="flex items-start gap-2 border-b border-slate-200 pb-2 last:border-none last:pb-0">
                   <span className="font-bold text-[#9A7B38] shrink-0 mt-0.5">{index + 1}.</span>
                   <div className="space-y-0.5">
                     <p className="font-bold text-slate-900 leading-snug">
-                      {term.en}{titleEn}
+                      {titleEn}{term.en}
                     </p>
                     <p className="text-slate-600 font-sans leading-relaxed">
-                      {term.ta}{titleTa}
+                      {titleTa}{term.ta}
                     </p>
                   </div>
                 </div>

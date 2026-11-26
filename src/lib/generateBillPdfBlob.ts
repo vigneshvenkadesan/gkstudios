@@ -5,6 +5,7 @@ import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import {
   buildWhatsAppUrl,
   formatDateDisplay,
+  formatTimeWithAmPm,
   formatINR,
   getBillDisplayDeliverables,
   getBillPaymentHistory,
@@ -41,24 +42,24 @@ export interface StudioQuotePdfData {
 
 const QUOTE_TERMS = [
   {
-    before: 'Select your album photos within ',
-    emphasis: '7 days',
-    after: ' so we can begin production promptly.',
+    before: 'Collect your edited photos and event files within ',
+    emphasis: '120 days',
+    after: ' from your event date.',
   },
   {
-    before: 'We securely back up your event files for ',
-    emphasis: '3 months',
-    after: ' after the event.',
+    before: 'We safely store your event files for ',
+    emphasis: '120 days',
+    after: ' after your event; storage or availability beyond this period is not guaranteed.',
   },
   {
-    before: 'Your package includes the listed album sheets. Add extras during selection for ',
-    emphasis: '₹300 per sheet',
-    after: '; we add the cost only for sheets you choose.',
+    before: 'Additional album sheets may be added anytime and are billed per sheet based on your ',
+    emphasis: 'chosen album size',
+    after: '.',
   },
   {
-    before: 'Our transparent payment plan is ',
+    before: 'Payment plan: ',
     emphasis: '20% · 60% · 20%',
-    after: ': 20% at least 1 month before, 60% during the event, and 20% after delivery.',
+    after: ' — 20% advance to lock in your event dates and confirm your booking, 60% during the event or production days, and the final 20% during photo selection before album printing.',
   },
 ];
 
@@ -274,11 +275,11 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
             ${englishOnlyName(bill.eventDetails.eventName)}
           </p>
           <p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;">
-            <strong>Event Start:</strong> ${escapeHtml(bill.eventDetails.eventDate)} ${bill.eventDetails.eventTime ? `(${escapeHtml(bill.eventDetails.eventTime)})` : ''}
+            <strong>Event Start:</strong> ${escapeHtml(bill.eventDetails.eventDate)} ${bill.eventDetails.eventTime ? `(${escapeHtml(formatTimeWithAmPm(bill.eventDetails.eventTime))})` : ''}
           </p>
           ${
             bill.eventDetails.eventEndDate || bill.eventDetails.eventEndTime
-              ? `<p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;"><strong>Event End:</strong> ${escapeHtml(bill.eventDetails.eventEndDate || bill.eventDetails.eventDate)} ${bill.eventDetails.eventEndTime ? `(${escapeHtml(bill.eventDetails.eventEndTime)})` : ''}</p>`
+              ? `<p style="margin: 3px 0 0 0; font-size: 11px; color: #334155;"><strong>Event End:</strong> ${escapeHtml(bill.eventDetails.eventEndDate || bill.eventDetails.eventDate)} ${bill.eventDetails.eventEndTime ? `(${escapeHtml(formatTimeWithAmPm(bill.eventDetails.eventEndTime))})` : ''}</p>`
               : ''
           }
           <p style="margin: 3px 0 0 0; font-size: 10px; color: #64748b;">
@@ -446,10 +447,10 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
       <div style="border-bottom: 2px solid #092E2B; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
         <div>
           <h2 style="margin: 0; font-size: 16px; font-weight: 800; color: #072421; letter-spacing: 0.5px; font-family: serif;">
-            TERMS & CONDITIONS / விதிமுறைகள் மற்றும் நிபந்தனைகள்
+            BOOKING GUIDELINES & TERMS / முன்பதிவு வழிகாட்டுதல்கள் மற்றும் நிபந்தனைகள்
           </h2>
           <p style="margin: 2px 0 0 0; font-size: 10px; color: #64748b;">
-            GK Studios Standard Client Agreement • Official Service Guidelines (10 Clauses)
+            GK Studios Standard Client Agreement • Official Service Guidelines (${termsList.length} Clauses)
           </p>
         </div>
         <div style="text-align: right;">
@@ -459,20 +460,20 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
         </div>
       </div>
 
-      <!-- Full 10 Bilingual Clauses Grid -->
+      <!-- Full Bilingual Clauses Grid -->
       <div style="display: flex; flex-direction: column; gap: 8px;">
         ${termsList
           .map((term: BillTermItem, idx: number) => {
-            const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
-            const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+            const titleEn = term.title?.en ? `${term.title.en}: ` : '';
+            const titleTa = term.title?.ta ? `${term.title.ta}: ` : '';
 
             return `
               <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
                 <p style="margin: 0; font-size: 10px; font-weight: 700; color: #0f172a; line-height: 1.3;">
-                  ${idx + 1}. ${term.en}${titleEn}
+                  ${idx + 1}. ${titleEn}${term.en}
                 </p>
                 <p style="margin: 2px 0 0 0; font-size: 9.5px; color: #475569; line-height: 1.45;">
-                  ${term.ta}${titleTa}
+                  ${titleTa}${term.ta}
                 </p>
               </div>
             `;
@@ -573,12 +574,11 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
   const clientPhone = escapeHtml(quote.clientPhone);
   const eventName = escapeHtml(quote.eventName);
   const eventDate = escapeHtml(formatDateDisplay(quote.eventDate) || quote.eventDate);
-  const eventTime = escapeHtml(quote.eventTime || 'To be confirmed');
-  const schedulePlan = escapeHtml(quote.schedulePlan);
+  const eventTime = escapeHtml(formatTimeWithAmPm(quote.eventTime) || 'To be confirmed');
   const endDate = quote.endDate
-    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event End:</strong> ${escapeHtml(formatDateDisplay(quote.endDate) || quote.endDate)}${quote.eventEndTime ? ` · ${escapeHtml(quote.eventEndTime)}` : ''}</p>`
+    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event End:</strong> ${escapeHtml(formatDateDisplay(quote.endDate) || quote.endDate)}${quote.eventEndTime ? ` · ${escapeHtml(formatTimeWithAmPm(quote.eventEndTime))}` : ''}</p>`
     : quote.eventEndTime
-    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event End Time:</strong> ${escapeHtml(quote.eventEndTime)}</p>`
+    ? `<p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event End Time:</strong> ${escapeHtml(formatTimeWithAmPm(quote.eventEndTime))}</p>`
     : '';
   const venue = escapeHtml(quote.venue);
   const packageName = escapeHtml(quote.packageName);
@@ -615,7 +615,6 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
           <h4 style="margin:0 0 6px;font-size:10px;font-weight:800;text-transform:uppercase;color:#072421;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">Event Details</h4>
           <p style="margin:0;font-size:12px;font-weight:700;color:#0f172a;">${eventName}</p>
           <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Event Start:</strong> ${eventDate} · ${eventTime}</p>
-          <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Coverage:</strong> ${schedulePlan}</p>
           ${endDate}
           <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Venue:</strong> ${venue}</p>
           <p style="margin:3px 0 0;font-size:10px;color:#334155;"><strong>Package:</strong> ${packageName}</p>
@@ -649,9 +648,9 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
         <div style="padding:7px 10px;background:#f1f5f9;font-size:10px;font-weight:800;color:#072421;text-transform:uppercase;">Payment Schedule · Based on quoted amount</div>
         <table style="width:100%;border-collapse:collapse;font-size:10px;">
           <tbody>
-            <tr style="border-top:1px solid #e2e8f0;"><td style="padding:6px 10px;color:#334155;">20% · At least one month before the event</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(advanceAmount)}</td></tr>
-            <tr style="border-top:1px solid #e2e8f0;background:#f8fafc;"><td style="padding:6px 10px;color:#334155;">60% · During the event</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(eventAmount)}</td></tr>
-            <tr style="border-top:1px solid #e2e8f0;"><td style="padding:6px 10px;color:#334155;">20% · After delivery</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(finalAmount)}</td></tr>
+            <tr style="border-top:1px solid #e2e8f0;"><td style="padding:6px 10px;color:#334155;">20% · Advance to confirm booking and secure event dates</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(advanceAmount)}</td></tr>
+            <tr style="border-top:1px solid #e2e8f0;background:#f8fafc;"><td style="padding:6px 10px;color:#334155;">60% · During the event or production days</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(eventAmount)}</td></tr>
+            <tr style="border-top:1px solid #e2e8f0;"><td style="padding:6px 10px;color:#334155;">20% · During photo selection, before album printing</td><td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:800;">${formatINR(finalAmount)}</td></tr>
           </tbody>
         </table>
       </div>
@@ -670,11 +669,13 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
           <td colspan="2" style="padding:8px 10px;text-align:right;font-weight:700;color:#64748b;">Included</td>
         </tr>
       `),
-    ...quote.deliverables.map((item) => `
+    ...quote.deliverables.flatMap((item) =>
+      item.text.split(',').map((text) => text.trim()).filter(Boolean).map((text) => `
         <tr style="border-top:1px solid #e2e8f0;background:#f8fafc;">
-          <td colspan="4" style="padding:8px 10px;color:#475569;"><strong style="color:#072421;">${escapeHtml(item.category)}:</strong> ${escapeHtml(item.text)} <span style="font-weight:700;color:#64748b;">(Included)</span></td>
+          <td colspan="4" style="padding:8px 10px;color:#475569;"><strong style="color:#072421;">${escapeHtml(item.category)}:</strong> ${escapeHtml(text)} <span style="font-weight:700;color:#64748b;">(Included)</span></td>
         </tr>
-      `),
+      `)
+    ),
   ].join('') || '<tr><td colspan="4" style="padding:10px;color:#64748b;">No services or custom deliverables were listed.</td></tr>';
 
   page2.innerHTML = `
@@ -711,7 +712,7 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
     <div>
       <div style="border-bottom:2px solid #092E2B;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <h2 style="margin:0;font-size:16px;font-weight:800;color:#072421;letter-spacing:.5px;font-family:serif;">TERMS &amp; CONDITIONS / விதிமுறைகள் மற்றும் நிபந்தனைகள்</h2>
+          <h2 style="margin:0;font-size:16px;font-weight:800;color:#072421;letter-spacing:.5px;font-family:serif;">BOOKING GUIDELINES &amp; TERMS / முன்பதிவு வழிகாட்டுதல்கள் மற்றும் நிபந்தனைகள்</h2>
           <p style="margin:2px 0 0;font-size:10px;color:#64748b;">GK Studios Standard Client Agreement · Official Service Guidelines (${STUDIO_TERMS_AND_CONDITIONS.length} Clauses)</p>
         </div>
         <span style="font-family:monospace;font-size:11px;font-weight:700;color:#072421;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 8px;border-radius:3px;">Quotation ${quoteNumber}</span>
@@ -719,15 +720,15 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
 
       <div style="display:flex;flex-direction:column;gap:8px;">
         ${STUDIO_TERMS_AND_CONDITIONS.map((term, index) => {
-          const titleEn = term.title?.en ? ` — ${term.title.en}` : '';
-          const titleTa = term.title?.ta ? ` (${term.title.ta})` : '';
+          const titleEn = term.title?.en ? `${term.title.en}: ` : '';
+          const titleTa = term.title?.ta ? `${term.title.ta}: ` : '';
           return `
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
               <p style="margin:0;font-size:10px;font-weight:700;color:#0f172a;line-height:1.3;">
-                ${index + 1}. ${escapeHtml(term.en)}${escapeHtml(titleEn)}
+                ${index + 1}. ${escapeHtml(titleEn)}${escapeHtml(term.en)}
               </p>
               <p style="margin:2px 0 0;font-size:9.5px;color:#475569;line-height:1.45;">
-                ${escapeHtml(term.ta)}${escapeHtml(titleTa)}
+                ${escapeHtml(titleTa)}${escapeHtml(term.ta)}
               </p>
             </div>
           `;
@@ -867,9 +868,9 @@ export async function shareBillPdfWhatsApp(bill: StudioBill): Promise<void> {
     ``,
     `🧾 Bill Number: ${bill.billNumber}`,
     `✨ Event: ${englishOnlyName(bill.eventDetails.eventName)}`,
-    `📅 Event Start: ${bill.eventDetails.eventDate}${bill.eventDetails.eventTime ? ` at ${bill.eventDetails.eventTime}` : ''}`,
+    `📅 Event Start: ${bill.eventDetails.eventDate}${bill.eventDetails.eventTime ? ` at ${formatTimeWithAmPm(bill.eventDetails.eventTime)}` : ''}`,
     ...(bill.eventDetails.eventEndDate || bill.eventDetails.eventEndTime
-      ? [`📅 Event End: ${bill.eventDetails.eventEndDate || bill.eventDetails.eventDate}${bill.eventDetails.eventEndTime ? ` at ${bill.eventDetails.eventEndTime}` : ''}`]
+      ? [`📅 Event End: ${bill.eventDetails.eventEndDate || bill.eventDetails.eventDate}${bill.eventDetails.eventEndTime ? ` at ${formatTimeWithAmPm(bill.eventDetails.eventEndTime)}` : ''}`]
       : []),
     `📍 Venue: ${bill.eventDetails.venue || 'To be updated'}`,
     `📦 Package: ${bill.packageDetails.basePackageName}`,
