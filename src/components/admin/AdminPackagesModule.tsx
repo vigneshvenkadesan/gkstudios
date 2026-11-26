@@ -319,6 +319,17 @@ export function AdminPackagesModule() {
     );
   };
 
+  const newServiceDeliverables = getDynamicPackageDisplaySections(
+    newIncludedServices,
+    services,
+    newDurationTier
+  );
+  const editServiceDeliverables = getDynamicPackageDisplaySections(
+    editIncludedServices,
+    services,
+    editDurationTier
+  );
+
   // Global package stats
   const totalCount = packages.length;
   const activeCount = packages.filter((p) => (p.status ?? 'active') === 'active').length;
@@ -854,6 +865,9 @@ export function AdminPackagesModule() {
       dynamicSections.coverage ? `Coverage: ${dynamicSections.coverage}` : '',
       !/album/i.test(savedDeliverables) && dynamicSections.albums
         ? `Album: ${dynamicSections.albums}`
+        : '',
+      dynamicSections.deliverables
+        ? `Deliverables: ${dynamicSections.deliverables}`
         : '',
       savedDeliverables,
     ]
@@ -1608,7 +1622,18 @@ export function AdminPackagesModule() {
               ...(dynamicSections.albums
                 ? [{ category: 'Albums', text: dynamicSections.albums }]
                 : []),
-              ...Object.entries(deliverables).map(([category, text]) => ({ category, text })),
+              ...((dynamicSections.deliverables || deliverables.Deliverables)
+                ? [{
+                    category: 'Deliverables',
+                    text: [
+                      dynamicSections.deliverables,
+                      deliverables.Deliverables,
+                    ].filter(Boolean).join(', '),
+                  }]
+                : []),
+              ...Object.entries(deliverables)
+                .filter(([category]) => category !== 'Deliverables')
+                .map(([category, text]) => ({ category, text })),
             ];
             const linkedEvent = dynamicEvents.find((event) => event.id === viewingPackage.eventId);
 
@@ -1906,14 +1931,54 @@ export function AdminPackagesModule() {
             <div className="space-y-3 border-t border-[#C5B378]/20 pt-3">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] block">
-                  Custom Deliverables
+                  Package Deliverables
                 </label>
                 <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
-                  Coverage and album details are generated from the included services.
+                  Service details update from your selections. Add any extra deliverables below.
                 </p>
               </div>
 
               <div className="space-y-3 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
+                {(editServiceDeliverables.coverage ||
+                  editServiceDeliverables.albums ||
+                  editServiceDeliverables.deliverables) ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {editServiceDeliverables.coverage && (
+                      <div className="rounded-md border border-[#C5B378]/15 bg-[#092E2B] p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                          Event Coverage & Crew
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[#E6ECEB]/85">
+                          {editServiceDeliverables.coverage}
+                        </p>
+                      </div>
+                    )}
+                    {editServiceDeliverables.albums && (
+                      <div className="rounded-md border border-[#C5B378]/15 bg-[#092E2B] p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                          Albums
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[#E6ECEB]/85">
+                          {editServiceDeliverables.albums}
+                        </p>
+                      </div>
+                    )}
+                    {editServiceDeliverables.deliverables && (
+                      <div className="rounded-md border border-[#C5B378]/15 bg-[#092E2B] p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                          Deliverables
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[#E6ECEB]/85">
+                          {editServiceDeliverables.deliverables}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#E6ECEB]/55">
+                    Add included services to preview coverage, album, and deliverable details here.
+                  </p>
+                )}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
                     <Film className="h-3.5 w-3.5 text-[#D8C78E]" />
@@ -1933,84 +1998,88 @@ export function AdminPackagesModule() {
                   />
                 </div>
 
-                {/* Dynamic Additional Categories */}
-                {Object.entries(editDeliverables)
-                  .filter(
-                    ([key]) =>
-                      key !== 'Deliverables'
-                  )
-                  .map(([customKey, customValue]) => (
-                    <div key={customKey} className="space-y-1 pt-1 border-t border-[#C5B378]/15">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-[#D8C78E]">{customKey}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = { ...editDeliverables };
-                            delete next[customKey];
-                            setEditDeliverables(next);
-                          }}
-                          className="text-rose-400 hover:text-rose-300 text-[11px]"
-                        >
-                          Remove
-                        </button>
+                <div className="space-y-3 rounded-md border border-[#C5B378]/20 bg-[#092E2B]/50 p-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E]">
+                      Custom Deliverables
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[#E6ECEB]/60">
+                      Add optional package-specific items alongside the standard deliverables.
+                    </p>
+                  </div>
+                  {Object.entries(editDeliverables)
+                    .filter(([key]) => key !== 'Deliverables')
+                    .map(([customKey, customValue]) => (
+                      <div key={customKey} className="space-y-1 border-t border-[#C5B378]/15 pt-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-[#D8C78E]">{customKey}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = { ...editDeliverables };
+                              delete next[customKey];
+                              setEditDeliverables(next);
+                            }}
+                            className="text-rose-400 hover:text-rose-300 text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <textarea
+                          rows={4}
+                          value={customValue || ''}
+                          onChange={(e) =>
+                            setEditDeliverables((prev) => ({
+                              ...prev,
+                              [customKey]: e.target.value,
+                            }))
+                          }
+                          className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
+                        />
                       </div>
+                    ))}
+                  <div className="space-y-1.5 border-t border-[#C5B378]/15 pt-2">
+                    <span className="block text-[11px] font-medium text-[#E6ECEB]/70">
+                      Add a custom section
+                    </span>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                      <input
+                        type="text"
+                        value={editCustomCategoryInput}
+                        onChange={(e) => setEditCustomCategoryInput(e.target.value)}
+                        placeholder="Section name (e.g. Drone & Aerial)"
+                        className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      />
                       <textarea
-                      rows={4}
-                        value={customValue || ''}
-                        onChange={(e) =>
+                        rows={2}
+                        value={editCustomDetailInput}
+                        onChange={(e) => setEditCustomDetailInput(e.target.value)}
+                        placeholder="Details / inclusions"
+                        className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!editCustomCategoryInput.trim() || !editCustomDetailInput.trim()) return;
+                          if (isReservedDeliverableCategory(editCustomCategoryInput)) {
+                            toast.error('Coverage and album sections are generated from selected services.');
+                            return;
+                          }
                           setEditDeliverables((prev) => ({
                             ...prev,
-                            [customKey]: e.target.value,
-                          }))
-                        }
-                        className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
-                      />
+                            [editCustomCategoryInput.trim()]: editCustomDetailInput.trim(),
+                          }));
+                          setEditCustomCategoryInput('');
+                          setEditCustomDetailInput('');
+                        }}
+                        className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-2.5 shrink-0"
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Add
+                      </Button>
                     </div>
-                  ))}
-
-                {/* Inline Add Dynamic Category */}
-                <div className="pt-2 border-t border-[#C5B378]/15 space-y-1.5">
-                  <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
-                    + Add Dynamic Category
-                  </span>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                    <input
-                      type="text"
-                      value={editCustomCategoryInput}
-                      onChange={(e) => setEditCustomCategoryInput(e.target.value)}
-                      placeholder="Category name (e.g. Drone & Aerial)"
-                      className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                    />
-                    <textarea
-                      rows={2}
-                      value={editCustomDetailInput}
-                      onChange={(e) => setEditCustomDetailInput(e.target.value)}
-                      placeholder="Details / Inclusions"
-                      className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (!editCustomCategoryInput.trim() || !editCustomDetailInput.trim()) return;
-                        if (isReservedDeliverableCategory(editCustomCategoryInput)) {
-                          toast.error('Coverage and album sections are generated from selected services.');
-                          return;
-                        }
-                        setEditDeliverables((prev) => ({
-                          ...prev,
-                          [editCustomCategoryInput.trim()]: editCustomDetailInput.trim(),
-                        }));
-                        setEditCustomCategoryInput('');
-                        setEditCustomDetailInput('');
-                      }}
-                      className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-2.5 shrink-0"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -2261,14 +2330,54 @@ export function AdminPackagesModule() {
             <div className="space-y-3 border-t border-[#C5B378]/20 pt-3">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E] block">
-                  Custom Deliverables
+                  Package Deliverables
                 </label>
                 <p className="text-[11px] text-[#E6ECEB]/60 mt-0.5">
-                  Coverage and album details are generated from the included services.
+                  Service details update from your selections. Add any extra deliverables below.
                 </p>
               </div>
 
               <div className="space-y-3 bg-[#051C1A] p-3.5 rounded-lg border border-[#C5B378]/20">
+                {(newServiceDeliverables.coverage ||
+                  newServiceDeliverables.albums ||
+                  newServiceDeliverables.deliverables) ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {newServiceDeliverables.coverage && (
+                      <div className="rounded-md border border-[#C5B378]/15 bg-[#092E2B] p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                          Event Coverage & Crew
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[#E6ECEB]/85">
+                          {newServiceDeliverables.coverage}
+                        </p>
+                      </div>
+                    )}
+                    {newServiceDeliverables.albums && (
+                      <div className="rounded-md border border-[#C5B378]/15 bg-[#092E2B] p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                          Albums
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[#E6ECEB]/85">
+                          {newServiceDeliverables.albums}
+                        </p>
+                      </div>
+                    )}
+                    {newServiceDeliverables.deliverables && (
+                      <div className="rounded-md border border-[#C5B378]/15 bg-[#092E2B] p-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D8C78E]">
+                          Deliverables
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-[#E6ECEB]/85">
+                          {newServiceDeliverables.deliverables}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#E6ECEB]/55">
+                    Add included services to preview coverage, album, and deliverable details here.
+                  </p>
+                )}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-[#D8C78E] flex items-center gap-1.5">
                     <Film className="h-3.5 w-3.5 text-[#D8C78E]" />
@@ -2288,84 +2397,88 @@ export function AdminPackagesModule() {
                   />
                 </div>
 
-                {/* Dynamic Additional Categories */}
-                {Object.entries(newDeliverables)
-                  .filter(
-                    ([key]) =>
-                      key !== 'Deliverables'
-                  )
-                  .map(([customKey, customValue]) => (
-                    <div key={customKey} className="space-y-1 pt-1 border-t border-[#C5B378]/15">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-[#D8C78E]">{customKey}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = { ...newDeliverables };
-                            delete next[customKey];
-                            setNewDeliverables(next);
-                          }}
-                          className="text-rose-400 hover:text-rose-300 text-[11px]"
-                        >
-                          Remove
-                        </button>
-                      </div>
+                <div className="space-y-3 rounded-md border border-[#C5B378]/20 bg-[#092E2B]/50 p-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E]">
+                      Custom Deliverables
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[#E6ECEB]/60">
+                      Add optional package-specific items alongside the standard deliverables.
+                    </p>
+                  </div>
+                  {Object.entries(newDeliverables)
+                    .filter(([key]) => key !== 'Deliverables')
+                    .map(([customKey, customValue]) => (
+                      <div key={customKey} className="space-y-1 border-t border-[#C5B378]/15 pt-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-[#D8C78E]">{customKey}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = { ...newDeliverables };
+                              delete next[customKey];
+                              setNewDeliverables(next);
+                            }}
+                            className="text-rose-400 hover:text-rose-300 text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
                         <textarea
                           rows={4}
-                        value={customValue || ''}
-                        onChange={(e) =>
+                          value={customValue || ''}
+                          onChange={(e) =>
+                            setNewDeliverables((prev) => ({
+                              ...prev,
+                              [customKey]: e.target.value,
+                            }))
+                          }
+                          className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  <div className="space-y-1.5 border-t border-[#C5B378]/15 pt-2">
+                    <span className="block text-[11px] font-medium text-[#E6ECEB]/70">
+                      Add a custom section
+                    </span>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                      <input
+                        type="text"
+                        value={newCustomCategoryInput}
+                        onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                        placeholder="Section name (e.g. Drone & Aerial)"
+                        className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      />
+                      <textarea
+                        rows={2}
+                        value={newCustomDetailInput}
+                        onChange={(e) => setNewCustomDetailInput(e.target.value)}
+                        placeholder="Details / inclusions"
+                        className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!newCustomCategoryInput.trim() || !newCustomDetailInput.trim()) return;
+                          if (isReservedDeliverableCategory(newCustomCategoryInput)) {
+                            toast.error('Coverage and album sections are generated from selected services.');
+                            return;
+                          }
                           setNewDeliverables((prev) => ({
                             ...prev,
-                            [customKey]: e.target.value,
-                          }))
-                        }
-                        className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
-                      />
+                            [newCustomCategoryInput.trim()]: newCustomDetailInput.trim(),
+                          }));
+                          setNewCustomCategoryInput('');
+                          setNewCustomDetailInput('');
+                        }}
+                        className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-2.5 shrink-0"
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Add
+                      </Button>
                     </div>
-                  ))}
-
-                {/* Inline Add Dynamic Category */}
-                <div className="pt-2 border-t border-[#C5B378]/15 space-y-1.5">
-                  <span className="text-[11px] font-medium text-[#E6ECEB]/70 block">
-                    + Add Dynamic Category
-                  </span>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                    <input
-                      type="text"
-                      value={newCustomCategoryInput}
-                      onChange={(e) => setNewCustomCategoryInput(e.target.value)}
-                      placeholder="Category name (e.g. Drone & Aerial)"
-                      className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                    />
-                    <textarea
-                      rows={2}
-                      value={newCustomDetailInput}
-                      onChange={(e) => setNewCustomDetailInput(e.target.value)}
-                      placeholder="Details / Inclusions"
-                      className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (!newCustomCategoryInput.trim() || !newCustomDetailInput.trim()) return;
-                        if (isReservedDeliverableCategory(newCustomCategoryInput)) {
-                          toast.error('Coverage and album sections are generated from selected services.');
-                          return;
-                        }
-                        setNewDeliverables((prev) => ({
-                          ...prev,
-                          [newCustomCategoryInput.trim()]: newCustomDetailInput.trim(),
-                        }));
-                        setNewCustomCategoryInput('');
-                        setNewCustomDetailInput('');
-                      }}
-                      className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-2.5 shrink-0"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add
-                    </Button>
                   </div>
                 </div>
               </div>

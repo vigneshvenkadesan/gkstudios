@@ -1222,6 +1222,17 @@ export function ProposalPageClient() {
       services,
       basePackage.durationTier
     );
+    const packageDeliverables = parseDeliverables(
+      sanitizePackageDeliverables(basePackage.deliverables)
+    );
+    const standardDeliverables = [
+      dynamicSections.deliverables,
+      ...packageDeliverables
+        .filter((item) => item.category.toLowerCase() === 'deliverables')
+        .map((item) => item.text),
+    ]
+      .filter(Boolean)
+      .join(', ');
     return [
       ...(dynamicSections.coverage
         ? [{ category: 'Event Coverage & Crew', text: dynamicSections.coverage }]
@@ -1229,7 +1240,12 @@ export function ProposalPageClient() {
       ...(dynamicSections.albums
         ? [{ category: 'Albums', text: dynamicSections.albums }]
         : []),
-      ...parseDeliverables(sanitizePackageDeliverables(basePackage.deliverables)),
+      ...(standardDeliverables
+        ? [{ category: 'Deliverables', text: standardDeliverables }]
+        : []),
+      ...packageDeliverables.filter(
+        (item) => item.category.toLowerCase() !== 'deliverables'
+      ),
     ];
   }, [basePackage, customizedActiveServiceItems, services]);
 

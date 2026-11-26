@@ -169,9 +169,7 @@ const PackageSchema = new Schema<StudioPackageDocument>(
     includedServices: { type: [IncludedPackageServiceSchema], default: [] },
     highlighted: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
-    deliverables: {
-      Deliverables: { type: String, default: '' },
-    },
+    deliverables: { type: Schema.Types.Mixed, default: {} },
     customizer: { type: PackageCustomizerSchema, default: undefined },
     imageUrl: String,
     image: String,

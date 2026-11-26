@@ -302,10 +302,10 @@ Default/fallback services include traditional/candid photography and videography
 | `priceLabel` | string | Display label |
 | `duration` | string | Display text |
 | `durationTier` | `threeHours \| halfDay \| fullDay` | Defaults/inferred for legacy packages |
-| `includedServices` | `{ serviceSlug: string, quantity: number, durationTier?: threeHours \| halfDay \| fullDay }[]` | Drives coverage display and base pricing; item tier falls back to package tier |
+| `includedServices` | `{ serviceSlug: string, quantity: number, durationTier?: threeHours \| halfDay \| fullDay }[]` | Drives coverage, album, and deliverable display plus base pricing; item tier falls back to package tier |
 | `highlighted` | boolean | Most-popular flag |
 | `featured` | boolean | Featured flag |
-| `deliverables` | `{ Deliverables: string }` | Package deliverables text; coverage/albums are derived from services |
+| `deliverables` | `{ Deliverables: string, [customCategory: string]: string }` | Standard and custom package deliverables; coverage/albums are derived from services |
 | `customizer` | mixed | Legacy/customizer data |
 | `imageUrl` | string | Public image URL |
 | `image` | string | Legacy alias |
@@ -382,7 +382,7 @@ services. The services catalog supports legacy `photo-album` plus `photo-album-8
 5. Legacy packages without `includedServices` use backward-compatible tier synthesis.
 6. A stored package price is an optional override; without one, the effective price is calculated from included services. Admin forms distinguish the override from the resolved display price.
 7. `buildOptedServicesForPackage` and `calculateCustomizedEventPrice` create historical service snapshots.
-8. `getDynamicPackageDisplaySections` derives “Event Coverage & Crew” and “Albums” from active service items for public cards, proposal customizer, and admin views. These derived sections must never be persisted in `packages.deliverables`; legacy documents are sanitized on package reads and writes.
+8. `getDynamicPackageDisplaySections` derives “Event Coverage & Crew”, “Albums”, and service-category “Deliverables” from active service items for public cards, proposal customizer, and admin views. These derived sections must never be persisted in `packages.deliverables`; legacy documents are sanitized on package reads and writes.
 9. `/api/packages/[id]` supports GET, PATCH/PUT, and DELETE by custom package `id`, with Mongo `_id` lookup as a fallback. Mutations require the `gk_admin_session=admin-session-v2` cookie; shared client requests include credentials.
 10. The Admin Package Manager configures event-linked packages, included services and quantities, deliverables, and optional price overrides. Per-unit quantities start at each service's minimum and adjust one unit at a time. Legacy customizer inclusion flags remain stored and are preserved when editing packages, but are no longer separately editable in the package form. Proposal upgrades are built from active `services` catalog entries not included in the base; per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
 

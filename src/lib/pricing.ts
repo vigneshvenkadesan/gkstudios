@@ -75,14 +75,20 @@ export function sanitizePackageDeliverables(raw: unknown): Record<string, string
     entries.push(...Object.entries(raw as Record<string, unknown>));
   }
 
-  const deliverables: string[] = [];
+  const deliverables: Record<string, string> = {};
   for (const [rawKey, rawValue] of entries) {
     if (typeof rawValue !== 'string' || !rawValue.trim()) continue;
     const key = rawKey.trim();
     if (isDerivedDeliverableKey(key)) continue;
-    deliverables.push(rawValue.trim());
+
+    const category =
+      key.toLowerCase() === 'digital deliverables' ? 'Deliverables' : key;
+    const value = rawValue.trim();
+    deliverables[category] = deliverables[category]
+      ? `${deliverables[category]} + ${value}`
+      : value;
   }
-  return { Deliverables: deliverables.join(' + ') };
+  return deliverables;
 }
 
 const COVERAGE_SERVICE_LABELS: Record<string, string> = {
@@ -100,15 +106,28 @@ export function getDynamicPackageDisplaySections(
   activeServiceItems: PackageIncludedService[] | undefined,
   services: StudioService[],
   packageDurationTier?: DurationTier
-): { coverage: string | null; albums: string | null } {
+): { coverage: string | null; albums: string | null; deliverables: string | null } {
   const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
-  const album = items.find((item) => item.serviceSlug.startsWith('photo-album'));
+  const servicesBySlug = new Map(services.map((service) => [service.slug, service]));
+  const albumItems = items.filter((item) => item.serviceSlug.startsWith('photo-album'));
+  const deliverableItems = items.filter((item) => {
+    if (item.serviceSlug.startsWith('photo-album')) return false;
+    return servicesBySlug.get(item.serviceSlug)?.category
+      .trim()
+      .toLowerCase()
+      .includes('deliverable') ?? false;
+  });
+  const deliverableSlugs = new Set(deliverableItems.map((item) => item.serviceSlug));
   const coverageItems = items
-    .filter((item) => !item.serviceSlug.startsWith('photo-album'))
+    .filter(
+      (item) =>
+        !item.serviceSlug.startsWith('photo-album') &&
+        !deliverableSlugs.has(item.serviceSlug)
+    )
     .map((item) => {
       const label =
         COVERAGE_SERVICE_LABELS[item.serviceSlug] ||
-        services.find((service) => service.slug === item.serviceSlug)?.name ||
+        servicesBySlug.get(item.serviceSlug)?.name ||
         item.serviceSlug;
       const itemTierLabel =
         item.durationTier && packageDurationTier && item.durationTier !== packageDurationTier
@@ -124,9 +143,35 @@ export function getDynamicPackageDisplaySections(
     coverage = `${coverageItems.slice(0, -1).join(', ')} & ${coverageItems[coverageItems.length - 1]}`;
   }
 
+  const deliverables =
+    deliverableItems.length > 0
+      ? deliverableItems
+          .map((item) => {
+            const service = servicesBySlug.get(item.serviceSlug);
+            const name = service?.name || item.serviceSlug.replace(/-/g, ' ');
+            return `${item.quantity > 1 ? `${item.quantity} × ` : ''}${name}`;
+          })
+          .join(', ')
+      : null;
+
   return {
     coverage,
-    albums: album ? `1 × ${album.quantity}-Sheet Album (${album.quantity * 2} Pages)` : null,
+    albums:
+      albumItems.length > 0
+        ? albumItems
+            .map((item) => {
+              const service = servicesBySlug.get(item.serviceSlug);
+              const name =
+                service?.name ||
+                item.serviceSlug
+                  .replace(/^photo-album-?/, 'Photo Album ')
+                  .replace(/-/g, ' ')
+                  .trim();
+              return `${name} · ${item.quantity * 2} pages`;
+            })
+            .join(', ')
+        : null,
+    deliverables,
   };
 }
 
