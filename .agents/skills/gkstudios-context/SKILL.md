@@ -305,7 +305,7 @@ Default/fallback services include traditional/candid photography and videography
 | `includedServices` | `{ serviceSlug: string, quantity: number, durationTier?: threeHours \| halfDay \| fullDay }[]` | Drives coverage, album, and deliverable display plus base pricing; item tier falls back to package tier |
 | `highlighted` | boolean | Most-popular flag |
 | `featured` | boolean | Featured flag |
-| `deliverables` | `{ Deliverables: string, [customCategory: string]: string }` | Standard and custom package deliverables; coverage/albums are derived from services |
+| `deliverables` | `{ Deliverables: string }` | Standard and custom text is stored in this existing field; coverage/albums are derived from services |
 | `customizer` | mixed | Legacy/customizer data |
 | `imageUrl` | string | Public image URL |
 | `image` | string | Legacy alias |

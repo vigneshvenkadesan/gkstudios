@@ -338,14 +338,13 @@ export function PackagesSection({
                   const packageDeliverableItems = parseDeliverables(
                     sanitizePackageDeliverables(copy.deliverables)
                   );
-                  const customDeliverables = packageDeliverableItems.filter(
-                    (item) => item.category.toLowerCase() !== 'deliverables'
-                  );
                   const standardDeliverables = [
                     dynamicSections.deliverables,
-                    ...packageDeliverableItems
-                      .filter((item) => item.category.toLowerCase() === 'deliverables')
-                      .map((item) => item.text),
+                    ...packageDeliverableItems.map((item) =>
+                      item.category.toLowerCase() === 'deliverables'
+                        ? item.text
+                        : `${item.category}: ${item.text}`
+                    ),
                   ]
                     .filter(Boolean)
                     .join(', ');
@@ -534,26 +533,6 @@ export function PackagesSection({
                               </div>
                             );
                           })}
-                          {customDeliverables.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#D8C78E]">
-                                <Check className="h-3.5 w-3.5 text-[#D8C78E] shrink-0" />
-                                <span>Custom Deliverables</span>
-                              </div>
-                              <div className="space-y-2 pl-5">
-                                {customDeliverables.map((item) => (
-                                  <div key={item.category} className="space-y-0.5">
-                                    <p className="text-xs font-medium text-[#E6ECEB]/90">
-                                      {item.category}
-                                    </p>
-                                    <p className="text-xs leading-relaxed text-[#E6ECEB]/75 sm:text-[13px]">
-                                      {item.text}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
 
                         <div className="mt-7 pt-3 border-t border-[#C5B378]/15">

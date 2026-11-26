@@ -107,22 +107,6 @@ const STANDARD_DURATION_LABELS = new Set([
   'Full-Day',
 ]);
 
-const RESERVED_DERIVED_DELIVERABLE_KEYS = new Set([
-  'event coverage & crew',
-  'event coverage',
-  'coverage & crew',
-  'albums & photo frames',
-  'albums',
-  'album',
-  'photo albums',
-  'digital deliverables',
-  'inclusions',
-]);
-
-function isReservedDeliverableCategory(category: string): boolean {
-  return RESERVED_DERIVED_DELIVERABLE_KEYS.has(category.trim().toLowerCase());
-}
-
 function shouldSyncDurationDisplay(duration: string): boolean {
   return !duration.trim() || STANDARD_DURATION_LABELS.has(duration.trim());
 }
@@ -134,6 +118,17 @@ export function normalizePackageDeliverables(
   raw: unknown
 ): PackageDeliverables {
   return sanitizePackageDeliverables(raw);
+}
+
+function getEditablePackageDeliverables(raw: unknown): PackageDeliverables {
+  const deliverables = normalizePackageDeliverables(raw);
+  const text = Object.entries(deliverables)
+    .map(([category, value]) =>
+      category.toLowerCase() === 'deliverables' ? value : `${category}: ${value}`
+    )
+    .filter(Boolean)
+    .join('\n');
+  return { Deliverables: text };
 }
 
 /**
@@ -265,8 +260,6 @@ export function AdminPackagesModule() {
   const [newDeliverables, setNewDeliverables] = useState<PackageDeliverables>({
     Deliverables: 'Full Event Edited Video + Complete Raw Footage Drive',
   });
-  const [newCustomCategoryInput, setNewCustomCategoryInput] = useState('');
-  const [newCustomDetailInput, setNewCustomDetailInput] = useState('');
 
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
@@ -288,8 +281,6 @@ export function AdminPackagesModule() {
 
   // Categorized Deliverables State for Editing Package
   const [editDeliverables, setEditDeliverables] = useState<PackageDeliverables>({});
-  const [editCustomCategoryInput, setEditCustomCategoryInput] = useState('');
-  const [editCustomDetailInput, setEditCustomDetailInput] = useState('');
 
   // Delete confirmation dialog
   const [deletingPackage, setDeletingPackage] = useState<StudioPackage | null>(null);
@@ -635,7 +626,7 @@ export function AdminPackagesModule() {
     setEditHighlighted(Boolean(pkg.highlighted));
     setEditFeatured(Boolean(pkg.featured));
     setEditSortOrder(typeof pkg.sortOrder === 'number' ? pkg.sortOrder : resolvedTier === 'essential' ? 1 : resolvedTier === 'signature' ? 2 : 3);
-    setEditDeliverables(normalizePackageDeliverables(pkg.deliverables));
+    setEditDeliverables(getEditablePackageDeliverables(pkg.deliverables));
     setEditStatus(pkg.status === 'inactive' ? 'inactive' : 'active');
     setEditDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
 
@@ -661,7 +652,7 @@ export function AdminPackagesModule() {
     setNewSortOrder((pkg.sortOrder ?? 0) + 1);
     setNewStatus('active');
     setNewDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
-    setNewDeliverables(normalizePackageDeliverables(pkg.deliverables));
+    setNewDeliverables(getEditablePackageDeliverables(pkg.deliverables));
     setIsAddModalOpen(true);
   };
 
@@ -1998,90 +1989,6 @@ export function AdminPackagesModule() {
                   />
                 </div>
 
-                <div className="space-y-3 rounded-md border border-[#C5B378]/20 bg-[#092E2B]/50 p-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E]">
-                      Custom Deliverables
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-[#E6ECEB]/60">
-                      Add optional package-specific items alongside the standard deliverables.
-                    </p>
-                  </div>
-                  {Object.entries(editDeliverables)
-                    .filter(([key]) => key !== 'Deliverables')
-                    .map(([customKey, customValue]) => (
-                      <div key={customKey} className="space-y-1 border-t border-[#C5B378]/15 pt-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium text-[#D8C78E]">{customKey}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = { ...editDeliverables };
-                              delete next[customKey];
-                              setEditDeliverables(next);
-                            }}
-                            className="text-rose-400 hover:text-rose-300 text-[11px]"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <textarea
-                          rows={4}
-                          value={customValue || ''}
-                          onChange={(e) =>
-                            setEditDeliverables((prev) => ({
-                              ...prev,
-                              [customKey]: e.target.value,
-                            }))
-                          }
-                          className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
-                        />
-                      </div>
-                    ))}
-                  <div className="space-y-1.5 border-t border-[#C5B378]/15 pt-2">
-                    <span className="block text-[11px] font-medium text-[#E6ECEB]/70">
-                      Add a custom section
-                    </span>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                      <input
-                        type="text"
-                        value={editCustomCategoryInput}
-                        onChange={(e) => setEditCustomCategoryInput(e.target.value)}
-                        placeholder="Section name (e.g. Drone & Aerial)"
-                        className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                      />
-                      <textarea
-                        rows={2}
-                        value={editCustomDetailInput}
-                        onChange={(e) => setEditCustomDetailInput(e.target.value)}
-                        placeholder="Details / inclusions"
-                        className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!editCustomCategoryInput.trim() || !editCustomDetailInput.trim()) return;
-                          if (isReservedDeliverableCategory(editCustomCategoryInput)) {
-                            toast.error('Coverage and album sections are generated from selected services.');
-                            return;
-                          }
-                          setEditDeliverables((prev) => ({
-                            ...prev,
-                            [editCustomCategoryInput.trim()]: editCustomDetailInput.trim(),
-                          }));
-                          setEditCustomCategoryInput('');
-                          setEditCustomDetailInput('');
-                        }}
-                        className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-2.5 shrink-0"
-                      >
-                        <Plus className="mr-1 h-3 w-3" />
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -2397,90 +2304,6 @@ export function AdminPackagesModule() {
                   />
                 </div>
 
-                <div className="space-y-3 rounded-md border border-[#C5B378]/20 bg-[#092E2B]/50 p-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#D8C78E]">
-                      Custom Deliverables
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-[#E6ECEB]/60">
-                      Add optional package-specific items alongside the standard deliverables.
-                    </p>
-                  </div>
-                  {Object.entries(newDeliverables)
-                    .filter(([key]) => key !== 'Deliverables')
-                    .map(([customKey, customValue]) => (
-                      <div key={customKey} className="space-y-1 border-t border-[#C5B378]/15 pt-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium text-[#D8C78E]">{customKey}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = { ...newDeliverables };
-                              delete next[customKey];
-                              setNewDeliverables(next);
-                            }}
-                            className="text-rose-400 hover:text-rose-300 text-[11px]"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <textarea
-                          rows={4}
-                          value={customValue || ''}
-                          onChange={(e) =>
-                            setNewDeliverables((prev) => ({
-                              ...prev,
-                              [customKey]: e.target.value,
-                            }))
-                          }
-                          className="min-h-24 w-full resize-y rounded-md border border-[#C5B378]/25 bg-[#092E2B] px-3 py-2 text-xs leading-relaxed text-white focus:border-[#D8C78E] focus:outline-none"
-                        />
-                      </div>
-                    ))}
-                  <div className="space-y-1.5 border-t border-[#C5B378]/15 pt-2">
-                    <span className="block text-[11px] font-medium text-[#E6ECEB]/70">
-                      Add a custom section
-                    </span>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                      <input
-                        type="text"
-                        value={newCustomCategoryInput}
-                        onChange={(e) => setNewCustomCategoryInput(e.target.value)}
-                        placeholder="Section name (e.g. Drone & Aerial)"
-                        className="h-8 flex-1 rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 text-xs text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                      />
-                      <textarea
-                        rows={2}
-                        value={newCustomDetailInput}
-                        onChange={(e) => setNewCustomDetailInput(e.target.value)}
-                        placeholder="Details / inclusions"
-                        className="min-h-16 flex-[2] resize-y rounded border border-[#C5B378]/25 bg-[#092E2B] px-2 py-1.5 text-xs leading-relaxed text-white placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!newCustomCategoryInput.trim() || !newCustomDetailInput.trim()) return;
-                          if (isReservedDeliverableCategory(newCustomCategoryInput)) {
-                            toast.error('Coverage and album sections are generated from selected services.');
-                            return;
-                          }
-                          setNewDeliverables((prev) => ({
-                            ...prev,
-                            [newCustomCategoryInput.trim()]: newCustomDetailInput.trim(),
-                          }));
-                          setNewCustomCategoryInput('');
-                          setNewCustomDetailInput('');
-                        }}
-                        className="h-8 border-[#C5B378]/30 text-[#D8C78E] hover:bg-[#092E2B] text-xs px-2.5 shrink-0"
-                      >
-                        <Plus className="mr-1 h-3 w-3" />
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
