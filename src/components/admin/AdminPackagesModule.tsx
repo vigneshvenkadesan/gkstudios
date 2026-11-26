@@ -40,9 +40,7 @@ import { useStudio } from '@/src/context/StudioContext';
 import {
   DurationTier,
   EVENT_CATEGORY_GROUPS,
-  PackageCustomizer,
   PackageDeliverables,
-  PackageIncludedFeatures,
   PackageIncludedService,
   StudioEvent,
   StudioPackage,
@@ -216,28 +214,6 @@ export function getPackageTier(pkg: StudioPackage): PackageTier {
   return 'essential';
 }
 
-const DEFAULT_INCLUDED_FEATURES: PackageIncludedFeatures = {
-  traditionalPhoto: true,
-  traditionalVideo: true,
-  candidPhoto: false,
-  candidVideo: false,
-  drone: false,
-  ledWall: false,
-  outdoorShoot: false,
-  printedAlbum: true,
-};
-
-const CUSTOMIZER_OPTIONS: Array<{ key: keyof PackageIncludedFeatures; label: string }> = [
-  { key: 'traditionalPhoto', label: 'Traditional Photo' },
-  { key: 'traditionalVideo', label: 'Traditional Video' },
-  { key: 'candidPhoto', label: 'Candid Photo' },
-  { key: 'candidVideo', label: 'Candid Video' },
-  { key: 'drone', label: 'Drone' },
-  { key: 'ledWall', label: 'LED Wall' },
-  { key: 'outdoorShoot', label: 'Outdoor Shoot' },
-  { key: 'printedAlbum', label: 'Printed Album' },
-];
-
 export function AdminPackagesModule() {
   const {
     packages,
@@ -292,9 +268,6 @@ export function AdminPackagesModule() {
   const [newCustomCategoryInput, setNewCustomCategoryInput] = useState('');
   const [newCustomDetailInput, setNewCustomDetailInput] = useState('');
 
-  // Customizer State for New Package
-  const [newCustomizerIncluded, setNewCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
-
   // Edit package modal state
   const [editingPackage, setEditingPackage] = useState<StudioPackage | null>(null);
   const [editId, setEditId] = useState('');
@@ -317,9 +290,6 @@ export function AdminPackagesModule() {
   const [editDeliverables, setEditDeliverables] = useState<PackageDeliverables>({});
   const [editCustomCategoryInput, setEditCustomCategoryInput] = useState('');
   const [editCustomDetailInput, setEditCustomDetailInput] = useState('');
-
-  // Customizer State for Editing Package
-  const [editCustomizerIncluded, setEditCustomizerIncluded] = useState<PackageIncludedFeatures>(DEFAULT_INCLUDED_FEATURES);
 
   // Delete confirmation dialog
   const [deletingPackage, setDeletingPackage] = useState<StudioPackage | null>(null);
@@ -581,9 +551,6 @@ export function AdminPackagesModule() {
         category: selectedEvent.id,
         eventSortOrder: selectedEvent.sortOrder,
         deliverables: sanitizePackageDeliverables(newDeliverables),
-        customizer: {
-          included: newCustomizerIncluded,
-        },
         highlighted: isSig,
         featured: newFeatured,
         status: newStatus,
@@ -614,7 +581,6 @@ export function AdminPackagesModule() {
       setNewDeliverables({
         Deliverables: 'Full Event Edited Video + Complete Raw Footage Drive',
       });
-      setNewCustomizerIncluded(DEFAULT_INCLUDED_FEATURES);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create package.');
     } finally {
@@ -662,11 +628,6 @@ export function AdminPackagesModule() {
     setEditStatus(pkg.status === 'inactive' ? 'inactive' : 'active');
     setEditDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
 
-    // Initialize customizer
-    setEditCustomizerIncluded({
-      ...DEFAULT_INCLUDED_FEATURES,
-      ...(pkg.customizer?.included || {}),
-    });
   };
 
   const openDuplicateModal = (pkg: StudioPackage) => {
@@ -690,10 +651,6 @@ export function AdminPackagesModule() {
     setNewStatus('active');
     setNewDisplayOnPortfolio(pkg.displayOnPortfolio !== false);
     setNewDeliverables(normalizePackageDeliverables(pkg.deliverables));
-    setNewCustomizerIncluded({
-      ...DEFAULT_INCLUDED_FEATURES,
-      ...(pkg.customizer?.included || {}),
-    });
     setIsAddModalOpen(true);
   };
 
@@ -744,9 +701,6 @@ export function AdminPackagesModule() {
         category: selectedEvent.id,
         eventSortOrder: selectedEvent.sortOrder,
         deliverables: sanitizePackageDeliverables(editDeliverables),
-        customizer: {
-          included: editCustomizerIncluded,
-        },
         highlighted: isSig,
         featured: editFeatured,
         status: editStatus,
@@ -2062,28 +2016,6 @@ export function AdminPackagesModule() {
               </div>
             </div>
 
-            <div className="space-y-2 border-t border-[#C5B378]/20 pt-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#D8C78E]">
-                Customizer Included Services
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {CUSTOMIZER_OPTIONS.map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 text-xs text-[#E6ECEB]">
-                    <input
-                      type="checkbox"
-                      checked={editCustomizerIncluded[key]}
-                      onChange={(event) => setEditCustomizerIncluded((current) => ({
-                        ...current,
-                        [key]: event.target.checked,
-                      }))}
-                      className="h-4 w-4 accent-[#C5B378]"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-6 border-t border-[#C5B378]/20 pt-3">
               <label className="flex items-center gap-2 text-xs text-[#E6ECEB] cursor-pointer">
@@ -2436,28 +2368,6 @@ export function AdminPackagesModule() {
                     </Button>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 border-t border-[#C5B378]/20 pt-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#D8C78E]">
-                Customizer Included Services
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {CUSTOMIZER_OPTIONS.map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 text-xs text-[#E6ECEB]">
-                    <input
-                      type="checkbox"
-                      checked={newCustomizerIncluded[key]}
-                      onChange={(event) => setNewCustomizerIncluded((current) => ({
-                        ...current,
-                        [key]: event.target.checked,
-                      }))}
-                      className="h-4 w-4 accent-[#C5B378]"
-                    />
-                    {label}
-                  </label>
-                ))}
               </div>
             </div>
 

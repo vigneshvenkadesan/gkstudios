@@ -279,7 +279,7 @@ The bill collection stores one immutable snapshot per payment entry.
 | `unitLabel` | string | Unit, camera, photographer, wall, sheets |
 | `unitPrice` | number/null | Used by `per_unit` |
 | `minQuantity` | number | Minimum quantity for `per_unit` |
-| `pricing` | object/null | `{ threeHours, halfDay, fullDay }` |
+| `pricing` | object/null | Tiered services use `{ halfDay, fullDay }`; the legacy three-hour package duration uses the half-day service rate |
 | `isActive` | boolean | Public/admin availability |
 | `displayOrder` | number | Sort order |
 | `createdAt` | string | Optional |
@@ -376,7 +376,7 @@ services. The services catalog supports legacy `photo-album` plus `photo-album-8
 ### Single-source pricing
 
 1. `services` is the pricing master for all live package/customizer calculations.
-2. Tiered services use `pricing.threeHours`, `pricing.halfDay`, or `pricing.fullDay`.
+2. Tiered services use `pricing.halfDay` or `pricing.fullDay`. Legacy `threeHours` duration selections resolve to the half-day service rate; new service pricing has no three-hour rate.
 3. Per-unit services use `unitPrice * quantity`, with `minQuantity` applied.
 4. `calculatePackageBasePrice` in `src/lib/pricing.ts` sums package `includedServices`, resolving each tiered item from its own `durationTier` first, then an explicitly supplied whole-event tier, the package tier, and finally `fullDay`. Per-unit services use their unit price and quantity regardless of tier.
 5. Legacy packages without `includedServices` use backward-compatible tier synthesis.
@@ -384,7 +384,7 @@ services. The services catalog supports legacy `photo-album` plus `photo-album-8
 7. `buildOptedServicesForPackage` and `calculateCustomizedEventPrice` create historical service snapshots.
 8. `getDynamicPackageDisplaySections` derives “Event Coverage & Crew” and “Albums” from active service items for public cards, proposal customizer, and admin views. These derived sections must never be persisted in `packages.deliverables`; legacy documents are sanitized on package reads and writes.
 9. `/api/packages/[id]` supports GET, PATCH/PUT, and DELETE by custom package `id`, with Mongo `_id` lookup as a fallback. Mutations require the `gk_admin_session=admin-session-v2` cookie; shared client requests include credentials.
-10. The Admin Package Manager configures event-linked packages, included services, deliverables, optional price overrides, and all customizer inclusion flags. Included-service rows support duration tiers. Proposal upgrades are built from active `services` catalog entries not included in the base; per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
+10. The Admin Package Manager configures event-linked packages, included services and quantities, deliverables, and optional price overrides. Per-unit quantities start at each service's minimum and adjust one unit at a time. Legacy customizer inclusion flags remain stored and are preserved when editing packages, but are no longer separately editable in the package form. Proposal upgrades are built from active `services` catalog entries not included in the base; per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
 
 ### Historical snapshot rule
 

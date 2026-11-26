@@ -99,7 +99,7 @@ export function DynamicPackageServicesConfigurator({
       // Add to includedServices with smart default quantity
       const defaultQty =
         svc.pricingType === 'per_unit'
-          ? (svc.minQuantity && svc.minQuantity > 1 ? svc.minQuantity : 30)
+          ? Math.max(svc.minQuantity || 1, 1)
           : 1;
 
       const nextIncluded = [
@@ -138,11 +138,10 @@ export function DynamicPackageServicesConfigurator({
         <div className="flex items-center gap-2 shrink-0">
           <label className="text-xs font-semibold text-[#D8C78E]">Duration Tier *</label>
           <select
-            value={durationTier}
+            value={durationTier === 'threeHours' ? 'halfDay' : durationTier}
             onChange={(e) => onChangeDurationTier(e.target.value as DurationTier)}
             className="h-9 rounded-md border border-[#C5B378]/35 bg-[#092E2B] px-3 text-xs text-white font-medium focus:border-[#D8C78E] focus:outline-none"
           >
-            <option value="threeHours">3 Hours</option>
             <option value="halfDay">Half Day</option>
             <option value="fullDay">Full Day</option>
           </select>
@@ -221,7 +220,7 @@ export function DynamicPackageServicesConfigurator({
           {activeServices.map((svc) => {
             const isIncluded = includedSlugSet.has(svc.slug);
             const currentItem = includedServices.find((i) => i.serviceSlug === svc.slug);
-            const qty = currentItem?.quantity || (svc.pricingType === 'per_unit' ? (svc.minQuantity || 30) : 1);
+            const qty = currentItem?.quantity || (svc.pricingType === 'per_unit' ? (svc.minQuantity || 1) : 1);
             const itemTier = currentItem?.durationTier ?? durationTier;
             const linePrice = resolveServicePrice(svc, itemTier, qty);
 
@@ -269,13 +268,8 @@ export function DynamicPackageServicesConfigurator({
                     <div className="flex items-center rounded border border-[#C5B378]/35 bg-[#072421]">
                       <button
                         type="button"
-                        onClick={() =>
-                          handleUpdateQuantity(
-                            svc.slug,
-                            svc.pricingType === 'per_unit' ? qty - 5 : qty - 1
-                          )
-                        }
-                        disabled={svc.pricingType === 'per_unit' ? qty <= (svc.minQuantity || 10) : qty <= 1}
+                        onClick={() => handleUpdateQuantity(svc.slug, qty - 1)}
+                        disabled={qty <= (svc.pricingType === 'per_unit' ? svc.minQuantity || 1 : 1)}
                         className="px-2 py-0.5 text-xs font-bold text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         −
@@ -286,12 +280,7 @@ export function DynamicPackageServicesConfigurator({
                       </span>
                       <button
                         type="button"
-                        onClick={() =>
-                          handleUpdateQuantity(
-                            svc.slug,
-                            svc.pricingType === 'per_unit' ? qty + 5 : qty + 1
-                          )
-                        }
+                        onClick={() => handleUpdateQuantity(svc.slug, qty + 1)}
                         className="px-2 py-0.5 text-xs font-bold text-[#D8C78E] hover:bg-[#114A45] hover:text-white"
                       >
                         +
@@ -301,7 +290,7 @@ export function DynamicPackageServicesConfigurator({
                     {svc.pricingType === 'tiered' && (
                       <select
                         aria-label={`${englishOnlyName(svc.name)} duration tier`}
-                        value={itemTier}
+                        value={itemTier === 'threeHours' ? 'halfDay' : itemTier}
                         onChange={(event) =>
                           onChangeIncludedServices(
                             includedServices.map((item) =>
@@ -313,7 +302,6 @@ export function DynamicPackageServicesConfigurator({
                         }
                         className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1.5 text-[10px] text-white focus:border-[#D8C78E] focus:outline-none"
                       >
-                        <option value="threeHours">3 Hours</option>
                         <option value="halfDay">Half Day</option>
                         <option value="fullDay">Full Day</option>
                       </select>
@@ -329,7 +317,7 @@ export function DynamicPackageServicesConfigurator({
                       <span className="text-[9px] text-[#E6ECEB]/50 block">
                         {svc.pricingType === 'per_unit'
                           ? `₹${linePrice.unitPrice}/${svc.unitLabel}`
-                          : `${DURATION_TIER_LABELS[itemTier]?.en || itemTier}`}
+                          : `${DURATION_TIER_LABELS[itemTier === 'threeHours' ? 'halfDay' : itemTier]?.en || itemTier}`}
                       </span>
                     </div>
                   </div>

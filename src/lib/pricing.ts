@@ -142,7 +142,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 6000,
       halfDay: 10000,
       fullDay: 16000,
     },
@@ -160,7 +159,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 6000,
       halfDay: 10000,
       fullDay: 16000,
     },
@@ -178,7 +176,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 8000,
       halfDay: 14000,
       fullDay: 22000,
     },
@@ -196,7 +193,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 10000,
       halfDay: 18000,
       fullDay: 28000,
     },
@@ -214,7 +210,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 7000,
       halfDay: 12000,
       fullDay: 18000,
     },
@@ -232,7 +227,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 12000,
       halfDay: 18000,
       fullDay: 25000,
     },
@@ -250,7 +244,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 4000,
       halfDay: 6000,
       fullDay: 9000,
     },
@@ -268,7 +261,6 @@ export const DEFAULT_STUDIO_SERVICES: StudioService[] = [
     unitPrice: null,
     minQuantity: 1,
     pricing: {
-      threeHours: 8000,
       halfDay: 14000,
       fullDay: 20000,
     },
@@ -388,8 +380,10 @@ export function resolveServicePrice(
   }
 
   // Tiered pricing
-  const tierRates = service.pricing || { threeHours: 0, halfDay: 0, fullDay: 0 };
-  const unitPrice = tierRates[durationTier] ?? 0;
+  const unitPrice =
+    durationTier === 'threeHours'
+      ? service.pricing?.halfDay ?? 0
+      : service.pricing?.[durationTier] ?? 0;
   return {
     unitPrice,
     total: unitPrice * safeQty,

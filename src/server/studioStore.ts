@@ -227,6 +227,23 @@ export function normalizePackageDeliverables(raw: unknown): PackageDeliverables 
   return sanitizePackageDeliverables(raw);
 }
 
+function normalizeServicePricing(raw: unknown): StudioService['pricing'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const pricing = raw as Record<string, unknown>;
+  const normalized: NonNullable<StudioService['pricing']> = {};
+  if (typeof pricing.halfDay === 'number') {
+    normalized.halfDay = pricing.halfDay;
+  } else if (pricing.halfDay === null) {
+    normalized.halfDay = null;
+  }
+  if (typeof pricing.fullDay === 'number') {
+    normalized.fullDay = pricing.fullDay;
+  } else if (pricing.fullDay === null) {
+    normalized.fullDay = null;
+  }
+  return normalized;
+}
+
 export function toPlainService(doc: unknown): StudioService {
   const s = (doc && typeof (doc as { toObject?: () => unknown }).toObject === 'function'
     ? (doc as { toObject: () => Record<string, unknown> }).toObject()
@@ -243,7 +260,7 @@ export function toPlainService(doc: unknown): StudioService {
     unitLabel: String(s.unitLabel || 'unit'),
     unitPrice: typeof s.unitPrice === 'number' ? s.unitPrice : null,
     minQuantity: typeof s.minQuantity === 'number' ? s.minQuantity : 1,
-    pricing: s.pricing && typeof s.pricing === 'object' ? (s.pricing as StudioService['pricing']) : null,
+    pricing: normalizeServicePricing(s.pricing),
     isActive: s.isActive !== false,
     displayOrder: typeof s.displayOrder === 'number' ? s.displayOrder : 0,
     createdAt: s.createdAt ? String(s.createdAt) : undefined,
@@ -289,6 +306,20 @@ export async function getServicesFromMongo(): Promise<StudioService[]> {
       }
       docs = await serviceModel.find({}).sort({ displayOrder: 1, createdAt: 1 }).lean().exec();
     }
+    const obsoleteRateOps = docs.flatMap((service) => {
+      const pricing = service.pricing;
+      if (!pricing || typeof pricing !== 'object' || !('threeHours' in pricing)) return [];
+      return [{
+        updateOne: {
+          filter: { _id: service._id },
+          update: { $set: { pricing: normalizeServicePricing(pricing) } },
+        },
+      }];
+    });
+    if (obsoleteRateOps.length > 0) {
+      await serviceModel.bulkWrite(obsoleteRateOps);
+    }
+
     return docs.map(toPlainService);
   } catch (err) {
     console.warn('Error fetching services from Mongo, using defaults:', err);
@@ -2608,7 +2639,7 @@ export async function saveServiceOnServer(service: Partial<StudioService>): Prom
     unitLabel: service.unitLabel || (service.pricingType === 'per_unit' ? 'unit' : 'camera'),
     unitPrice: typeof service.unitPrice === 'number' ? service.unitPrice : null,
     minQuantity: typeof service.minQuantity === 'number' ? service.minQuantity : 1,
-    pricing: service.pricing || null,
+    pricing: normalizeServicePricing(service.pricing),
     isActive: service.isActive !== false,
     displayOrder: typeof service.displayOrder === 'number' ? service.displayOrder : maxSort + 1,
     updatedAt: new Date().toISOString(),
@@ -2663,6 +2694,9 @@ export async function updateServiceOnServer(
   const updateDoc: Record<string, unknown> = {
     ...safePatch,
     updatedAt: new Date().toISOString(),
+    pricing: normalizeServicePricing(
+      patch.pricing !== undefined ? patch.pricing : existing.pricing
+    ),
   };
 
   if (patch.name?.trim()) {

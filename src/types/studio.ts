@@ -114,9 +114,8 @@ export type DurationTier = 'threeHours' | 'halfDay' | 'fullDay';
 export type PricingType = 'tiered' | 'per_unit';
 
 export interface StudioServicePricing {
-  threeHours?: number;
-  halfDay?: number;
-  fullDay?: number;
+  halfDay?: number | null;
+  fullDay?: number | null;
 }
 
 export interface StudioService {

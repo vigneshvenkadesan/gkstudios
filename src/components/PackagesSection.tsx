@@ -456,7 +456,7 @@ export function PackagesSection({
 
                         <div className="mt-5 pb-5 border-b border-[#C5B378]/16">
                           <div className="flex items-baseline gap-2">
-                            <span className="font-serif text-4xl font-semibold text-white tabular-nums tracking-tight">
+                            <span className="text-4xl font-semibold text-white tabular-nums tracking-tight">
                               {formatINR(pkg.price)}
                             </span>
                             <span className="text-xs text-[#E6ECEB]/60">{t('packages.starting')}</span>

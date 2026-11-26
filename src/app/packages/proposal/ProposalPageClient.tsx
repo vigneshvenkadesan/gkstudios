@@ -2247,7 +2247,7 @@ export function ProposalPageClient() {
                               </label>
                               <select
                                 id={`proposal-tier-${featureServiceSlug}`}
-                                value={featureDurationTier}
+                                value={featureDurationTier === 'threeHours' ? 'halfDay' : featureDurationTier}
                                 onChange={(event) =>
                                   setServiceDurationOverrides((current) => ({
                                     ...current,
@@ -2256,9 +2256,6 @@ export function ProposalPageClient() {
                                 }
                                 className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-2 text-[10px] text-white"
                               >
-                                {featureDurationTier === 'threeHours' && (
-                                  <option value="threeHours" disabled>3 Hours (Studio-set)</option>
-                                )}
                                 <option value="halfDay">Half Day</option>
                                 <option value="fullDay">Full Day</option>
                               </select>
@@ -2386,7 +2383,11 @@ export function ProposalPageClient() {
                             {services.find((service) => service.slug === el.serviceSlug)?.pricingType === 'tiered' && (
                               <select
                                 aria-label={`${el.label} upgrade duration tier`}
-                                value={serviceDurationOverrides[el.serviceSlug] ?? el.durationTier}
+                                value={
+                                  (serviceDurationOverrides[el.serviceSlug] ?? el.durationTier) === 'threeHours'
+                                    ? 'halfDay'
+                                    : serviceDurationOverrides[el.serviceSlug] ?? el.durationTier
+                                }
                                 onChange={(event) =>
                                   setServiceDurationOverrides((current) => ({
                                     ...current,
@@ -2396,9 +2397,6 @@ export function ProposalPageClient() {
                                 onClick={(event) => event.stopPropagation()}
                                 className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1.5 text-[10px] text-white"
                               >
-                                {el.durationTier === 'threeHours' && (
-                                  <option value="threeHours" disabled>3 Hours (Studio-set)</option>
-                                )}
                                 <option value="halfDay">Half Day</option>
                                 <option value="fullDay">Full Day</option>
                               </select>

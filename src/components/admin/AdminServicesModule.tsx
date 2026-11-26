@@ -73,7 +73,6 @@ export function AdminServicesModule() {
   const [formUnitLabel, setFormUnitLabel] = useState('camera');
   const [formUnitPrice, setFormUnitPrice] = useState<number | ''>('');
   const [formMinQuantity, setFormMinQuantity] = useState<number>(1);
-  const [formPrice3h, setFormPrice3h] = useState<number | ''>('');
   const [formPriceHalfDay, setFormPriceHalfDay] = useState<number | ''>('');
   const [formPriceFullDay, setFormPriceFullDay] = useState<number | ''>('');
   const [formDisplayOrder, setFormDisplayOrder] = useState<number>(1);
@@ -111,7 +110,6 @@ export function AdminServicesModule() {
     setFormUnitLabel('camera');
     setFormUnitPrice('');
     setFormMinQuantity(1);
-    setFormPrice3h(6000);
     setFormPriceHalfDay(10000);
     setFormPriceFullDay(16000);
     setFormDisplayOrder(nextOrder);
@@ -136,7 +134,6 @@ export function AdminServicesModule() {
     setFormUnitLabel(svc.unitLabel || 'unit');
     setFormUnitPrice(typeof svc.unitPrice === 'number' ? svc.unitPrice : '');
     setFormMinQuantity(svc.minQuantity ?? 1);
-    setFormPrice3h(typeof svc.pricing?.threeHours === 'number' ? svc.pricing.threeHours : '');
     setFormPriceHalfDay(typeof svc.pricing?.halfDay === 'number' ? svc.pricing.halfDay : '');
     setFormPriceFullDay(typeof svc.pricing?.fullDay === 'number' ? svc.pricing.fullDay : '');
     setFormDisplayOrder(svc.displayOrder ?? 1);
@@ -188,15 +185,13 @@ export function AdminServicesModule() {
     };
 
     if (formPricingType === 'tiered') {
-      const threeH = Number(formPrice3h) || 0;
       const halfD = Number(formPriceHalfDay) || 0;
       const fullD = Number(formPriceFullDay) || 0;
-      if (threeH <= 0 || halfD <= 0 || fullD <= 0) {
-        toast.error('Please enter valid positive prices for 3 Hours, Half Day, and Full Day.');
+      if (halfD <= 0 || fullD <= 0) {
+        toast.error('Please enter valid positive prices for Half Day and Full Day.');
         return;
       }
       payload.pricing = {
-        threeHours: threeH,
         halfDay: halfD,
         fullDay: fullD,
       };
@@ -281,7 +276,7 @@ export function AdminServicesModule() {
             Master Service & Pricing Manager
           </h2>
           <p className="text-xs text-[#E6ECEB]/70 mt-1 max-w-2xl">
-            Configure canonical deliverables, duration tiers (3 Hours, Half Day, Full Day), and per-unit rates.
+            Configure canonical deliverables, Half Day and Full Day service rates, and per-unit rates.
             All package quotes and proposal calculations update automatically from these rates.
           </p>
         </div>
@@ -442,7 +437,7 @@ export function AdminServicesModule() {
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] text-[#D8C78E] font-semibold bg-[#114A45] border border-[#D8C78E]/30 px-2 py-0.5 rounded">
                             <Layers className="h-3 w-3" />
-                            3 Duration Tiers
+                            2 Duration Tiers
                           </span>
                         )}
                       </TableCell>
@@ -459,13 +454,7 @@ export function AdminServicesModule() {
                             </span>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
-                            <div className="bg-[#051C1A] border border-[#C5B378]/15 rounded px-2 py-1">
-                              <span className="text-[9px] text-[#D8C78E]/70 uppercase block">3 Hours</span>
-                              <span className="font-bold text-white">
-                                {formatINR(svc.pricing?.threeHours ?? 0)}
-                              </span>
-                            </div>
+                          <div className="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
                             <div className="bg-[#051C1A] border border-[#C5B378]/15 rounded px-2 py-1">
                               <span className="text-[9px] text-[#D8C78E]/70 uppercase block">Half Day</span>
                               <span className="font-bold text-white">
@@ -647,7 +636,7 @@ export function AdminServicesModule() {
                   <div>
                     <span className="text-xs font-bold block">Duration Tiered</span>
                     <span className="text-[10px] leading-tight text-[#E6ECEB]/60">
-                      Standard pricing for 3h, Half Day, and Full Day slots.
+                      Standard pricing for Half Day and Full Day coverage.
                     </span>
                   </div>
                 </label>
@@ -695,21 +684,7 @@ export function AdminServicesModule() {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-[#D8C78E]">3 Hours Rate (₹) *</label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      step={500}
-                      value={formPrice3h}
-                      onChange={(e) => setFormPrice3h(e.target.value === '' ? '' : Number(e.target.value))}
-                      placeholder="6000"
-                      className="h-9 w-full rounded border border-[#C5B378]/25 bg-[#092E2B] px-2.5 text-xs text-white font-mono focus:border-[#D8C78E] focus:outline-none"
-                    />
-                  </div>
-
+                <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-[#D8C78E]">Half Day Rate (₹) *</label>
                     <input
