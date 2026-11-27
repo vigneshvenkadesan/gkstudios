@@ -7,6 +7,7 @@ import {
   updatePortfolioItemOnServer,
 } from '@/src/server/studioStore';
 import { PortfolioItem } from '@/src/types/studio';
+import { normalizeImageCrop } from '@/src/lib/imageCrop';
 
 function getEditablePatch(body: Partial<PortfolioItem>): Partial<PortfolioItem> {
   const patch: Partial<PortfolioItem> = {};
@@ -18,7 +19,11 @@ function getEditablePatch(body: Partial<PortfolioItem>): Partial<PortfolioItem> 
   if (typeof body.dateLabel === 'string') patch.dateLabel = body.dateLabel;
   if (typeof body.isHeroFeatured === 'boolean') patch.isHeroFeatured = body.isHeroFeatured;
   if (typeof body.isVisible === 'boolean') patch.isVisible = body.isVisible;
-  if (body.aspect === 'wide' || body.aspect === 'standard') patch.aspect = body.aspect;
+  if (body.aspect === 'wide' || body.aspect === 'standard' || body.aspect === 'tall') patch.aspect = body.aspect;
+  const desktopCrop = normalizeImageCrop(body.desktopCrop);
+  if (desktopCrop) patch.desktopCrop = desktopCrop;
+  const mobileCrop = normalizeImageCrop(body.mobileCrop);
+  if (mobileCrop) patch.mobileCrop = mobileCrop;
   return patch;
 }
 

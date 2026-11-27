@@ -3,6 +3,7 @@ import type {
   BookingRequest,
   CalendarDayEntry,
   EventProject,
+  ImageCropConfig,
   StudioEvent,
   StudioBill,
   StudioPackage,
@@ -33,10 +34,21 @@ interface GalleryImageDocument extends mongoose.Document {
   dateLabel?: string;
   isHeroFeatured?: boolean;
   isVisible?: boolean;
-  aspect?: 'wide' | 'standard';
+  aspect?: 'wide' | 'standard' | 'tall';
+  desktopCrop?: ImageCropConfig;
+  mobileCrop?: ImageCropConfig;
   createdAt?: Date | string;
   updatedAt?: Date | string;
 }
+
+const ImageCropSchema = new Schema(
+  {
+    x: { type: Number, default: 50 },
+    y: { type: Number, default: 50 },
+    zoom: { type: Number, default: 1 },
+  },
+  { _id: false }
+);
 
 const GalleryImageSchema = new Schema<GalleryImageDocument>(
   {
@@ -55,7 +67,9 @@ const GalleryImageSchema = new Schema<GalleryImageDocument>(
     dateLabel: String,
     isHeroFeatured: { type: Boolean, default: false },
     isVisible: { type: Boolean, default: true },
-    aspect: { type: String, enum: ['wide', 'standard'], default: 'standard' },
+    aspect: { type: String, enum: ['wide', 'standard', 'tall'], default: 'standard' },
+    desktopCrop: { type: ImageCropSchema, default: undefined },
+    mobileCrop: { type: ImageCropSchema, default: undefined },
   },
   { collection: 'images', strict: false, timestamps: true }
 );

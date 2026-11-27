@@ -7,6 +7,7 @@ import {
   updatePortfolioItemOnServer,
 } from '@/src/server/studioStore';
 import { PortfolioItem } from '@/src/types/studio';
+import { normalizeImageCrop } from '@/src/lib/imageCrop';
 
 export async function PATCH(
   request: Request,
@@ -21,7 +22,18 @@ export async function PATCH(
 
   try {
     const { id } = await context.params;
-    const patch = (await request.json()) as Partial<PortfolioItem>;
+    const rawPatch = (await request.json()) as Partial<PortfolioItem>;
+    const patch: Partial<PortfolioItem> = { ...rawPatch };
+    if (rawPatch.desktopCrop !== undefined) {
+      const desktopCrop = normalizeImageCrop(rawPatch.desktopCrop);
+      if (desktopCrop) patch.desktopCrop = desktopCrop;
+      else delete patch.desktopCrop;
+    }
+    if (rawPatch.mobileCrop !== undefined) {
+      const mobileCrop = normalizeImageCrop(rawPatch.mobileCrop);
+      if (mobileCrop) patch.mobileCrop = mobileCrop;
+      else delete patch.mobileCrop;
+    }
     const state = await updatePortfolioItemOnServer(id, patch);
     revalidatePath('/');
     revalidatePath('/admin');

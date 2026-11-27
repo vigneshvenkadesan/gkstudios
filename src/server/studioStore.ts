@@ -55,6 +55,7 @@ import {
   sanitizePackageDeliverables,
 } from '../lib/pricing';
 import { englishOnlyName } from '../lib/englishOnlyName';
+import { normalizeImageCrop } from '../lib/imageCrop';
 
 const PRIMARY_DB_PATH = path.join(process.cwd(), 'data', 'studio-db.json');
 const DURATION_TIER_LABELS: Record<DurationTier, string> = {
@@ -1088,6 +1089,9 @@ function toPlainPortfolioItem(raw: Record<string, unknown>): PortfolioItem {
         ? raw.createdAt
         : undefined;
 
+  const desktopCrop = normalizeImageCrop(raw.desktopCrop);
+  const mobileCrop = normalizeImageCrop(raw.mobileCrop);
+
   return {
     id,
     ...(typeof raw.eventId === 'string' ? { eventId: raw.eventId } : {}),
@@ -1107,7 +1111,9 @@ function toPlainPortfolioItem(raw: Record<string, unknown>): PortfolioItem {
     dateLabel: typeof raw.dateLabel === 'string' ? raw.dateLabel : '',
     isHeroFeatured: raw.isHeroFeatured === true,
     isVisible: raw.isVisible !== false,
-    aspect: raw.aspect === 'wide' ? 'wide' : 'standard',
+    aspect: raw.aspect === 'wide' ? 'wide' : raw.aspect === 'tall' ? 'tall' : 'standard',
+    ...(desktopCrop ? { desktopCrop } : {}),
+    ...(mobileCrop ? { mobileCrop } : {}),
   };
 }
 
@@ -1728,6 +1734,8 @@ export async function addPortfolioItemOnServer(
   );
   const sortOrder = Math.max(existingRecords.length, maxSortOrder) + 1;
   const imageId = `pf-${new Types.ObjectId().toString()}`;
+  const desktopCrop = normalizeImageCrop(item.desktopCrop);
+  const mobileCrop = normalizeImageCrop(item.mobileCrop);
   const createdRecord = await images.create({
     ...item,
     id: imageId,
@@ -1736,6 +1744,8 @@ export async function addPortfolioItemOnServer(
     secure_url: item.secure_url || item.imageUrl,
     folder: item.folder || 'gkstudios',
     isVisible: item.isVisible ?? true,
+    ...(desktopCrop ? { desktopCrop } : {}),
+    ...(mobileCrop ? { mobileCrop } : {}),
   });
   const state = await getStudioState();
   return {
@@ -1772,9 +1782,21 @@ export async function updatePortfolioItemOnServer(
   patch: Partial<PortfolioItem>
 ): Promise<StudioState> {
   const images = await requireGalleryImageModel();
+  const sanitizedPatch: Partial<PortfolioItem> = { ...patch };
+  if (patch.desktopCrop !== undefined) {
+    const normalized = normalizeImageCrop(patch.desktopCrop);
+    if (normalized) sanitizedPatch.desktopCrop = normalized;
+    else delete sanitizedPatch.desktopCrop;
+  }
+  if (patch.mobileCrop !== undefined) {
+    const normalized = normalizeImageCrop(patch.mobileCrop);
+    if (normalized) sanitizedPatch.mobileCrop = normalized;
+    else delete sanitizedPatch.mobileCrop;
+  }
+
   const updated = await images.findOneAndUpdate(
     getGalleryImageFilter(id),
-    { $set: patch },
+    { $set: sanitizedPatch },
     { new: true, runValidators: true }
   ).exec();
   if (!updated) throw new PortfolioItemNotFoundError(id);

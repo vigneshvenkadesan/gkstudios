@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import { addPortfolioItemOnServer } from '@/src/server/studioStore';
 import { PortfolioItem } from '@/src/types/studio';
+import { normalizeImageCrop } from '@/src/lib/imageCrop';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,13 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const result = await addPortfolioItemOnServer(body);
+    const desktopCrop = normalizeImageCrop(body.desktopCrop);
+    const mobileCrop = normalizeImageCrop(body.mobileCrop);
+    const result = await addPortfolioItemOnServer({
+      ...body,
+      ...(desktopCrop ? { desktopCrop } : {}),
+      ...(mobileCrop ? { mobileCrop } : {}),
+    });
     revalidatePath('/');
     revalidatePath('/admin');
     return NextResponse.json(result, { status: 201 });

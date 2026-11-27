@@ -287,6 +287,22 @@ export interface EventProject {
   totalAmount?: number;
 }
 
+export type PortfolioGridSizeOption = 'Standard (4:3)' | 'Wide (3:2)' | 'Tall (3:4)';
+
+export interface GeneratedCaptionResponse {
+  title: string;
+  category: CoreEventCategory;
+  shootNotes: string;
+  gridSize: PortfolioGridSizeOption;
+  featureInHero: boolean;
+}
+
+export interface ImageCropConfig {
+  x: number;
+  y: number;
+  zoom?: number;
+}
+
 export interface PortfolioItem {
   id: string;
   eventId?: string;
@@ -304,7 +320,9 @@ export interface PortfolioItem {
   dateLabel: string;
   isHeroFeatured: boolean;
   isVisible: boolean;
-  aspect?: 'wide' | 'standard';
+  aspect?: 'wide' | 'standard' | 'tall';
+  desktopCrop?: ImageCropConfig;
+  mobileCrop?: ImageCropConfig;
 }
 
 export interface PackageDeliverables {

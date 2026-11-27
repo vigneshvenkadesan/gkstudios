@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import { SHIMMER_BLUR_DATA_URL, usePreloadImagesOnApproach } from '@/src/lib/imageBlur';
+import { getResponsiveCropStyle } from '@/src/lib/imageCrop';
 import { MandalaImagePlaceholder } from '@/src/components/MandalaLoader';
 import { ComplementaryHighlightText } from '@/src/components/ComplementaryHighlightText';
 import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
@@ -114,10 +115,15 @@ export function PortfolioSection({
 
   const getEditorialLayoutClass = (item: PortfolioItem, index: number): string => {
     if (selectedCategory !== 'all') {
+      if (item.aspect === 'wide') return 'aspect-[3/2]';
+      if (item.aspect === 'tall') return 'aspect-[3/4]';
       return 'aspect-[4/3]';
     }
     if (index === 0 || item.aspect === 'wide') {
-      return 'md:col-span-2 aspect-[16/10]';
+      return 'md:col-span-2 aspect-[3/2]';
+    }
+    if (item.aspect === 'tall') {
+      return 'aspect-[3/4]';
     }
     if (index === 1) {
       return 'aspect-[4/3] md:aspect-auto md:h-full min-h-[300px]';
@@ -288,7 +294,7 @@ export function PortfolioSection({
                 )}`}
               >
                 {!failedImages[item.id] ? (
-                  <>
+                  <div className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-[1.04] motion-reduce:group-hover:scale-100">
                     {!loadedImages[item.id] && <MandalaImagePlaceholder />}
                     <Image
                       src={item.imageUrl}
@@ -310,11 +316,12 @@ export function PortfolioSection({
                       onError={() =>
                         setFailedImages((prev) => ({ ...prev, [item.id]: true }))
                       }
-                      className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-[1.04] motion-reduce:group-hover:scale-100 ${
+                      style={getResponsiveCropStyle(item)}
+                      className={`h-full w-full object-cover gk-responsive-crop transition-opacity duration-500 ${
                         loadedImages[item.id] ? 'opacity-100' : 'opacity-0'
                       }`}
                     />
-                  </>
+                  </div>
                 ) : (
                   <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0E423E] to-[#061E1C] p-6 text-center">
                     <Camera className="h-8 w-8 text-[#C5B378]" />

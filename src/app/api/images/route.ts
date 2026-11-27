@@ -6,6 +6,7 @@ import {
   getPortfolioItemsFromMongo,
 } from '@/src/server/studioStore';
 import { EventCategory, PortfolioItem } from '@/src/types/studio';
+import { normalizeImageCrop } from '@/src/lib/imageCrop';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const desktopCrop = normalizeImageCrop(body.desktopCrop);
+    const mobileCrop = normalizeImageCrop(body.mobileCrop);
+
     const item: Omit<PortfolioItem, 'id'> = {
       title,
       category: category as EventCategory,
@@ -79,8 +83,10 @@ export async function POST(request: Request) {
       dateLabel: body.dateLabel?.trim() || '',
       isHeroFeatured: body.isHeroFeatured === true,
       isVisible: body.isVisible !== false,
-      aspect: body.aspect === 'wide' ? 'wide' : 'standard',
+      aspect: body.aspect === 'wide' ? 'wide' : body.aspect === 'tall' ? 'tall' : 'standard',
       ...(body.eventId ? { eventId: body.eventId } : {}),
+      ...(desktopCrop ? { desktopCrop } : {}),
+      ...(mobileCrop ? { mobileCrop } : {}),
     };
 
     const result = await addPortfolioItemOnServer(item);

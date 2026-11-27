@@ -16,6 +16,7 @@ import { Button } from '@/src/components/ui/button';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { localizePortfolioText, translate } from '@/src/i18n/translations';
 import { SHIMMER_BLUR_DATA_URL, preloadImage } from '@/src/lib/imageBlur';
+import { getResponsiveCropStyle } from '@/src/lib/imageCrop';
 
 interface HeroSectionProps {
   onViewPackages: () => void;
@@ -126,7 +127,8 @@ export function HeroSection({ onViewPackages, onExploreWork, onHeroReady }: Hero
                   setFailedImages((prev) => ({ ...prev, [activeSlide.id]: true }));
                   onHeroReady?.();
                 }}
-                className="h-full w-full object-cover object-center"
+                style={getResponsiveCropStyle(activeSlide)}
+                className="h-full w-full object-cover gk-responsive-crop"
               />
             </motion.div>
           ) : (
