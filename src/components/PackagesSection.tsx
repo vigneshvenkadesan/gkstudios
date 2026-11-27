@@ -206,13 +206,13 @@ export function PackagesSection({
           </div>
 
           {/* Mode Switcher Pills */}
-          <div className="flex items-center gap-1.5 rounded-full bg-[#0E423E] border border-[#C5B378]/30 p-1 self-start lg:self-auto shadow-sm">
+          <div className="gk-mode-switcher flex items-center gap-1.5 rounded-full bg-[#0E423E] border border-[#C5B378]/30 p-1 self-start lg:self-auto shadow-sm">
             <button
               type="button"
               onClick={() => setViewMode('intake')}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 viewMode === 'intake'
-                  ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] shadow-sm'
+                  ? 'gk-mode-pill-active bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] shadow-sm'
                   : 'text-[#E6ECEB]/75 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -225,7 +225,7 @@ export function PackagesSection({
               onClick={() => setViewMode('grid')}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 viewMode === 'grid'
-                  ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] shadow-sm'
+                  ? 'gk-mode-pill-active bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] shadow-sm'
                   : 'text-[#E6ECEB]/75 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -393,7 +393,7 @@ export function PackagesSection({
                           delay: idx * 0.08,
                           ease: [0.16, 1, 0.3, 1],
                         }}
-                        className={`group relative flex w-full max-w-[380px] flex-col overflow-hidden rounded-xl border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1 motion-reduce:hover:translate-y-0 sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)] xl:w-[calc(25%-15px)] ${
+                        className={`gk-package-card ${isRecommended ? 'gk-package-card--recommended' : ''} ${isSelected ? 'gk-package-card--selected' : ''} group relative flex w-full max-w-[380px] flex-col overflow-hidden rounded-xl border transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:-translate-y-1 motion-reduce:hover:translate-y-0 sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)] xl:w-[calc(25%-15px)] ${
                           isSelected
                             ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_18px_45px_rgba(4,20,18,0.45)] ring-2 ring-[#D8C78E]'
                             : isRecommended
@@ -405,8 +405,8 @@ export function PackagesSection({
                           aria-hidden="true"
                           className={`h-1 w-full ${
                             isRecommended
-                              ? 'bg-gradient-to-r from-[#C5B378] via-[#F4E8C1] to-[#C5B378]'
-                              : 'bg-gradient-to-r from-transparent via-[#C5B378]/45 to-transparent'
+                              ? 'gk-pkg-strip-recommended bg-gradient-to-r from-[#C5B378] via-[#F4E8C1] to-[#C5B378]'
+                              : 'gk-pkg-strip bg-gradient-to-r from-transparent via-[#C5B378]/45 to-transparent'
                           }`}
                         />
 
@@ -424,9 +424,9 @@ export function PackagesSection({
                               blurDataURL={SHIMMER_BLUR_DATA_URL}
                               className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/20" />
+                            <div className="gk-pkg-img-fade absolute inset-0 bg-gradient-to-t from-[#092E2B] via-transparent to-black/20" />
                             {isRecommended && (
-                              <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#C5B378] to-[#E8D79F] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#061E1C] shadow-[0_2px_12px_rgba(216,199,142,0.4)]">
+                              <span className="gk-pkg-recommended-badge absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#C5B378] to-[#E8D79F] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#061E1C] shadow-[0_2px_12px_rgba(216,199,142,0.4)]">
                                 <Sparkles className="h-3 w-3 fill-[#061E1C]" />
                                 Recommended
                               </span>
@@ -440,7 +440,7 @@ export function PackagesSection({
                               {String(idx + 1).padStart(2, '0')}
                             </span>
                             {!pkgImg && isRecommended && (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D8C78E] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#061E1C]">
+                              <span className="gk-pkg-recommended-badge inline-flex items-center gap-1.5 rounded-full bg-[#D8C78E] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#061E1C]">
                                 <Sparkles className="h-3 w-3 fill-[#061E1C]" />
                                 Recommended
                               </span>
@@ -513,8 +513,8 @@ export function PackagesSection({
                             <Button
                               className={`w-full justify-between transition-all duration-200 ${
                                 isSelected || isRecommended
-                                  ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] font-bold text-[#061E1C] shadow-[0_4px_16px_rgba(216,199,142,0.2)] hover:brightness-105'
-                                  : 'border border-[#C5B378]/50 text-white hover:border-[#D8C78E] hover:bg-[#C5B378]/10'
+                                  ? 'gk-pkg-cta-primary bg-gradient-to-r from-[#C5B378] to-[#D8C78E] font-bold text-[#061E1C] shadow-[0_4px_16px_rgba(216,199,142,0.2)] hover:brightness-105'
+                                  : 'gk-pkg-cta-outline border border-[#C5B378]/50 text-white hover:border-[#D8C78E] hover:bg-[#C5B378]/10'
                               }`}
                               variant={isSelected || isRecommended ? 'default' : 'outline'}
                               disabled={pendingPackageId !== null}
@@ -548,7 +548,7 @@ export function PackagesSection({
         )}
 
         {viewMode === 'grid' && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-sm border border-[#C5B378]/25 bg-[#0E423E] p-4 text-xs">
+          <div className="gk-banner-card flex flex-col sm:flex-row items-center justify-between gap-3 rounded-sm border border-[#C5B378]/25 bg-[#0E423E] p-4 text-xs">
             <div className="flex items-center gap-2 text-[#E6ECEB]/90">
               <Sparkles className="h-4 w-4 text-[#D8C78E] shrink-0" />
               <span>Need a custom package?</span>
@@ -556,7 +556,7 @@ export function PackagesSection({
             <Button
               size="sm"
               onClick={() => setViewMode('intake')}
-              className="gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold text-xs"
+              className="gk-btn-primary gap-1.5 bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold text-xs"
             >
               <span>Customize</span>
             </Button>
@@ -564,7 +564,7 @@ export function PackagesSection({
         )}
 
         {/* Guidance & Direct Contact Banner */}
-        <div className="mt-8 flex flex-col gap-5 rounded-sm border border-[#C5B378]/25 bg-[#0E423E] p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="gk-banner-card mt-8 flex flex-col gap-5 rounded-sm border border-[#C5B378]/25 bg-[#0E423E] p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-1.5">
             <h3 className="font-serif text-xl font-semibold text-white sm:text-2xl">
               {t('packages.guidanceHeading')}
@@ -576,7 +576,7 @@ export function PackagesSection({
           <div className="flex shrink-0 flex-wrap gap-3">
             <a
               href="tel:+917418543123"
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm bg-[#C5B378] px-6 text-sm font-semibold tracking-[0.02em] text-[#061E1C] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset] transition-all duration-200 hover:bg-[#D8C78E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] sm:w-auto"
+              className="gk-btn-primary inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm bg-[#C5B378] px-6 text-sm font-semibold tracking-[0.02em] text-[#061E1C] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset] transition-all duration-200 hover:bg-[#D8C78E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] sm:w-auto"
             >
               <Phone className="h-4 w-4" />
               {t('packages.call')}
@@ -585,7 +585,7 @@ export function PackagesSection({
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm border border-[#C5B378]/50 bg-transparent px-6 text-sm font-medium tracking-[0.02em] text-white transition-all duration-200 hover:border-[#D8C78E] hover:bg-[#C5B378]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] sm:w-auto"
+              className="gk-btn-outline inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm border border-[#C5B378]/50 bg-transparent px-6 text-sm font-medium tracking-[0.02em] text-white transition-all duration-200 hover:border-[#D8C78E] hover:bg-[#C5B378]/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] sm:w-auto"
             >
               <MessageCircle className="h-4 w-4 text-[#D8C78E]" />
               {t('packages.whatsapp')}

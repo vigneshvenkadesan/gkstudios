@@ -59,7 +59,7 @@ export function Footer({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.08 }}
       transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-      className="scroll-mt-16 bg-[#061E1C] text-[#E6ECEB]/80 sm:scroll-mt-[72px]"
+      className="gk-footer scroll-mt-16 bg-[#061E1C] text-[#E6ECEB]/80 sm:scroll-mt-[72px]"
     >
       <div className="mx-auto max-w-7xl px-4 pt-12 pb-8 sm:px-6 sm:pt-14 sm:pb-9 lg:px-8">
         {/* Balanced 3-Column Editorial Grid */}

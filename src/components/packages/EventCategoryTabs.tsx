@@ -82,7 +82,7 @@ export function EventCategoryTabs({
             <ChevronRight className="h-3.5 w-3.5" />
           </div>
           <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#072421] to-transparent sm:hidden" />
+            <div className="gk-scroll-fade-right pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#072421] to-transparent sm:hidden" />
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {EVENT_CATEGORY_GROUPS.map((group) => {
                 const isActive = selectedCategoryId === group.id;
@@ -174,8 +174,8 @@ export function EventCategoryTabs({
                     onClick={() => onSelectEvent(ev.id)}
                     className={`group relative flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition-all duration-200 cursor-pointer ${
                       isSelected
-                        ? 'bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold shadow-[0_4px_14px_rgba(216,199,142,0.3)] ring-2 ring-[#D8C78E]/50'
-                        : 'bg-[#092E2B] text-[#E6ECEB]/85 border border-[#C5B378]/25 hover:border-[#D8C78E]/60 hover:text-white hover:bg-[#0E423E]'
+                        ? 'gk-event-pill-active bg-gradient-to-r from-[#C5B378] to-[#D8C78E] text-[#061E1C] font-semibold shadow-[0_4px_14px_rgba(216,199,142,0.3)] ring-2 ring-[#D8C78E]/50'
+                        : 'gk-event-pill bg-[#092E2B] text-[#E6ECEB]/85 border border-[#C5B378]/25 hover:border-[#D8C78E]/60 hover:text-white hover:bg-[#0E423E]'
                     }`}
                   >
                     <span>{ev.name}</span>
@@ -184,8 +184,8 @@ export function EventCategoryTabs({
                       <span
                         className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-semibold tabular-nums ${
                           isSelected
-                            ? 'bg-[#061E1C]/20 text-[#061E1C]'
-                            : 'bg-[#D8C78E]/15 text-[#D8C78E]'
+                            ? 'gk-event-pill-count-active bg-[#061E1C]/20 text-[#061E1C]'
+                            : 'gk-event-pill-count bg-[#D8C78E]/15 text-[#D8C78E]'
                         }`}
                       >
                         {count} {count === 1 ? 'pkg' : 'pkgs'}

@@ -75,7 +75,7 @@ export function TermsAndConditionsModal({
   };
 
   const highlightBadge = (text: string) => (
-    <span className="inline-flex items-center rounded border border-[#C5B378]/35 bg-[#C5B378]/15 px-1.5 py-0.5 font-mono text-xs font-semibold text-[#D8C78E]">
+    <span className="gk-terms-highlight inline-flex items-center rounded border border-[#C5B378]/35 bg-[#C5B378]/15 px-1.5 py-0.5 font-mono text-xs font-semibold text-[#D8C78E]">
       {text}
     </span>
   );
@@ -84,7 +84,7 @@ export function TermsAndConditionsModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <DialogContent
         closeLabel={t('common.close')}
-        className="max-h-[92vh] w-[95vw] max-w-3xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] shadow-2xl flex flex-col"
+        className="gk-terms-dialog max-h-[92vh] w-[95vw] max-w-3xl overflow-hidden p-0 border-[#C5B378]/30 bg-[#072421] text-[#E6ECEB] shadow-2xl flex flex-col"
       >
         {/* Header */}
         <div className="border-b border-[#C5B378]/20 bg-[#092E2B]/80 px-6 pt-6 pb-4">

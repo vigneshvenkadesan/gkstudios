@@ -377,6 +377,43 @@
   }
 }
 
+/* ─── Luxury Silk Ivory Light Mode ───────────────────────── */
+:global(html[data-gk-public-theme='light']) .section,
+:global(.public-site[data-theme='light']) .section {
+  --pt-gold: #8C6A28;
+  --pt-gold-accent: #B8913F;
+  --pt-green: #16794B;
+  --pt-line-track: rgba(173, 138, 66, 0.24);
+  --pt-text-white: #0D2B25;
+  --pt-text-muted: #465E57;
+  --pt-bg: #F3ECE0;
+  --pt-icon-bg: #FFFDF8;
+  --pt-icon-color: #8C6A28;
+  background: radial-gradient(ellipse at top center, rgba(255, 253, 248, 0.85) 0%, #F3ECE0 70%);
+  border-bottom: 1px solid rgba(173, 138, 66, 0.28);
+}
+
+:global(html[data-gk-public-theme='light']) .iconWrap,
+:global(.public-site[data-theme='light']) .iconWrap {
+  border-color: #C29A45;
+  box-shadow: 0 10px 26px -6px rgba(140, 106, 40, 0.2), 0 0 0 4px rgba(194, 154, 69, 0.12);
+}
+
+:global(html[data-gk-public-theme='light']) .lineFill,
+:global(.public-site[data-theme='light']) .lineFill {
+  background: linear-gradient(90deg, #B58D3D 0%, #D9B768 50%, #B58D3D 100%);
+}
+
+:global(html[data-gk-public-theme='light']) .mobileLineFill,
+:global(.public-site[data-theme='light']) .mobileLineFill {
+  background: linear-gradient(180deg, #B58D3D 0%, #D9B768 50%, #B58D3D 100%);
+}
+
+:global(html[data-gk-public-theme='light']) .trustValue,
+:global(.public-site[data-theme='light']) .trustValue {
+  color: #8C6A28;
+}
+
 /* ─── prefers-reduced-motion ───────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .header,

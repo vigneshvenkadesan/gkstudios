@@ -21,11 +21,11 @@ export function MandalaCrestSpinner({
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center ${dimension} ${className}`}
+      className={`gk-mandala-crest relative inline-flex items-center justify-center ${dimension} ${className}`}
       aria-hidden="true"
     >
       {/* Subtle radial gold glow */}
-      <div className="absolute inset-1 rounded-full bg-[#D8C78E]/10 blur-md" />
+      <div className="gk-mandala-glow absolute inset-1 rounded-full bg-[#D8C78E]/10 blur-md" />
 
       {/* Outer counter-clockwise mandala ring */}
       <motion.svg
@@ -47,6 +47,7 @@ export function MandalaCrestSpinner({
           strokeWidth="0.9"
           strokeOpacity="0.35"
           strokeDasharray="3 4"
+          className="gk-mandala-stroke"
         />
         <circle
           cx="60"
@@ -55,6 +56,7 @@ export function MandalaCrestSpinner({
           stroke="#D8C78E"
           strokeWidth="1.1"
           strokeOpacity="0.5"
+          className="gk-mandala-stroke"
         />
         {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg) => (
           <g key={deg} transform={`rotate(${deg} 60 60)`}>
@@ -62,8 +64,9 @@ export function MandalaCrestSpinner({
               d="M60 6 L63.5 14 L60 18 L56.5 14 Z"
               fill="#D8C78E"
               fillOpacity="0.72"
+              className="gk-mandala-fill"
             />
-            <circle cx="60" cy="4" r="1.3" fill="#F3D999" fillOpacity="0.8" />
+            <circle cx="60" cy="4" r="1.3" fill="#F3D999" fillOpacity="0.8" className="gk-mandala-fill" />
           </g>
         ))}
       </motion.svg>
@@ -87,6 +90,7 @@ export function MandalaCrestSpinner({
           stroke="#C5B378"
           strokeWidth="1"
           strokeOpacity="0.6"
+          className="gk-mandala-stroke"
         />
         {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
           <path
@@ -98,6 +102,7 @@ export function MandalaCrestSpinner({
             strokeWidth="0.9"
             strokeOpacity="0.7"
             transform={`rotate(${deg} 60 60)`}
+            className="gk-mandala-petal"
           />
         ))}
       </motion.svg>
@@ -121,13 +126,15 @@ export function MandalaCrestSpinner({
           fill="#072421"
           stroke="#D8C78E"
           strokeWidth="1.4"
+          className="gk-mandala-core-bg"
         />
         <path
           d="M20 9 L24.5 20 L20 31 L15.5 20 Z"
           fill="#D8C78E"
           fillOpacity="0.85"
+          className="gk-mandala-fill"
         />
-        <circle cx="20" cy="20" r="3" fill="#072421" />
+        <circle cx="20" cy="20" r="3" fill="#072421" className="gk-mandala-core-dot" />
       </motion.svg>
     </div>
   );
@@ -154,7 +161,7 @@ export function MandalaPageLoader({ visible }: MandalaPageLoaderProps) {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: prefersReducedMotion ? 0.15 : 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#051C1A] px-6 text-center"
+          className="gk-mandala-page-loader fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#051C1A] px-6 text-center"
         >
           {/* Ambient radial warmth */}
           <div
@@ -187,7 +194,7 @@ export function MandalaImagePlaceholder({ className = '' }: { className?: string
   return (
     <div
       aria-hidden="true"
-      className={`absolute inset-0 flex items-center justify-center bg-[#072421] ${className}`}
+      className={`gk-mandala-inline absolute inset-0 flex items-center justify-center bg-[#072421] ${className}`}
     >
       <MandalaCrestSpinner size="sm" className="opacity-75" />
     </div>

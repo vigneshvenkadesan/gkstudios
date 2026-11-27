@@ -235,14 +235,14 @@ export function FastIntakeWizard({
                     }}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`flex items-center justify-between text-left p-2.5 sm:p-3.5 rounded-sm border transition-all ${
+                    className={`gk-wizard-card flex items-center justify-between text-left p-2.5 sm:p-3.5 rounded-sm border transition-all ${
                       isSelected
-                        ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                        ? 'gk-wizard-card--active border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
                         : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`shrink-0 ${isSelected ? 'text-[#F4E8C1]' : 'text-[#D8C78E]'}`}>
+                      <span className={`shrink-0 ${isSelected ? 'gk-wizard-active-icon text-[#F4E8C1]' : 'text-[#D8C78E]'}`}>
                         {catIcon}
                       </span>
                       <div className="min-w-0">
@@ -312,9 +312,9 @@ export function FastIntakeWizard({
                       onClick={() => setShootSetting(option.id)}
                       whileHover={{ y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`flex items-center justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all ${
+                      className={`gk-wizard-card flex items-center justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all ${
                         isSelected
-                          ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                          ? 'gk-wizard-card--active border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
                           : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                       }`}
                     >
@@ -336,16 +336,16 @@ export function FastIntakeWizard({
                       onClick={() => setGuestScale(scale.id)}
                       whileHover={{ y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
+                      className={`gk-wizard-card flex sm:flex-col items-center sm:items-start justify-between text-left p-3.5 sm:p-4 rounded-sm border transition-all gap-2.5 ${
                         isSelected
-                          ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
+                          ? 'gk-wizard-card--active border-[#D8C78E] bg-[#114A45] shadow-[0_4px_16px_rgba(4,20,18,0.4)] ring-1 ring-[#D8C78E]'
                           : 'border-[#C5B378]/20 bg-[#092E2B] hover:border-[#C5B378]/50 hover:bg-[#0C3935]'
                       }`}
                     >
                       <div className="flex sm:flex-col items-center sm:items-start gap-2.5 min-w-0">
                         <div
                           className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-sm shrink-0 transition-colors ${
-                            isSelected ? 'bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
+                            isSelected ? 'gk-wizard-icon-active bg-[#D8C78E] text-[#061E1C]' : 'bg-[#0E423E] text-[#D8C78E]'
                           }`}
                         >
                           {scale.icon}
@@ -362,7 +362,7 @@ export function FastIntakeWizard({
                       <span
                         className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
                           isSelected
-                            ? 'bg-[#061E1C]/40 text-[#F4E8C1]'
+                            ? 'gk-wizard-badge-active bg-[#061E1C]/40 text-[#F4E8C1]'
                             : 'bg-[#072421] text-[#D8C78E] border border-[#C5B378]/30'
                         }`}
                       >
@@ -375,7 +375,7 @@ export function FastIntakeWizard({
             )}
 
             {/* Recommendation Preview Banner & Full-width CTA */}
-            <div className="rounded-sm border border-[#D8C78E]/40 bg-gradient-to-r from-[#0E423E] to-[#092E2B] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="gk-wizard-preview rounded-sm border border-[#D8C78E]/40 bg-gradient-to-r from-[#0E423E] to-[#092E2B] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="space-y-1 text-left w-full sm:w-auto">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-[#D8C78E]" />

@@ -51,7 +51,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-6 space-y-6"
           >
-            <div className="group relative aspect-[4/3] sm:aspect-[4/4] lg:aspect-[4/5] w-full overflow-hidden rounded-sm bg-[#061E1C]">
+            <div className="gk-about-photo-frame group relative aspect-[4/3] sm:aspect-[4/4] lg:aspect-[4/5] w-full overflow-hidden rounded-sm bg-[#061E1C]">
               {!imageFailed ? (
                 <>
                   {!imageLoaded && <MandalaImagePlaceholder />}

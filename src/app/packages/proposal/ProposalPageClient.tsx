@@ -59,10 +59,12 @@ import {
   PackageSnapshot,
   ProposalBookingView,
   StudioPackage,
+  StudioService,
 } from '@/src/types/studio';
 import {
   calculateCustomizedEventPrice,
   calculatePackageBasePrice,
+  DEFAULT_STUDIO_SERVICES,
   formatServiceLineItem,
   getPackageFeatureServiceSlugs,
   getPackageIncludedFeatures,
@@ -210,6 +212,19 @@ const FEATURE_SERVICE_SLUGS: Record<keyof PackageIncludedFeatures, string[]> = {
   outdoorShoot: ['outdoor-shoot'],
 };
 
+function resolveProposalServiceSlug(
+  serviceSlug: string,
+  services: StudioService[]
+): string {
+  if (
+    serviceSlug === 'candid-photography-standard' &&
+    services.some((service) => service.slug === 'candid-photography')
+  ) {
+    return 'candid-photography';
+  }
+  return serviceSlug;
+}
+
 function parseDeliverables(
   deliverables: PackageDeliverables | string[] | undefined | null
 ): { category: string; text: string }[] {
@@ -237,7 +252,24 @@ function parseDeliverables(
 export function ProposalPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { packages, services, submitBooking, refreshStudio, isLoading } = useStudio();
+  const {
+    packages,
+    services: catalogServices,
+    submitBooking,
+    refreshStudio,
+    isLoading,
+  } = useStudio();
+  const services = useMemo(() => {
+    const proposalFallbackSlugs = new Set(['candid-photography', 'led-wall']);
+    const missingProposalServices = DEFAULT_STUDIO_SERVICES.filter(
+      (service) =>
+        proposalFallbackSlugs.has(service.slug) &&
+        !catalogServices.some((catalogService) => catalogService.slug === service.slug)
+    );
+    return missingProposalServices.length > 0
+      ? [...catalogServices, ...missingProposalServices]
+      : catalogServices;
+  }, [catalogServices]);
   const { activeEvents } = useEvents();
 
   // URL Query Params detection for Fallback / Standalone mode
@@ -461,13 +493,24 @@ export function ProposalPageClient() {
     const targetPackage = packages.find((pkg) => pkg.id === targetPackageId);
     const optedServices = proposalData.optedServices || [];
     const includedSlugs = new Set(
-      targetPackage?.includedServices?.map((item) => item.serviceSlug) || []
+      targetPackage?.includedServices?.map((item) =>
+        resolveProposalServiceSlug(item.serviceSlug, services)
+      ) || []
     );
     const savedOverrides = savedState?.serviceDurationOverrides;
     const inferredOverrides = Object.fromEntries(
       optedServices
         .filter((item) => item.durationTier)
-        .map((item) => [item.serviceSlug, item.durationTier as DurationTier])
+        .map((item) => [
+          resolveProposalServiceSlug(item.serviceSlug, services),
+          item.durationTier as DurationTier,
+        ])
+    );
+    const restoredDurationOverrides = Object.fromEntries(
+      Object.entries(savedOverrides || inferredOverrides).map(([serviceSlug, tier]) => [
+        resolveProposalServiceSlug(serviceSlug, services),
+        tier,
+      ])
     );
     const inferredExcludedIds = isSavedPackage && targetPackage
       ? [
@@ -477,7 +520,11 @@ export function ProposalPageClient() {
               return (
                 featureSlugs.length > 0 &&
                 !featureSlugs.some((slug) =>
-                  optedServices.some((opted) => opted.serviceSlug === slug)
+                  optedServices.some(
+                    (opted) =>
+                      resolveProposalServiceSlug(opted.serviceSlug, services) ===
+                      resolveProposalServiceSlug(slug, services)
+                  )
                 )
               );
             })
@@ -494,15 +541,24 @@ export function ProposalPageClient() {
               );
               return (
                 !isFeatureService &&
-                !optedServices.some((opted) => opted.serviceSlug === item.serviceSlug)
+                !optedServices.some(
+                  (opted) =>
+                    resolveProposalServiceSlug(opted.serviceSlug, services) ===
+                    resolveProposalServiceSlug(item.serviceSlug, services)
+                )
               );
             })
             .map((item) => `inc-service-${item.serviceSlug}`),
         ]
       : [];
-    const inferredUpgradeIds = isSavedPackage ? optedServices
-      .filter((item) => !includedSlugs.has(item.serviceSlug))
-      .map((item) => item.serviceSlug) : [];
+    const inferredUpgradeIds = isSavedPackage
+      ? optedServices
+          .filter(
+            (item) =>
+              !includedSlugs.has(resolveProposalServiceSlug(item.serviceSlug, services))
+          )
+          .map((item) => resolveProposalServiceSlug(item.serviceSlug, services))
+      : [];
     const savedAlbumSheets = isSavedPackage
       ? optedServices.find((item) => item.serviceSlug.startsWith('photo-album'))?.quantity
       : undefined;
@@ -552,17 +608,16 @@ export function ProposalPageClient() {
       isSavedPackage ? savedState?.selectedUpgradeIds || inferredUpgradeIds : []
     );
     setServiceDurationOverrides(
-      isSavedPackage ? savedOverrides || inferredOverrides : {}
+      isSavedPackage ? restoredDurationOverrides : {}
     );
-    const traditionalPhotoSlugs = targetPackage
-      ? getPackageFeatureServiceSlugs(targetPackage, services, 'traditionalPhoto')
-      : ['traditional-camera'];
-    const savedTraditionalCamera = isSavedPackage
-      ? optedServices.find((item) => traditionalPhotoSlugs.includes(item.serviceSlug))
-      : undefined;
     setServiceQuantityOverrides(
-      savedTraditionalCamera
-        ? { [savedTraditionalCamera.serviceSlug]: savedTraditionalCamera.quantity }
+      isSavedPackage
+        ? Object.fromEntries(
+            optedServices.map((item) => [
+              resolveProposalServiceSlug(item.serviceSlug, services),
+              item.quantity,
+            ])
+          )
         : {}
     );
     setCustomAlbumSheets(
@@ -632,6 +687,34 @@ export function ProposalPageClient() {
     },
     [services, durationTier]
   );
+  const getServiceMinimum = useCallback(
+    (serviceSlug: string): number => {
+      const service = services.find((item) => item.slug === serviceSlug);
+      return service?.pricingType === 'per_unit'
+        ? Math.max(1, Math.round(Number(service.minQuantity) || 1))
+        : 1;
+    },
+    [services]
+  );
+  const getServiceQuantity = useCallback(
+    (serviceSlug: string, defaultQuantity: number): number => {
+      const hasOverride = Object.prototype.hasOwnProperty.call(
+        serviceQuantityOverrides,
+        serviceSlug
+      );
+      const requestedQuantity = Number(
+        serviceQuantityOverrides[serviceSlug] ?? defaultQuantity
+      );
+      return Math.max(
+        hasOverride ? getServiceMinimum(serviceSlug) : 0,
+        Math.min(
+          1000,
+          Math.round(Number.isFinite(requestedQuantity) ? requestedQuantity : defaultQuantity)
+        )
+      );
+    },
+    [serviceQuantityOverrides, getServiceMinimum]
+  );
 
   // Base package matching selectedTierOrder (1 = Essential, 2 = Signature, 3 = Premium)
   const basePackage = useMemo(() => {
@@ -657,14 +740,19 @@ export function ProposalPageClient() {
     if (!resolvedPkg) return null;
 
     // Dynamically resolve base price from services
-    const packageItems = resolvedPkg.includedServices?.map((item) => ({
-      ...item,
-      durationTier:
-        serviceDurationOverrides[item.serviceSlug] ??
-        item.durationTier ??
-        resolvedPkg.durationTier ??
-        durationTier,
-    }));
+    const packageItems = resolvedPkg.includedServices?.map((item) => {
+      const serviceSlug = resolveProposalServiceSlug(item.serviceSlug, services);
+      return {
+        ...item,
+        serviceSlug,
+        durationTier:
+          serviceDurationOverrides[serviceSlug] ??
+          serviceDurationOverrides[item.serviceSlug] ??
+          item.durationTier ??
+          resolvedPkg.durationTier ??
+          durationTier,
+      };
+    });
     const pricedPackage = { ...resolvedPkg, includedServices: packageItems };
     const dynamicPrice = calculatePackageBasePrice(pricedPackage, services, durationTier);
     return {
@@ -845,16 +933,24 @@ export function ProposalPageClient() {
           serviceSlug: item.serviceSlug,
           label: service?.name || item.serviceSlug,
           description: service?.description || '',
-          quantity: item.quantity,
+          quantity: getServiceQuantity(item.serviceSlug, item.quantity),
+          baseQuantity: item.quantity,
           unitLabel: service?.unitLabel || '',
           pricingType: service?.pricingType,
           durationTier: itemTier,
           price: service
+            ? resolveServicePrice(
+                service,
+                itemTier,
+                getServiceQuantity(item.serviceSlug, item.quantity)
+              ).total
+            : null,
+          basePrice: service
             ? resolveServicePrice(service, itemTier, item.quantity).total
             : null,
         };
       });
-  }, [basePackage, services, serviceDurationOverrides, durationTier]);
+  }, [basePackage, services, serviceDurationOverrides, durationTier, getServiceQuantity]);
 
   // ─── 2. Available catalog services not already in the base package ───
   const availableUpgrades = useMemo(() => {
@@ -879,23 +975,25 @@ export function ProposalPageClient() {
                 isAlbumService ? defaultSheetsForTier : 1
               )
             : 1;
-        const quantity = defaultQuantity;
+        const quantity = getServiceQuantity(service.slug, defaultQuantity);
         const itemTier =
           serviceDurationOverrides[service.slug] ??
           basePackage.durationTier ??
           durationTier;
         const priceDelta = resolveServicePrice(service, itemTier, quantity).total;
-        const quantityDescription =
-          service.pricingType === 'per_unit'
-            ? `Default quantity: ${quantity} ${service.unitLabel}. `
-            : '';
         return {
           id: service.slug,
           serviceSlug: service.slug,
           quantity,
+          baseQuantity: defaultQuantity,
+          minimumQuantity:
+            service.pricingType === 'per_unit'
+              ? Math.max(1, Number(service.minQuantity) || 1)
+              : 1,
+          unitLabel: service.unitLabel,
           durationTier: itemTier,
           label: service.name,
-          description: `${quantityDescription}${service.description || `Add ${service.name} to your package.`}`,
+          description: service.description || `Add ${service.name} to your package.`,
           isBaseIncluded: false,
           priceDelta,
           badge: `+${formatINR(priceDelta)}`,
@@ -908,6 +1006,7 @@ export function ProposalPageClient() {
     durationTier,
     defaultSheetsForTier,
     serviceDurationOverrides,
+    getServiceQuantity,
   ]);
 
   // ─── 3. Custom Plan Detection & Pricing Calculation ───
@@ -969,11 +1068,121 @@ export function ProposalPageClient() {
     getServiceCost,
   ]);
 
+  const serviceQuantityAdjustments = useMemo(() => {
+    if (!basePackage) return { total: 0, modifications: [] };
+
+    let total = 0;
+    const modifications: {
+      id: string;
+      label: string;
+      badge: string;
+      isDeduction: boolean;
+      amount: number;
+    }[] = [];
+    const adjustedSlugs = new Set<string>();
+
+    const addQuantityAdjustment = (
+      serviceSlug: string,
+      baseQuantity: number,
+      itemTier: DurationTier | undefined,
+      exclusionId: string
+    ) => {
+      if (
+        adjustedSlugs.has(serviceSlug) ||
+        serviceSlug === albumServiceSlug ||
+        serviceSlug === traditionalCameraSlug ||
+        unselectedIncludedIds.includes(exclusionId)
+      ) {
+        return;
+      }
+
+      const service = services.find((item) => item.slug === serviceSlug);
+      if (!service) return;
+
+      const quantity = getServiceQuantity(serviceSlug, baseQuantity);
+      if (quantity === baseQuantity) return;
+
+      const effectiveTier =
+        serviceDurationOverrides[serviceSlug] ??
+        itemTier ??
+        basePackage.durationTier ??
+        durationTier;
+      const delta =
+        resolveServicePrice(service, effectiveTier, quantity).total -
+        resolveServicePrice(service, effectiveTier, baseQuantity).total;
+      const difference = quantity - baseQuantity;
+      const unitLabel = service.unitLabel || 'units';
+      const displayUnit =
+        quantity > 1 && !unitLabel.endsWith('s') ? `${unitLabel}s` : unitLabel;
+
+      total += delta;
+      modifications.push({
+        id: `mod-service-quantity-${serviceSlug}`,
+        label: `${service.name} (${quantity} ${displayUnit}; ${difference > 0 ? '+' : ''}${difference})`,
+        badge: delta > 0 ? `+${formatINR(delta)}` : formatINR(delta),
+        isDeduction: delta < 0,
+        amount: delta,
+      });
+      adjustedSlugs.add(serviceSlug);
+    };
+
+    baseIncludedElements.forEach((element) => {
+      if (unselectedIncludedIds.includes(element.id)) return;
+      const feature = element.featureKey as keyof PackageIncludedFeatures;
+      const featureSlugs = getPackageFeatureServiceSlugs(basePackage, services, feature);
+      const featureItems =
+        basePackage.includedServices?.filter(
+          (item) => item.quantity > 0 && featureSlugs.includes(item.serviceSlug)
+        ) || [];
+
+      if (featureItems.length > 0) {
+        featureItems.forEach((item) =>
+          addQuantityAdjustment(
+            item.serviceSlug,
+            item.quantity,
+            item.durationTier,
+            element.id
+          )
+        );
+      } else if (!basePackage.includedServices?.length) {
+        const serviceSlug = FEATURE_SERVICE_SLUGS[feature].find((slug) =>
+          services.some((service) => service.slug === slug)
+        );
+        if (serviceSlug) {
+          addQuantityAdjustment(serviceSlug, 1, undefined, element.id);
+        }
+      }
+    });
+
+    baseAdditionalServices.forEach((service) =>
+      addQuantityAdjustment(
+        service.serviceSlug,
+        service.baseQuantity,
+        service.durationTier,
+        service.id
+      )
+    );
+
+    return { total, modifications };
+  }, [
+    basePackage,
+    baseIncludedElements,
+    baseAdditionalServices,
+    services,
+    unselectedIncludedIds,
+    serviceDurationOverrides,
+    durationTier,
+    getServiceQuantity,
+    albumServiceSlug,
+    traditionalCameraSlug,
+  ]);
+
   const isCustomModified =
     unselectedIncludedIds.length > 0 ||
     selectedUpgradeIds.length > 0 ||
     customAlbumSheets !== defaultSheetsForTier ||
-    traditionalCameraQuantity !== defaultTraditionalCameraQuantity;
+    traditionalCameraQuantity !== defaultTraditionalCameraQuantity ||
+    serviceQuantityAdjustments.modifications.length > 0;
 
   const { finalPrice, totalDelta, customizedModifications } = useMemo(() => {
     const base = basePackage?.price || 0;
@@ -994,8 +1203,8 @@ export function ProposalPageClient() {
     });
 
     baseAdditionalServices.forEach((service) => {
-      if (!unselectedIncludedIds.includes(service.id) || service.price === null) return;
-      const deduction = -service.price;
+      if (!unselectedIncludedIds.includes(service.id) || service.basePrice === null) return;
+      const deduction = -service.basePrice;
       deductionSum += deduction;
       mods.push({
         id: service.id,
@@ -1005,6 +1214,8 @@ export function ProposalPageClient() {
         amount: deduction,
       });
     });
+
+    mods.push(...serviceQuantityAdjustments.modifications);
 
     let additionSum = 0;
     availableUpgrades.forEach((el) => {
@@ -1053,7 +1264,8 @@ export function ProposalPageClient() {
       deductionSum +
       additionSum +
       albumSheetDelta +
-      traditionalCameraQuantityDelta;
+      traditionalCameraQuantityDelta +
+      serviceQuantityAdjustments.total;
     return {
       finalPrice: Math.max(0, base + delta),
       totalDelta: delta,
@@ -1063,6 +1275,7 @@ export function ProposalPageClient() {
     basePackage?.price,
     baseIncludedElements,
     baseAdditionalServices,
+    serviceQuantityAdjustments,
     unselectedIncludedIds,
     availableUpgrades,
     selectedUpgradeIds,
@@ -1257,7 +1470,7 @@ export function ProposalPageClient() {
                 ? customAlbumSheets
                 : item.serviceSlug === traditionalCameraSlug
                   ? traditionalCameraQuantity
-                : item.quantity,
+                  : getServiceQuantity(item.serviceSlug, item.quantity),
           });
         });
 
@@ -1276,7 +1489,7 @@ export function ProposalPageClient() {
                 ? customAlbumSheets
                 : feature === 'traditionalPhoto'
                   ? traditionalCameraQuantity
-                  : 1,
+                  : getServiceQuantity(serviceSlug, 1),
             durationTier: serviceDurationOverrides[serviceSlug] ?? basePackage.durationTier ?? durationTier,
           });
         }
@@ -1301,6 +1514,7 @@ export function ProposalPageClient() {
     traditionalCameraQuantity,
     activeFeatures,
     customAlbumSheets,
+    getServiceQuantity,
     services,
     unselectedIncludedIds,
     availableUpgrades,
@@ -1325,8 +1539,25 @@ export function ProposalPageClient() {
         text: removeAlbumPhotoSelectionNote(item.text),
       }))
       .filter((item) => item.text);
+    const traditionalVideoSlugs = new Set(
+      getPackageFeatureServiceSlugs(
+        { includedServices: customizedActiveServiceItems },
+        services,
+        'traditionalVideo'
+      )
+    );
+    const traditionalVideoQuantity = customizedActiveServiceItems.reduce(
+      (quantity, item) =>
+        traditionalVideoSlugs.has(item.serviceSlug) ? quantity + item.quantity : quantity,
+      0
+    );
+    const traditionalVideoDeliverable =
+      traditionalVideoQuantity > 0
+        ? `${traditionalVideoQuantity} Edited Traditional Video${traditionalVideoQuantity === 1 ? '' : 's'}`
+        : null;
     const standardDeliverables = [
       dynamicSections.deliverables,
+      traditionalVideoDeliverable,
       ...packageDeliverables
         .filter((item) => item.category.toLowerCase() === 'deliverables')
         .map((item) => item.text),
@@ -1389,10 +1620,18 @@ export function ProposalPageClient() {
   };
 
   const handleToggleUpgrade = (id: string) => {
-    const next = selectedUpgradeIds.includes(id)
+    const removingUpgrade = selectedUpgradeIds.includes(id);
+    const next = removingUpgrade
       ? selectedUpgradeIds.filter((item) => item !== id)
       : [...selectedUpgradeIds, id];
     setSelectedUpgradeIds(next);
+    if (removingUpgrade) {
+      setServiceQuantityOverrides((current) => {
+        const nextOverrides = { ...current };
+        delete nextOverrides[id];
+        return nextOverrides;
+      });
+    }
     const removedKeys = unselectedIncludedIds.map((i) => i.replace('inc-', ''));
     updateUrlParams(
       activeEventId,
@@ -1418,6 +1657,64 @@ export function ProposalPageClient() {
       []
     );
     toast.success('Reset package to standard preset.');
+  };
+
+  const renderServiceQuantityControl = (
+    serviceSlug: string,
+    serviceName: string,
+    quantity: number,
+    unitLabel: string
+  ) => {
+    const minimum = getServiceMinimum(serviceSlug);
+    const displayUnit =
+      quantity > 1 && unitLabel && !unitLabel.endsWith('s')
+        ? `${unitLabel}s`
+        : unitLabel || 'units';
+
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#C5B378]/15 pt-2">
+        <span className="text-[10px] text-[#D8C78E]">{serviceName} quantity</span>
+        <div
+          className="flex items-center rounded border border-[#C5B378]/40 bg-[#072421]"
+          aria-label={`${serviceName} quantity`}
+        >
+          <button
+            type="button"
+            disabled={quantity <= minimum}
+            onClick={() =>
+              setServiceQuantityOverrides((current) => ({
+                ...current,
+                [serviceSlug]: Math.max(minimum, quantity - 1),
+              }))
+            }
+            className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+            aria-label={`Decrease ${serviceName} quantity`}
+          >
+            −
+          </button>
+          <span
+            className="min-w-[72px] border-x border-[#C5B378]/30 px-2.5 py-0.5 text-center font-mono text-xs font-bold text-white"
+            aria-live="polite"
+          >
+            {quantity} {displayUnit}
+          </span>
+          <button
+            type="button"
+            disabled={quantity >= 1000}
+            onClick={() =>
+              setServiceQuantityOverrides((current) => ({
+                ...current,
+                [serviceSlug]: Math.min(1000, quantity + 1),
+              }))
+            }
+            className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+            aria-label={`Increase ${serviceName} quantity`}
+          >
+            +
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const toggleCameraExpanded = (id: string) => {
@@ -2292,16 +2589,26 @@ export function ProposalPageClient() {
                         basePackage?.includedServices?.filter((item) =>
                           featureServiceSlugs.includes(item.serviceSlug)
                         ) || [];
+                      const getFeatureServiceQuantity = (
+                        serviceSlug: string,
+                        packageQuantity: number
+                      ) =>
+                        serviceSlug === albumServiceSlug
+                          ? customAlbumSheets
+                          : serviceSlug === traditionalCameraSlug
+                            ? traditionalCameraQuantity
+                            : getServiceQuantity(serviceSlug, packageQuantity);
                       const featureItem = featureItems[0];
                       const featureServiceNames = Array.from(
                         new Set(
                           featureItems
+                            .filter((item) => item.quantity > 0)
                             .map((item) => {
                               const service = services.find(
                                 (candidate) => candidate.slug === item.serviceSlug
                               );
                               return service
-                                ? `${service.name} × ${item.quantity}`
+                                ? `${service.name} × ${getFeatureServiceQuantity(item.serviceSlug, item.quantity)}`
                                 : undefined;
                             })
                             .filter((name): name is string => Boolean(name))
@@ -2321,25 +2628,36 @@ export function ProposalPageClient() {
                               item.durationTier ??
                               basePackage?.durationTier ??
                               durationTier;
-                            const quantity =
-                              item.serviceSlug === albumServiceSlug
-                                ? customAlbumSheets
-                                : item.serviceSlug === traditionalCameraSlug
-                                  ? traditionalCameraQuantity
-                                  : item.quantity;
+                            const quantity = isChecked
+                              ? getFeatureServiceQuantity(item.serviceSlug, item.quantity)
+                              : item.quantity;
                             return total + getServiceCost(item.serviceSlug, quantity, itemTier);
                           }, 0)
                         : featureServiceSlug
                           ? getServiceCost(
                               featureServiceSlug,
-                              featureKey === 'printedAlbum'
-                                ? customAlbumSheets
-                                : featureKey === 'traditionalPhoto'
-                                  ? traditionalCameraQuantity
-                                  : 1,
+                              isChecked
+                                ? getFeatureServiceQuantity(featureServiceSlug, 1)
+                                : 1,
                               featureDurationTier
                             )
                           : null;
+                      const quantityItems =
+                        featureItems.length > 0
+                          ? featureItems.filter((item) => item.quantity > 0)
+                          : featureServiceSlug
+                            ? [
+                                {
+                                  serviceSlug: featureServiceSlug,
+                                  quantity:
+                                    featureKey === 'printedAlbum'
+                                      ? customAlbumSheets
+                                      : featureKey === 'traditionalPhoto'
+                                        ? traditionalCameraQuantity
+                                        : 1,
+                                },
+                              ]
+                            : [];
                       return (
                         <div
                           key={el.id}
@@ -2429,63 +2747,29 @@ export function ProposalPageClient() {
                             </div>
                           )}
 
-                          {isAdminProposalMode &&
-                            featureKey === 'traditionalPhoto' &&
-                            isChecked &&
-                            featureServiceSlug && (
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#C5B378]/15 pt-2">
-                                <span className="text-[10px] text-[#D8C78E]">
-                                  {featureService?.name || 'Traditional Camera'} quantity
-                                </span>
-                                <div className="flex items-center rounded border border-[#C5B378]/40 bg-[#072421]">
-                                  <button
-                                    type="button"
-                                    disabled={traditionalCameraQuantity <= traditionalCameraMinimum}
-                                    onClick={() =>
-                                      setServiceQuantityOverrides((current) => ({
-                                        ...current,
-                                        [featureServiceSlug]: Math.max(
-                                          traditionalCameraMinimum,
-                                          traditionalCameraQuantity - 1
-                                        ),
-                                      }))
-                                    }
-                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
-                                    title="Decrease camera count"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="min-w-[72px] border-x border-[#C5B378]/30 px-2.5 py-0.5 text-center font-mono text-xs font-bold text-white">
-                                    {traditionalCameraQuantity}{' '}
-                                    {featureService?.unitLabel
-                                      ? traditionalCameraQuantity > 1 &&
-                                        !featureService.unitLabel.endsWith('s')
-                                        ? `${featureService.unitLabel}s`
-                                        : featureService.unitLabel
-                                      : traditionalCameraQuantity > 1
-                                        ? 'cameras'
-                                        : 'camera'}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    disabled={traditionalCameraQuantity >= 1000}
-                                    onClick={() =>
-                                      setServiceQuantityOverrides((current) => ({
-                                        ...current,
-                                        [featureServiceSlug]: Math.min(
-                                          1000,
-                                          traditionalCameraQuantity + 1
-                                        ),
-                                      }))
-                                    }
-                                    className="px-2.5 py-0.5 text-[#D8C78E] hover:bg-[#114A45] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
-                                    title="Increase camera count"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                          {isChecked &&
+                            quantityItems
+                              .filter((item) => item.serviceSlug !== albumServiceSlug)
+                              .map((item) => {
+                                const service = services.find(
+                                  (candidate) => candidate.slug === item.serviceSlug
+                                );
+                                if (!service) return null;
+                                const quantity =
+                                  item.serviceSlug === traditionalCameraSlug
+                                    ? traditionalCameraQuantity
+                                    : getServiceQuantity(item.serviceSlug, item.quantity);
+                                return (
+                                  <div key={item.serviceSlug}>
+                                    {renderServiceQuantityControl(
+                                      item.serviceSlug,
+                                      service.name,
+                                      quantity,
+                                      service.unitLabel
+                                    )}
+                                  </div>
+                                );
+                              })}
 
                           {/* Interactive Album Sheet Stepper (when Album is included) */}
                           {el.featureKey === 'printedAlbum' && isChecked && (
@@ -2554,10 +2838,11 @@ export function ProposalPageClient() {
                         </div>
                         {baseAdditionalServices.map((service) => {
                           const isChecked = !unselectedIncludedIds.includes(service.id);
+                          const displayedPrice = isChecked ? service.price : service.basePrice;
                           const priceLabel =
-                            service.price === null
+                            displayedPrice === null
                               ? 'Rate unavailable'
-                              : formatINR(service.price);
+                              : formatINR(displayedPrice);
 
                           return (
                             <div
@@ -2650,6 +2935,17 @@ export function ProposalPageClient() {
                                   </select>
                                 </div>
                               )}
+
+                              {isChecked && (
+                                <div>
+                                  {renderServiceQuantityControl(
+                                    service.serviceSlug,
+                                    service.label,
+                                    service.quantity,
+                                    service.unitLabel
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -2674,73 +2970,86 @@ export function ProposalPageClient() {
                       return (
                         <div
                           key={el.id}
-                          className={`group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
+                          className={`group flex flex-col gap-2 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
                             isChecked
                               ? 'border-[#D8C78E] bg-[#114A45] shadow-[0_2px_12px_rgba(216,199,142,0.15)] ring-1 ring-[#D8C78E]'
                               : 'border-[#C5B378]/20 bg-[#061E1C]/60 hover:border-[#C5B378]/50 hover:bg-[#0E423E]'
                           }`}
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleToggleUpgrade(el.id)}
-                            className="flex-1 flex items-center gap-2.5 text-left"
-                          >
-                            <div
-                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                                isChecked
-                                  ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
-                                  : 'border-[#C5B378]/40 bg-transparent'
-                              }`}
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUpgrade(el.id)}
+                              className="flex-1 flex items-center gap-2.5 text-left"
                             >
-                              {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                            </div>
-
-                            <div>
-                              <span
-                                className={`text-xs font-semibold ${
-                                  isChecked ? 'text-white' : 'text-[#E6ECEB]/90 group-hover:text-white'
+                              <div
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                  isChecked
+                                    ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
+                                    : 'border-[#C5B378]/40 bg-transparent'
                                 }`}
                               >
-                                {el.label}
-                              </span>
-                              <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
-                                {el.description}
-                              </p>
-                            </div>
-                          </button>
+                                {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                              </div>
 
-                          <div className="flex shrink-0 flex-col items-end gap-1">
-                            <span
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                                isChecked
-                                  ? 'bg-[#D8C78E] text-[#061E1C]'
-                                  : 'text-[#D8C78E] bg-[#072421] border border-[#C5B378]/30'
-                              }`}
-                            >
-                              +{formatINR(el.priceDelta)}
-                            </span>
-                            {services.find((service) => service.slug === el.serviceSlug)?.pricingType === 'tiered' && (
-                              <select
-                                aria-label={`${el.label} upgrade duration tier`}
-                                value={
-                                  (serviceDurationOverrides[el.serviceSlug] ?? el.durationTier) === 'threeHours'
-                                    ? 'halfDay'
-                                    : serviceDurationOverrides[el.serviceSlug] ?? el.durationTier
-                                }
-                                onChange={(event) =>
-                                  setServiceDurationOverrides((current) => ({
-                                    ...current,
-                                    [el.serviceSlug]: event.target.value as DurationTier,
-                                  }))
-                                }
-                                onClick={(event) => event.stopPropagation()}
-                                className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1.5 text-[10px] text-white"
+                              <div>
+                                <span
+                                  className={`text-xs font-semibold ${
+                                    isChecked ? 'text-white' : 'text-[#E6ECEB]/90 group-hover:text-white'
+                                  }`}
+                                >
+                                  {el.label}
+                                </span>
+                                <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                  {el.description}
+                                </p>
+                              </div>
+                            </button>
+
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              <span
+                                className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                  isChecked
+                                    ? 'bg-[#D8C78E] text-[#061E1C]'
+                                    : 'text-[#D8C78E] bg-[#072421] border border-[#C5B378]/30'
+                                }`}
                               >
-                                <option value="halfDay">Half Day</option>
-                                <option value="fullDay">Full Day</option>
-                              </select>
-                            )}
+                                +{formatINR(el.priceDelta)}
+                              </span>
+                              {services.find((service) => service.slug === el.serviceSlug)?.pricingType === 'tiered' && (
+                                <select
+                                  aria-label={`${el.label} upgrade duration tier`}
+                                  value={
+                                    (serviceDurationOverrides[el.serviceSlug] ?? el.durationTier) === 'threeHours'
+                                      ? 'halfDay'
+                                      : serviceDurationOverrides[el.serviceSlug] ?? el.durationTier
+                                  }
+                                  onChange={(event) =>
+                                    setServiceDurationOverrides((current) => ({
+                                      ...current,
+                                      [el.serviceSlug]: event.target.value as DurationTier,
+                                    }))
+                                  }
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-1.5 text-[10px] text-white"
+                                >
+                                  <option value="halfDay">Half Day</option>
+                                  <option value="fullDay">Full Day</option>
+                                </select>
+                              )}
+                            </div>
                           </div>
+
+                          {isChecked && (
+                            <div>
+                              {renderServiceQuantityControl(
+                                el.serviceSlug,
+                                el.label,
+                                el.quantity,
+                                el.unitLabel
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

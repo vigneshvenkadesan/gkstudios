@@ -8,7 +8,7 @@ export function ComplementaryHighlightText({ text }: ComplementaryHighlightTextP
   }
 
   return (
-    <span className="inline rounded-sm border border-emerald-300/35 bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-emerald-100">
+    <span className="gk-complementary-badge inline rounded-sm border border-emerald-300/35 bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-emerald-100">
       {text}
     </span>
   );

@@ -99,12 +99,12 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
 
   return (
     <header
-      className={`${
+      className={`gk-navbar ${
         activeView === 'public' ? 'fixed inset-x-0 top-0' : 'sticky top-0'
       } z-40 transition-all duration-300 ${
         isTransparent
           ? 'bg-gradient-to-b from-[#061E1C]/80 via-[#061E1C]/35 to-transparent border-b border-transparent'
-          : 'bg-[#092E2B]/95 backdrop-blur-md border-b border-[#C5B378]/20 shadow-[0_8px_30px_rgba(4,20,18,0.35)]'
+          : 'gk-navbar-scrolled bg-[#092E2B]/95 backdrop-blur-md border-b border-[#C5B378]/20 shadow-[0_8px_30px_rgba(4,20,18,0.35)]'
       }`}
     >
       <div
@@ -228,7 +228,7 @@ export function Navbar({ activeView, onSwitchView, onJumpToSection }: NavbarProp
                     onClick={() => handleLink(item.id)}
                     className={`flex w-full items-center justify-between rounded-sm px-3.5 py-3 text-base font-medium transition-colors cursor-pointer ${
                       isActive
-                        ? 'bg-[#0E423E] text-[#D8C78E]'
+                        ? 'gk-mobile-nav-active bg-[#0E423E] text-[#D8C78E]'
                         : 'text-[#E6ECEB] hover:bg-[#0E423E]/70 hover:text-white'
                     }`}
                   >

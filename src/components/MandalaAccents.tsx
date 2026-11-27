@@ -58,7 +58,7 @@ export function MandalaDivider({ className = '' }: { className?: string }) {
 
 export function GKCameraMark({ className = 'h-9 w-12' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 80 56" fill="none" aria-hidden="true" className={className}>
+    <svg viewBox="0 0 80 56" fill="none" aria-hidden="true" className={`gk-camera-mark ${className}`}>
       {/* Minimalist camera bracket frame matching attached GK STUDIOS mark */}
       <path
         d="M18 12 H10 V48 H22 M62 12 H70 V48 H58 M14 12 V7 H22 V12"
@@ -66,9 +66,26 @@ export function GKCameraMark({ className = 'h-9 w-12' }: { className?: string })
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
+        className="gk-camera-mark-stroke"
       />
-      <circle cx="40" cy="30" r="17" stroke="#FFFFFF" strokeWidth="2.2" strokeDasharray="38 12" />
-      <circle cx="40" cy="30" r="12.5" stroke="#D8C78E" strokeWidth="1.5" strokeDasharray="24 14" />
+      <circle
+        cx="40"
+        cy="30"
+        r="17"
+        stroke="#FFFFFF"
+        strokeWidth="2.2"
+        strokeDasharray="38 12"
+        className="gk-camera-mark-stroke"
+      />
+      <circle
+        cx="40"
+        cy="30"
+        r="12.5"
+        stroke="#D8C78E"
+        strokeWidth="1.5"
+        strokeDasharray="24 14"
+        className="gk-camera-mark-ring"
+      />
       <text
         x="33.5"
         y="34.5"
@@ -76,6 +93,7 @@ export function GKCameraMark({ className = 'h-9 w-12' }: { className?: string })
         fontSize="14"
         fontWeight="800"
         fontFamily="Plus Jakarta Sans, sans-serif"
+        className="gk-camera-mark-g"
       >
         G
       </text>
@@ -86,6 +104,7 @@ export function GKCameraMark({ className = 'h-9 w-12' }: { className?: string })
         fontSize="14"
         fontWeight="700"
         fontFamily="Plus Jakarta Sans, sans-serif"
+        className="gk-camera-mark-k"
       >
         K
       </text>

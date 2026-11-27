@@ -202,8 +202,8 @@ export function PortfolioSection({
                 onClick={() => setSelectedCategory(option.id)}
                 className={`whitespace-nowrap shrink-0 rounded-sm px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E] ${
                   isActive
-                    ? 'bg-[#C5B378] text-[#061E1C] font-semibold'
-                    : 'text-[#E6ECEB]/75 hover:bg-[#0E423E] hover:text-white'
+                    ? 'gk-filter-tab-active bg-[#C5B378] text-[#061E1C] font-semibold'
+                    : 'gk-filter-tab text-[#E6ECEB]/75 hover:bg-[#0E423E] hover:text-white'
                 }`}
               >
                 {option.id !== 'all' && (
@@ -217,7 +217,7 @@ export function PortfolioSection({
                 {option.count > 0 && (
                   <span
                     className={`ml-1.5 font-mono text-[11px] tabular-nums ${
-                      isActive ? 'text-[#061E1C]/75' : 'text-[#D8C78E]/70'
+                      isActive ? 'gk-filter-count-active text-[#061E1C]/75' : 'text-[#D8C78E]/70'
                     }`}
                   >
                     {option.count}
@@ -365,7 +365,7 @@ export function PortfolioSection({
         >
           {lightboxItem && (
             <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
-              <div className="relative min-h-0 w-full bg-[#041412]">
+              <div className="gk-lightbox-stage relative min-h-0 w-full bg-[#041412]">
                 {!failedImages[lightboxItem.id] ? (
                   <Image
                     src={lightboxItem.imageUrl}
