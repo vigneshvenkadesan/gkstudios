@@ -294,6 +294,10 @@ export interface PortfolioItem {
   category: EventCategory;
   location: string;
   imageUrl: string;
+  secure_url?: string;
+  public_id?: string;
+  folder?: string;
+  createdAt?: string;
   shootNotes: string;
   exif: string;
   dateLabel: string;

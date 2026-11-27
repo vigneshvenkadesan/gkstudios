@@ -17,6 +17,55 @@ function getDatabaseName(): string {
   return process.env.MONGODB_DATABASE || 'gkstudios_dev';
 }
 
+interface GalleryImageDocument extends mongoose.Document {
+  id?: string;
+  eventId?: string;
+  title: string;
+  category: string;
+  location?: string;
+  imageUrl?: string;
+  secure_url?: string;
+  public_id?: string;
+  folder?: string;
+  shootNotes?: string;
+  exif?: string;
+  dateLabel?: string;
+  isHeroFeatured?: boolean;
+  isVisible?: boolean;
+  aspect?: 'wide' | 'standard';
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+const GalleryImageSchema = new Schema<GalleryImageDocument>(
+  {
+    id: { type: String, unique: true, sparse: true, index: true },
+    eventId: String,
+    title: { type: String, required: true },
+    category: { type: String, required: true },
+    location: String,
+    imageUrl: String,
+    secure_url: String,
+    public_id: String,
+    folder: String,
+    shootNotes: String,
+    exif: String,
+    dateLabel: String,
+    isHeroFeatured: { type: Boolean, default: false },
+    isVisible: { type: Boolean, default: true },
+    aspect: { type: String, enum: ['wide', 'standard'], default: 'standard' },
+  },
+  { collection: 'images', strict: false, timestamps: true }
+);
+
+export async function getGalleryImageModel(): Promise<Model<GalleryImageDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    mongoose.models.GalleryImage as Model<GalleryImageDocument> | undefined
+  ) || mongoose.model<GalleryImageDocument>('GalleryImage', GalleryImageSchema);
+}
+
 interface BookingRequestDocument extends BookingRequest, mongoose.Document {}
 
 const BookingSchema = new Schema<BookingRequestDocument>(

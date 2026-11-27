@@ -78,6 +78,7 @@ interface CreateEventProjectInput {
 interface StudioContextValue {
   state: StudioState;
   isLoading: boolean;
+  studioLoadError: string | null;
   packages: StudioPackage[];
   events: StudioEvent[];
   services: StudioService[];
@@ -150,14 +151,19 @@ export function StudioProvider({
 }) {
   const [state, setState] = useState<StudioState>(initialState || INITIAL_STUDIO_STATE);
   const [isLoading, setIsLoading] = useState<boolean>(!initialState);
+  const [studioLoadError, setStudioLoadError] = useState<string | null>(null);
 
   const refreshStudio = useCallback(async () => {
     try {
       const serverState = await requestJson<StudioState>('/api/studio', { cache: 'no-store' });
       setState(serverState);
+      setStudioLoadError(null);
       return true;
     } catch (error) {
       console.error('Failed to refresh studio data.', error);
+      setStudioLoadError(
+        error instanceof Error ? error.message : 'Studio data is currently unavailable.'
+      );
       return false;
     } finally {
       setIsLoading(false);
@@ -233,13 +239,14 @@ export function StudioProvider({
   const addPortfolioItem = useCallback(
     async (item: Omit<PortfolioItem, 'id'>): Promise<PortfolioItem> => {
       const data = await requestJson<{ state: StudioState; created: PortfolioItem }>(
-        '/api/portfolio',
+        '/api/images',
         {
           method: 'POST',
           body: JSON.stringify(item),
         }
       );
       setState(data.state);
+      setStudioLoadError(null);
       return data.created;
     },
     []
@@ -247,20 +254,22 @@ export function StudioProvider({
 
   const updatePortfolioItem = useCallback(
     async (id: string, patch: Partial<PortfolioItem>) => {
-      const nextState = await requestJson<StudioState>(`/api/portfolio/${id}`, {
+      const nextState = await requestJson<StudioState>(`/api/images/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: JSON.stringify(patch),
       });
       setState(nextState);
+      setStudioLoadError(null);
     },
     []
   );
 
   const deletePortfolioItem = useCallback(async (id: string) => {
-    const nextState = await requestJson<StudioState>(`/api/portfolio/${id}`, {
+    const nextState = await requestJson<StudioState>(`/api/images/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     setState(nextState);
+    setStudioLoadError(null);
   }, []);
 
   const addPackage = useCallback(
@@ -437,6 +446,7 @@ export function StudioProvider({
       value={{
         state,
         isLoading,
+        studioLoadError,
         packages: state.packages,
         events: state.events,
         services: state.services && state.services.length > 0 ? state.services : DEFAULT_STUDIO_SERVICES,

@@ -24,18 +24,33 @@ import {
 import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
 
 export function AdminGalleryModule() {
-  const { portfolio, addPortfolioItem, updatePortfolioItem, deletePortfolioItem } = useStudio();
+  const {
+    portfolio,
+    isLoading,
+    studioLoadError,
+    refreshStudio,
+    addPortfolioItem,
+    updatePortfolioItem,
+    deletePortfolioItem,
+  } = useStudio();
 
-  // New photo upload state
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<EventCategory>('Weddings');
   const [location, setLocation] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadedImage, setUploadedImage] = useState<{
+    secure_url: string;
+    public_id: string;
+    folder: string;
+  } | null>(null);
   const [shootNotes, setShootNotes] = useState('');
   const [exif, setExif] = useState('50mm · f/1.8 · 1/320s · ISO 400');
   const [dateLabel, setDateLabel] = useState('November 2026');
   const [isHeroFeatured, setIsHeroFeatured] = useState(false);
   const [aspect, setAspect] = useState<'standard' | 'wide'>('standard');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [busyImageId, setBusyImageId] = useState<string | null>(null);
 
   // Edit modal state
   const [editingItem, setEditingItem] = useState<PortfolioItem | null>(null);
@@ -44,36 +59,72 @@ export function AdminGalleryModule() {
   const [editLocation, setEditLocation] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) {
-      toast.error('Please pick an image under 4 MB for browser LocalStorage preview.');
+      toast.error('Please choose an image smaller than 4 MB.');
+      input.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setImageUrl(reader.result);
-        toast.success(`Loaded preview for ${file.name}`);
+    if (!file.type.startsWith('image/')) {
+      toast.error('Choose an image file to upload.');
+      input.value = '';
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/images/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const result = (await response.json()) as {
+        imageUrl?: string;
+        secure_url?: string;
+        public_id?: string;
+        folder?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.imageUrl || !result.public_id) {
+        throw new Error(result.error || `Upload failed (${response.status}).`);
       }
-    };
-    reader.readAsDataURL(file);
+
+      setImageUrl(result.imageUrl);
+      setUploadedImage({
+        secure_url: result.secure_url || result.imageUrl,
+        public_id: result.public_id,
+        folder: result.folder || 'gkstudios',
+      });
+      toast.success(`Uploaded ${file.name} to Cloudinary.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to upload image.');
+    } finally {
+      setIsUploadingImage(false);
+      input.value = '';
+    }
   };
 
   const handleAddPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isUploadingImage) return;
     if (!title.trim() || !location.trim() || !imageUrl.trim()) {
       toast.error('Please enter a title, location, and image URL or file upload.');
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await addPortfolioItem({
         title: title.trim(),
         category,
         location: location.trim(),
         imageUrl: imageUrl.trim(),
+        ...(uploadedImage || {}),
         shootNotes:
           shootNotes.trim() ||
           'Captured by GK Studios documentary team with natural color grading.',
@@ -88,10 +139,13 @@ export function AdminGalleryModule() {
       setTitle('');
       setLocation('');
       setImageUrl('');
+      setUploadedImage(null);
       setShootNotes('');
       setIsHeroFeatured(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to publish photograph.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -105,7 +159,12 @@ export function AdminGalleryModule() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
+    if (!editingItem || busyImageId) return;
+    if (!editTitle.trim() || !editLocation.trim()) {
+      toast.error('Please enter a title and location.');
+      return;
+    }
+    setBusyImageId(editingItem.id);
     try {
       await updatePortfolioItem(editingItem.id, {
         title: editTitle.trim(),
@@ -117,6 +176,47 @@ export function AdminGalleryModule() {
       setEditingItem(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update photograph.');
+    } finally {
+      setBusyImageId(null);
+    }
+  };
+
+  const handleToggleImage = async (
+    item: PortfolioItem,
+    field: 'isHeroFeatured' | 'isVisible'
+  ) => {
+    if (busyImageId) return;
+    setBusyImageId(item.id);
+    try {
+      await updatePortfolioItem(
+        item.id,
+        field === 'isHeroFeatured'
+          ? { isHeroFeatured: !item.isHeroFeatured }
+          : { isVisible: !item.isVisible }
+      );
+      if (field === 'isHeroFeatured') {
+        toast.success(item.isHeroFeatured ? 'Removed from Hero carousel.' : 'Featured in Hero carousel.');
+      } else {
+        toast.info(item.isVisible ? 'Hidden from public gallery.' : 'Visible in public gallery.');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update gallery image.');
+    } finally {
+      setBusyImageId(null);
+    }
+  };
+
+  const handleDeleteImage = async (item: PortfolioItem) => {
+    if (busyImageId) return;
+    if (!window.confirm(`Delete "${item.title}" from the gallery?`)) return;
+    setBusyImageId(item.id);
+    try {
+      await deletePortfolioItem(item.id);
+      toast.success(`Deleted "${item.title}" from the gallery.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete gallery image.');
+    } finally {
+      setBusyImageId(null);
     }
   };
 
@@ -130,8 +230,8 @@ export function AdminGalleryModule() {
             Publish New Portfolio Photograph
           </CardTitle>
           <CardDescription>
-            Paste an image URL or upload a photo file preview. New photos immediately appear in the
-            public gallery and optionally in the Hero carousel.
+            Paste a Cloudinary image URL or upload directly to the configured Cloudinary folder.
+            Saved photos appear in the public gallery and optionally in the Hero carousel.
           </CardDescription>
         </CardHeader>
 
@@ -181,26 +281,33 @@ export function AdminGalleryModule() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-12 items-end">
               <div className="md:col-span-7 space-y-1.5">
                 <label className="block text-xs font-medium text-[#D8C78E]">
-                  Image URL or Uploaded File Data *
+                  Cloudinary Image URL *
                 </label>
                 <input
                   type="text"
                   required
                   value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="/images/portfolio/... or https://..."
+                  disabled={isUploadingImage || isSubmitting}
+                  onChange={(e) => {
+                    setImageUrl(e.target.value);
+                    setUploadedImage(null);
+                  }}
+                  placeholder="https://res.cloudinary.com/..."
                   className="h-10 w-full rounded-md border border-[#C5B378]/30 bg-[#092E2B] px-3 font-mono text-xs text-white placeholder:font-sans placeholder:text-[#E6ECEB]/40 focus:border-[#D8C78E] focus:outline-none"
                 />
               </div>
 
               <div className="md:col-span-3">
-                <label className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-[#C5B378]/40 bg-[#092E2B] px-3 text-xs font-medium text-white hover:border-[#D8C78E] transition-colors">
+                <label className={`flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#C5B378]/40 bg-[#092E2B] px-3 text-xs font-medium text-white transition-colors ${
+                  isUploadingImage ? 'cursor-wait opacity-70' : 'cursor-pointer hover:border-[#D8C78E]'
+                }`}>
                   <Upload className="h-3.5 w-3.5 text-[#D8C78E]" />
-                  <span>Upload Image File</span>
+                  <span>{isUploadingImage ? 'Uploading to Cloudinary…' : 'Upload to Cloudinary'}</span>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleFileUpload}
+                    disabled={isUploadingImage}
                     className="sr-only"
                   />
                 </label>
@@ -264,9 +371,9 @@ export function AdminGalleryModule() {
                 <span>Feature this photo in the live Hero Carousel</span>
               </label>
 
-              <Button type="submit">
+              <Button type="submit" disabled={isSubmitting || isUploadingImage}>
                 <ImagePlus className="h-4 w-4" />
-                Add to Live Gallery
+                {isSubmitting ? 'Saving…' : 'Add to Live Gallery'}
               </Button>
             </div>
           </form>
@@ -274,6 +381,22 @@ export function AdminGalleryModule() {
       </Card>
 
       {/* Existing Portfolio Manager Grid */}
+      {isLoading ? (
+        <Card className="bg-[#0E423E] p-8 text-center text-sm text-[#E6ECEB]/75">
+          Loading gallery images…
+        </Card>
+      ) : studioLoadError ? (
+        <Card className="bg-[#0E423E] p-8 text-center">
+          <p role="alert" className="text-sm text-rose-200">{studioLoadError}</p>
+          <Button type="button" className="mt-4" onClick={() => void refreshStudio()}>
+            Retry loading gallery
+          </Button>
+        </Card>
+      ) : portfolio.length === 0 ? (
+        <Card className="bg-[#0E423E] p-8 text-center text-sm text-[#E6ECEB]/75">
+          No gallery images have been added yet.
+        </Card>
+      ) : (
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {portfolio.map((item) => (
           <Card
@@ -310,12 +433,8 @@ export function AdminGalleryModule() {
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => {
-                    updatePortfolioItem(item.id, { isHeroFeatured: !item.isHeroFeatured });
-                    toast.success(
-                      item.isHeroFeatured ? 'Removed from Hero carousel.' : 'Featured in Hero carousel.'
-                    );
-                  }}
+                  onClick={() => void handleToggleImage(item, 'isHeroFeatured')}
+                  disabled={Boolean(busyImageId)}
                   className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium border transition-colors cursor-pointer ${
                     item.isHeroFeatured
                       ? 'border-[#D8C78E] bg-[#C5B378] text-[#072421] font-semibold'
@@ -328,10 +447,8 @@ export function AdminGalleryModule() {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    updatePortfolioItem(item.id, { isVisible: !item.isVisible });
-                    toast.info(item.isVisible ? 'Hidden from public gallery.' : 'Visible in public gallery.');
-                  }}
+                  onClick={() => void handleToggleImage(item, 'isVisible')}
+                  disabled={Boolean(busyImageId)}
                   className="inline-flex items-center gap-1 rounded-md border border-[#C5B378]/25 px-2.5 py-1.5 text-xs text-[#E6ECEB]/80 hover:text-white cursor-pointer"
                 >
                   {item.isVisible ? (
@@ -353,6 +470,7 @@ export function AdminGalleryModule() {
                   type="button"
                   aria-label="Edit photo caption"
                   onClick={() => openEditModal(item)}
+                  disabled={Boolean(busyImageId)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#C5B378]/25 text-[#E6ECEB] hover:border-[#D8C78E] hover:text-white cursor-pointer"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -360,10 +478,8 @@ export function AdminGalleryModule() {
                 <button
                   type="button"
                   aria-label="Delete photo"
-                  onClick={() => {
-                    deletePortfolioItem(item.id);
-                    toast.info(`Deleted "${item.title}" from portfolio.`);
-                  }}
+                  onClick={() => void handleDeleteImage(item)}
+                  disabled={Boolean(busyImageId)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-400/25 text-red-300 hover:bg-red-900/40 cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -373,6 +489,7 @@ export function AdminGalleryModule() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* Edit Caption Dialog */}
       <Dialog open={Boolean(editingItem)} onOpenChange={(open) => !open && setEditingItem(null)}>
@@ -428,10 +545,17 @@ export function AdminGalleryModule() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditingItem(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingItem(null)}
+                disabled={Boolean(busyImageId)}
+              >
                 Cancel
               </Button>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={Boolean(busyImageId)}>
+                {busyImageId === editingItem?.id ? 'Saving…' : 'Save Changes'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

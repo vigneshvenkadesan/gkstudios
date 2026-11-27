@@ -36,6 +36,7 @@ import {
   getBookingModel,
   getCalendarScheduleModel,
   getEventProjectModel,
+  getGalleryImageModel,
   getStudioEventModel,
   getPackageModel,
   getServiceModel,
@@ -119,6 +120,14 @@ async function requireStudioEventModel() {
     throw new Error('Event storage is unavailable.');
   }
   return events;
+}
+
+async function requireGalleryImageModel() {
+  const images = await getGalleryImageModel();
+  if (!images) {
+    throw new Error('MongoDB is not configured. Gallery images cannot be stored.');
+  }
+  return images;
 }
 
 async function requirePackageModel() {
@@ -1000,9 +1009,15 @@ export async function getStudioState(): Promise<StudioState> {
 
   const plainPackages = await getPackagesFromMongo(plainServices);
   const plainEvents = await getEventsFromMongo({ includeInactive: true });
+  const galleryImages = await requireGalleryImageModel();
+  const mongoImages = await galleryImages.find({}).sort({ createdAt: -1, _id: -1 }).lean().exec();
+  const plainPortfolio = mongoImages.map((image) =>
+    toPlainPortfolioItem(image as unknown as Record<string, unknown>)
+  );
 
   memoryCache = {
     ...memoryCache,
+    portfolio: plainPortfolio,
     events: plainEvents,
     services: plainServices,
     packages: plainPackages,
@@ -1023,6 +1038,71 @@ export async function saveStudioState(nextState: StudioState): Promise<StudioSta
   };
   await writeToDisk({ ...nextState, bookings: [], calendarEntries: [] });
   return memoryCache;
+}
+
+export class PortfolioItemNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Gallery image "${id}" was not found.`);
+    this.name = 'PortfolioItemNotFoundError';
+  }
+}
+
+function getGalleryImageFilter(id: string): Record<string, unknown> {
+  const filters: Array<Record<string, unknown>> = [{ id }, { public_id: id }];
+  if (Types.ObjectId.isValid(id)) {
+    filters.push({ _id: new Types.ObjectId(id) });
+  }
+  return { $or: filters };
+}
+
+function toPlainPortfolioItem(raw: Record<string, unknown>): PortfolioItem {
+  const rawId = raw.id || raw._id;
+  const id = rawId ? String(rawId) : '';
+  const imageUrl =
+    typeof raw.imageUrl === 'string' && raw.imageUrl
+      ? raw.imageUrl
+      : typeof raw.secure_url === 'string'
+        ? raw.secure_url
+        : '';
+  const title = typeof raw.title === 'string' ? raw.title : '';
+  const category = typeof raw.category === 'string' ? raw.category : '';
+  if (!id || !title || !category || !imageUrl) {
+    throw new Error('Gallery image record is missing its ID, title, category, or image URL.');
+  }
+
+  const createdAt =
+    raw.createdAt instanceof Date
+      ? raw.createdAt.toISOString()
+      : typeof raw.createdAt === 'string'
+        ? raw.createdAt
+        : undefined;
+
+  return {
+    id,
+    ...(typeof raw.eventId === 'string' ? { eventId: raw.eventId } : {}),
+    title,
+    category: category as EventCategory,
+    location: typeof raw.location === 'string' ? raw.location : '',
+    imageUrl,
+    ...(typeof raw.secure_url === 'string' ? { secure_url: raw.secure_url } : {}),
+    ...(typeof raw.public_id === 'string' ? { public_id: raw.public_id } : {}),
+    ...(typeof raw.folder === 'string' ? { folder: raw.folder } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    shootNotes: typeof raw.shootNotes === 'string' ? raw.shootNotes : '',
+    exif: typeof raw.exif === 'string' ? raw.exif : '',
+    dateLabel: typeof raw.dateLabel === 'string' ? raw.dateLabel : '',
+    isHeroFeatured: raw.isHeroFeatured === true,
+    isVisible: raw.isVisible !== false,
+    aspect: raw.aspect === 'wide' ? 'wide' : 'standard',
+  };
+}
+
+export async function getPortfolioItemsFromMongo(): Promise<PortfolioItem[]> {
+  const images = await requireGalleryImageModel();
+  const records = await images.find({}).sort({ createdAt: -1, _id: -1 }).lean().exec();
+  return records.map((image) =>
+    toPlainPortfolioItem(image as unknown as Record<string, unknown>)
+  );
 }
 
 export async function createBookingOnServer(input: {
@@ -1614,35 +1694,42 @@ async function deleteBillsForEventProjects(
 export async function addPortfolioItemOnServer(
   item: Omit<PortfolioItem, 'id'>
 ): Promise<{ state: StudioState; created: PortfolioItem }> {
-  const state = await getStudioState();
-  const created: PortfolioItem = {
+  const images = await requireGalleryImageModel();
+  const imageId = `pf-${new Types.ObjectId().toString()}`;
+  const createdRecord = await images.create({
     ...item,
-    id: `pf-${Date.now()}`,
-  };
-  const nextState = await saveStudioState({
-    ...state,
-    portfolio: [created, ...state.portfolio],
+    id: imageId,
+    imageUrl: item.imageUrl || item.secure_url,
+    secure_url: item.secure_url || item.imageUrl,
+    folder: item.folder || 'gkstudios',
+    isVisible: item.isVisible ?? true,
   });
-  return { state: nextState, created };
+  const state = await getStudioState();
+  return {
+    state,
+    created: toPlainPortfolioItem(createdRecord.toObject() as unknown as Record<string, unknown>),
+  };
 }
 
 export async function updatePortfolioItemOnServer(
   id: string,
   patch: Partial<PortfolioItem>
 ): Promise<StudioState> {
-  const state = await getStudioState();
-  return saveStudioState({
-    ...state,
-    portfolio: state.portfolio.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-  });
+  const images = await requireGalleryImageModel();
+  const updated = await images.findOneAndUpdate(
+    getGalleryImageFilter(id),
+    { $set: patch },
+    { new: true, runValidators: true }
+  ).exec();
+  if (!updated) throw new PortfolioItemNotFoundError(id);
+  return getStudioState();
 }
 
 export async function deletePortfolioItemOnServer(id: string): Promise<StudioState> {
-  const state = await getStudioState();
-  return saveStudioState({
-    ...state,
-    portfolio: state.portfolio.filter((item) => item.id !== id),
-  });
+  const images = await requireGalleryImageModel();
+  const deleted = await images.findOneAndDelete(getGalleryImageFilter(id)).exec();
+  if (!deleted) throw new PortfolioItemNotFoundError(id);
+  return getStudioState();
 }
 
 export async function createEventProjectOnServer(input: {
