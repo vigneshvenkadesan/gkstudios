@@ -70,6 +70,92 @@ function packageServiceDescriptor(
   return `${item.serviceSlug} ${service?.name || ''}`.trim();
 }
 
+export function getPackageServiceGroupKey(serviceSlug: string, serviceName = ''): string {
+  const slug = serviceSlug.toLowerCase();
+  const descriptor = `${slug} ${serviceName}`;
+  if (slug.startsWith('photo-album')) return 'photo-album';
+  if (/candid.*(photo|photograph)/i.test(descriptor)) {
+    return 'candid-photography';
+  }
+  if (/led.*(wall|screen)|live.*led/i.test(descriptor)) {
+    return 'led-wall';
+  }
+  return `service:${slug}`;
+}
+
+export function normalizePackageIncludedServices(
+  rawItems: unknown,
+  services: StudioService[]
+): PackageIncludedService[] {
+  if (!Array.isArray(rawItems)) return [];
+
+  const servicesBySlug = new Map(services.map((service) => [service.slug, service]));
+  const normalized: PackageIncludedService[] = [];
+  const indexByGroup = new Map<string, number>();
+
+  for (const rawItem of rawItems) {
+    if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
+    const item = rawItem as Record<string, unknown>;
+    if (typeof item.serviceSlug !== 'string' || !item.serviceSlug.trim()) continue;
+
+    const quantity = Math.round(Number(item.quantity));
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+
+    const serviceSlug = item.serviceSlug.trim();
+    const groupKey = getPackageServiceGroupKey(
+      serviceSlug,
+      servicesBySlug.get(serviceSlug)?.name
+    );
+    const durationTier =
+      item.durationTier === 'threeHours' ||
+      item.durationTier === 'halfDay' ||
+      item.durationTier === 'fullDay'
+        ? item.durationTier
+        : undefined;
+    const candidate: PackageIncludedService = {
+      serviceSlug,
+      quantity,
+      ...(durationTier ? { durationTier } : {}),
+    };
+    const existingIndex = indexByGroup.get(groupKey);
+
+    if (existingIndex === undefined) {
+      indexByGroup.set(groupKey, normalized.length);
+      normalized.push(candidate);
+      continue;
+    }
+
+    const existing = normalized[existingIndex];
+    const preferredSlug =
+      groupKey === 'photo-album'
+        ? serviceSlug !== 'photo-album'
+        : groupKey === 'candid-photography'
+          ? serviceSlug === 'candid-photography'
+          : groupKey === 'led-wall'
+            ? serviceSlug === 'led-wall'
+            : false;
+    const existingPreferredSlug =
+      groupKey === 'photo-album'
+        ? existing.serviceSlug !== 'photo-album'
+        : groupKey === 'candid-photography'
+          ? existing.serviceSlug === 'candid-photography'
+          : groupKey === 'led-wall'
+            ? existing.serviceSlug === 'led-wall'
+            : false;
+    const preferred = preferredSlug && !existingPreferredSlug ? candidate : existing;
+    const other = preferred === candidate ? existing : candidate;
+    normalized[existingIndex] = {
+      ...preferred,
+      quantity: Math.max(existing.quantity, candidate.quantity),
+      ...(preferred.durationTier || other.durationTier
+        ? { durationTier: preferred.durationTier ?? other.durationTier }
+        : {}),
+    };
+  }
+
+  return normalized;
+}
+
 function packageServiceMatchesFeature(
   item: PackageIncludedService,
   services: StudioService[],
@@ -227,7 +313,7 @@ export function getDynamicPackageDisplaySections(
   packageDurationTier?: DurationTier,
   packageDeliverables?: PackageDeliverables | string[]
 ): { coverage: string | null; albums: string | null; deliverables: string | null } {
-  const items = (activeServiceItems || []).filter((item) => item.quantity > 0);
+  const items = normalizePackageIncludedServices(activeServiceItems, services);
   const servicesBySlug = new Map(services.map((service) => [service.slug, service]));
   const canonicalCoverageLabel = (item: PackageIncludedService): string | null => {
     const slug = item.serviceSlug.toLowerCase();

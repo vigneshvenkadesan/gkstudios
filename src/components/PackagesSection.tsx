@@ -417,8 +417,7 @@ export function PackagesSection({
                               alt={copy.name}
                               fill
                               decoding="async"
-                              loading={idx < 2 ? 'eager' : 'lazy'}
-                              priority={idx < 2}
+                              loading="lazy"
                               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                               quality={90}
                               placeholder="blur"

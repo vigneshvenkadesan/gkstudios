@@ -71,6 +71,8 @@ export default async function RootLayout({
       className={`${plusJakarta.variable} ${cormorant.variable} ${jetbrainsMono.variable} ${notoSerifTamil.variable}`}
     >
       <head>
+        <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://res.cloudinary.com" />
         <Script id="gk-public-theme-init" strategy="beforeInteractive">
           {`if (location.pathname === '/') {
             try {

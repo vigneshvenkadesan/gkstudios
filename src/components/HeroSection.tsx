@@ -20,9 +20,10 @@ import { SHIMMER_BLUR_DATA_URL, preloadImage } from '@/src/lib/imageBlur';
 interface HeroSectionProps {
   onViewPackages: () => void;
   onExploreWork: () => void;
+  onHeroReady?: () => void;
 }
 
-export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps) {
+export function HeroSection({ onViewPackages, onExploreWork, onHeroReady }: HeroSectionProps) {
   const { portfolio } = useStudio();
   const { locale } = usePublicPreferences();
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
@@ -36,6 +37,13 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [activeLoaded, setActiveLoaded] = useState(false);
+
+  useEffect(() => {
+    if (slides.length === 0) {
+      onHeroReady?.();
+    }
+  }, [slides.length, onHeroReady]);
 
   useEffect(() => {
     if (currentIndex >= slides.length && slides.length > 0) {
@@ -51,15 +59,16 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
     return () => window.clearInterval(timer);
   }, [prefersReducedMotion, slides.length]);
 
-  // Pre-warm the next slide's image 
+  // Pre-warm the next slide's optimized image only after the current slide is ready
   useEffect(() => {
-    if (slides.length > 1) {
+    if (activeLoaded && slides.length > 1) {
       const nextSlide = slides[(currentIndex + 1) % slides.length];
       if (nextSlide?.imageUrl) {
-        preloadImage(nextSlide.imageUrl);
+        const targetWidth = typeof window !== 'undefined' && window.innerWidth < 768 ? 828 : 1920;
+        preloadImage(nextSlide.imageUrl, targetWidth, 90);
       }
     }
-  }, [currentIndex, slides]);
+  }, [activeLoaded, currentIndex, slides]);
 
   const activeSlide = slides[currentIndex];
   const activeSlideTitle = activeSlide
@@ -104,13 +113,19 @@ export function HeroSection({ onViewPackages, onExploreWork }: HeroSectionProps)
                 alt={activeSlideTitle}
                 fill
                 priority
+                fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
                 sizes="100vw"
-                quality={100}
+                quality={90}
                 placeholder="blur"
                 blurDataURL={SHIMMER_BLUR_DATA_URL}
-                onError={() =>
-                  setFailedImages((prev) => ({ ...prev, [activeSlide.id]: true }))
-                }
+                onLoad={() => {
+                  setActiveLoaded(true);
+                  onHeroReady?.();
+                }}
+                onError={() => {
+                  setFailedImages((prev) => ({ ...prev, [activeSlide.id]: true }));
+                  onHeroReady?.();
+                }}
                 className="h-full w-full object-cover object-center"
               />
             </motion.div>

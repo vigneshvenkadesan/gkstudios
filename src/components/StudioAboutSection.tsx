@@ -8,6 +8,7 @@ import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { usePublicPreferences } from '@/src/context/PublicPreferencesContext';
 import { translate } from '@/src/i18n/translations';
 import { SHIMMER_BLUR_DATA_URL } from '@/src/lib/imageBlur';
+import { MandalaImagePlaceholder } from '@/src/components/MandalaLoader';
 
 interface StudioAboutSectionProps {
   onMeetStudio?: () => void;
@@ -33,6 +34,7 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const prefersReducedMotion = Boolean(useReducedMotion());
   const [imageFailed, setImageFailed] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   return (
     <section
@@ -51,18 +53,25 @@ export function StudioAboutSection({ onMeetStudio }: StudioAboutSectionProps) {
           >
             <div className="group relative aspect-[4/3] sm:aspect-[4/4] lg:aspect-[4/5] w-full overflow-hidden rounded-sm bg-[#061E1C]">
               {!imageFailed ? (
-                <Image
-                  src="/images/portfolio/temple_wedding_gopuram_1794972485937.jpg"
-                  alt={t('about.photoAlt')}
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  quality={90}
-                  placeholder="blur"
-                  blurDataURL={SHIMMER_BLUR_DATA_URL}
-                  decoding="async"
-                  onError={() => setImageFailed(true)}
-                  className="h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03] motion-reduce:group-hover:scale-100"
-                />
+                <>
+                  {!imageLoaded && <MandalaImagePlaceholder />}
+                  <Image
+                    src="/images/portfolio/temple_wedding_gopuram_1794972485937.jpg"
+                    alt={t('about.photoAlt')}
+                    fill
+                    loading="lazy"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    quality={90}
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_BLUR_DATA_URL}
+                    decoding="async"
+                    onLoad={() => setImageLoaded(true)}
+                    onError={() => setImageFailed(true)}
+                    className={`h-full w-full object-cover object-center transition-all duration-700 ease-out group-hover:scale-[1.03] motion-reduce:group-hover:scale-100 ${
+                      imageLoaded ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
+                </>
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[#072421] p-8 text-center">
                   <Camera className="h-10 w-10 text-[#C5B378]/70" />

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { EventCategory, StudioPackage } from "@/src/types/studio";
 import { Navbar } from "@/src/components/Navbar";
 import { HeroSection } from "@/src/components/HeroSection";
+import { MandalaPageLoader } from "@/src/components/MandalaLoader";
 import { StatsSection } from "@/src/components/StatsSection";
 import { PromiseTimeline } from "@/src/components/PromiseTimeline";
 import { PortfolioSection } from "@/src/components/PortfolioSection";
@@ -47,6 +48,15 @@ function PublicStudioContent() {
   const [portfolioFilterCategory, setPortfolioFilterCategory] =
     useState<EventCategory | null>(null);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isPageLoaderVisible, setIsPageLoaderVisible] = useState(true);
+
+  // Safety timeout so the Mandala curtain never blocks longer than 1.4s even on slow networks
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsPageLoaderVisible(false);
+    }, 1400);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const proposalHref = (eventId?: string, pkg?: StudioPackage) => {
     const params = new URLSearchParams({
@@ -136,6 +146,7 @@ function PublicStudioContent() {
 
   return (
     <MotionConfig reducedMotion="user">
+      <MandalaPageLoader visible={isPageLoaderVisible} />
       <div className="min-h-screen flex flex-col bg-[#092E2B] text-[#E6ECEB]">
         <Navbar
           activeView="public"
@@ -149,6 +160,7 @@ function PublicStudioContent() {
           <HeroSection
             onViewPackages={() => jumpToSection("packages")}
             onExploreWork={() => jumpToSection("portfolio")}
+            onHeroReady={() => setIsPageLoaderVisible(false)}
           />
 
           <PortfolioSection

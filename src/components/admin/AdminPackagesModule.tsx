@@ -49,6 +49,7 @@ import {
   calculatePackageBasePrice,
   calculatePackageServiceCost,
   getDynamicPackageDisplaySections,
+  normalizePackageIncludedServices,
   resolveServicePrice,
   sanitizePackageDeliverables,
 } from '@/src/lib/pricing';
@@ -93,17 +94,6 @@ function getPackageDurationTier(pkg: StudioPackage): DurationTier {
     return pkg.durationTier;
   }
   return pkg.sortOrder === 3 ? 'fullDay' : 'halfDay';
-}
-
-function removeDuplicateGenericAlbum(
-  includedServices: PackageIncludedService[]
-): PackageIncludedService[] {
-  const hasSizedAlbum = includedServices.some((item) =>
-    item.serviceSlug.startsWith('photo-album-')
-  );
-  return hasSizedAlbum
-    ? includedServices.filter((item) => item.serviceSlug !== 'photo-album')
-    : includedServices;
 }
 
 const STANDARD_DURATION_LABELS = new Set([
@@ -631,7 +621,7 @@ export function AdminPackagesModule() {
     setEditDurationTier(resolvedDurationTier);
     setEditIncludedServices(
       pkg.includedServices && pkg.includedServices.length > 0
-        ? removeDuplicateGenericAlbum(pkg.includedServices.map((item) => ({ ...item })))
+        ? normalizePackageIncludedServices(pkg.includedServices, services)
         : []
     );
     setEditHighlighted(Boolean(pkg.highlighted));
@@ -657,7 +647,7 @@ export function AdminPackagesModule() {
     setNewDurationTier(getPackageDurationTier(pkg));
     setNewIncludedServices(
       pkg.includedServices
-        ? removeDuplicateGenericAlbum(pkg.includedServices.map((item) => ({ ...item })))
+        ? normalizePackageIncludedServices(pkg.includedServices, services)
         : []
     );
     setNewHighlighted(Boolean(pkg.highlighted));

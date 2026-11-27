@@ -25,14 +25,33 @@ const toBase64 = (str: string) =>
 export const SHIMMER_BLUR_DATA_URL = `data:image/svg+xml;base64,${toBase64(shimmerSvg(700, 475))}`;
 
 /**
+ * Resolves the Next.js Image Optimization endpoint so preloaded URLs hit the exact same
+ * AVIF/WebP cache entry used by <Image /> instead of downloading raw unoptimized assets.
+ */
+export function getOptimizedNextImageUrl(
+  src: string,
+  width: number = 1080,
+  quality: number = 90
+): string {
+  if (!src || src.startsWith('data:') || src.startsWith('/_next/image')) {
+    return src;
+  }
+  return `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=${quality}`;
+}
+
+/**
  * Pre-warms an image URL into browser cache using off-thread decoding
  */
-export function preloadImage(src: string): void {
+export function preloadImage(
+  src: string,
+  width: number = 1080,
+  quality: number = 90
+): void {
   if (typeof window === 'undefined' || !src) return;
   try {
     const img = new window.Image();
     img.decoding = 'async';
-    img.src = src;
+    img.src = getOptimizedNextImageUrl(src, width, quality);
   } catch {
     // Ignore preloading errors
   }

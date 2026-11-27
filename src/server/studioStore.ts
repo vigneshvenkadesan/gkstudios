@@ -51,6 +51,7 @@ import {
   formatServiceLineItem,
   getPackageIncludedFeatures,
   hasValidPackageServiceDurationTiers,
+  normalizePackageIncludedServices,
   sanitizePackageDeliverables,
 } from '../lib/pricing';
 import { englishOnlyName } from '../lib/englishOnlyName';
@@ -390,10 +391,13 @@ export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT
       : typeof p.sortOrder === 'number' && p.sortOrder === 3
         ? 'fullDay'
         : 'halfDay';
+  const includedServices = Array.isArray(p.includedServices)
+    ? normalizePackageIncludedServices(p.includedServices, services)
+    : undefined;
 
   // Dynamically resolve package price from services collection
   const calculatedPrice = calculatePackageServiceCost(
-    { ...(p as Partial<StudioPackage>), durationTier: resolvedDurationTier },
+    { ...(p as Partial<StudioPackage>), includedServices, durationTier: resolvedDurationTier },
     services,
     resolvedDurationTier
   );
@@ -421,7 +425,7 @@ export function toPlainPackage(doc: unknown, services: StudioService[] = DEFAULT
       : formatINR(displayPrice),
     duration: String(p.duration || ''),
     durationTier: resolvedDurationTier,
-    includedServices: Array.isArray(p.includedServices) ? p.includedServices : undefined,
+    includedServices,
     highlighted: Boolean(p.highlighted),
     featured: Boolean(p.featured),
     deliverables: sanitizePackageDeliverables(p.deliverables),
@@ -2598,17 +2602,21 @@ export async function createPackageOnServer(
       ? input.durationTier
       : 'halfDay';
   const includedServices = Array.isArray(input.includedServices)
-    ? input.includedServices.map((item) => {
-        const service = services.find((candidate) => candidate.slug === item.serviceSlug);
-        if (!service) return item;
-        const minimum = service.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
-          ? Math.max(1, Number(service.minQuantity) || 1)
-          : 1;
-        return {
-          ...item,
-          quantity: Math.max(minimum, Math.round(Number(item.quantity) || 0)),
-        };
-      })
+    ? normalizePackageIncludedServices(
+        input.includedServices.map((item) => {
+          const service = services.find((candidate) => candidate.slug === item.serviceSlug);
+          if (!service) return item;
+          const minimum =
+            service.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
+              ? Math.max(1, Number(service.minQuantity) || 1)
+              : 1;
+          return {
+            ...item,
+            quantity: Math.max(minimum, Math.round(Number(item.quantity) || 0)),
+          };
+        }),
+        services
+      )
     : undefined;
   if (!hasValidPackageServiceDurationTiers(includedServices)) {
     throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
@@ -2748,7 +2756,10 @@ export async function updatePackageOnServer(
       quantity: Math.max(minimum, Math.round(Number(item.quantity) || 0)),
     };
   });
-  if (!hasValidPackageServiceDurationTiers(includedServices)) {
+  const normalizedIncludedServices = includedServices
+    ? normalizePackageIncludedServices(includedServices, services)
+    : undefined;
+  if (!hasValidPackageServiceDurationTiers(normalizedIncludedServices)) {
     throw new Error('Service durationTier must be threeHours, halfDay, or fullDay.');
   }
 
@@ -2756,7 +2767,13 @@ export async function updatePackageOnServer(
   const linkedEvent = state.events.find((event) => event.id === eventId);
   if (!linkedEvent) throw new Error(`Event "${eventId}" does not exist.`);
   const calculatedPrice = calculatePackageServiceCost(
-    { ...existing, ...patch, includedServices, durationTier, price: undefined },
+    {
+      ...existing,
+      ...patch,
+      includedServices: normalizedIncludedServices,
+      durationTier,
+      price: undefined,
+    },
     services,
     durationTier
   );
@@ -2783,7 +2800,7 @@ export async function updatePackageOnServer(
       {
         ...existing,
         ...patch,
-        includedServices,
+        includedServices: normalizedIncludedServices,
         sortOrder,
         customizer: customizerSource,
       },
@@ -2808,7 +2825,7 @@ export async function updatePackageOnServer(
       : formatINR(price),
     duration: nextDuration,
     durationTier,
-    includedServices,
+    includedServices: normalizedIncludedServices,
     highlighted:
       patch.highlighted !== undefined
         ? Boolean(patch.highlighted)

@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import { SHIMMER_BLUR_DATA_URL, usePreloadImagesOnApproach } from '@/src/lib/imageBlur';
+import { MandalaImagePlaceholder } from '@/src/components/MandalaLoader';
 import { ComplementaryHighlightText } from '@/src/components/ComplementaryHighlightText';
 import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 
@@ -51,6 +52,7 @@ export function PortfolioSection({
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
 
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -286,22 +288,33 @@ export function PortfolioSection({
                 )}`}
               >
                 {!failedImages[item.id] ? (
-                  <Image
-                    src={item.imageUrl}
-                    alt={`${localizePortfolioText(locale, item.id, 'title', item.title)} — ${translateCategory(locale, item.category)} · ${localizePortfolioText(locale, item.id, 'location', item.location)}`}
-                    fill
-                    priority={idx < 3}
-                    loading={idx < 3 ? 'eager' : 'lazy'}
-                    decoding="async"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    quality={100}
-                    placeholder="blur"
-                    blurDataURL={SHIMMER_BLUR_DATA_URL}
-                    onError={() =>
-                      setFailedImages((prev) => ({ ...prev, [item.id]: true }))
-                    }
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04] motion-reduce:group-hover:scale-100"
-                  />
+                  <>
+                    {!loadedImages[item.id] && <MandalaImagePlaceholder />}
+                    <Image
+                      src={item.imageUrl}
+                      alt={`${localizePortfolioText(locale, item.id, 'title', item.title)} — ${translateCategory(locale, item.category)} · ${localizePortfolioText(locale, item.id, 'location', item.location)}`}
+                      fill
+                      loading={idx < 2 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      sizes={
+                        idx === 0 || item.aspect === 'wide'
+                          ? '(max-width: 768px) 100vw, 66vw'
+                          : '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                      }
+                      quality={90}
+                      placeholder="blur"
+                      blurDataURL={SHIMMER_BLUR_DATA_URL}
+                      onLoad={() =>
+                        setLoadedImages((prev) => ({ ...prev, [item.id]: true }))
+                      }
+                      onError={() =>
+                        setFailedImages((prev) => ({ ...prev, [item.id]: true }))
+                      }
+                      className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-[1.04] motion-reduce:group-hover:scale-100 ${
+                        loadedImages[item.id] ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+                  </>
                 ) : (
                   <div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0E423E] to-[#061E1C] p-6 text-center">
                     <Camera className="h-8 w-8 text-[#C5B378]" />

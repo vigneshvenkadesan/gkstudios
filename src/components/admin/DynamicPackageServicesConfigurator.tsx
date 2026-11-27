@@ -14,6 +14,8 @@ import {
 import {
   calculatePackageBasePrice,
   DURATION_TIER_LABELS,
+  getPackageServiceGroupKey,
+  normalizePackageIncludedServices,
   resolveServicePrice,
 } from '@/src/lib/pricing';
 import { formatINR } from '@/src/lib/utils';
@@ -42,14 +44,19 @@ export function DynamicPackageServicesConfigurator({
       .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   }, [services]);
 
+  const normalizedIncludedServices = useMemo(
+    () => normalizePackageIncludedServices(includedServices, activeServices),
+    [includedServices, activeServices]
+  );
+
   // Set of currently included service slugs
   const includedSlugSet = useMemo(() => {
-    return new Set(includedServices.map((i) => i.serviceSlug));
-  }, [includedServices]);
+    return new Set(normalizedIncludedServices.map((i) => i.serviceSlug));
+  }, [normalizedIncludedServices]);
 
   // Live calculated base price for package
   const liveBasePrice = useMemo(() => {
-    const normalizedIncludedServices = includedServices.map((item) => {
+    const pricedServices = normalizedIncludedServices.map((item) => {
       const service = activeServices.find((candidate) => candidate.slug === item.serviceSlug);
       if (!service) return item;
       const minimum = service.pricingType === 'per_unit' && !service.slug.startsWith('photo-album')
@@ -61,15 +68,15 @@ export function DynamicPackageServicesConfigurator({
       };
     });
     return calculatePackageBasePrice(
-      { includedServices: normalizedIncludedServices, durationTier },
+      { includedServices: pricedServices, durationTier },
       activeServices,
       durationTier
     );
-  }, [includedServices, activeServices, durationTier]);
+  }, [normalizedIncludedServices, activeServices, durationTier]);
 
   // Included items breakdown with live cost
   const includedBreakdown = useMemo(() => {
-    const rows = includedServices.flatMap((item) => {
+    const rows = normalizedIncludedServices.flatMap((item) => {
       const svc = activeServices.find((s) => s.slug === item.serviceSlug);
       if (!svc) {
         return {
@@ -135,16 +142,19 @@ export function DynamicPackageServicesConfigurator({
       const hasCatalogName = !/^candid-photography(?:-|$)/i.test(row.name);
       return row.slug !== 'candid-photography' || row.total > 0 || hasCatalogName;
     });
-  }, [includedServices, activeServices, durationTier]);
+  }, [normalizedIncludedServices, activeServices, durationTier]);
 
   // Toggle service inclusion in base package
   const handleToggleIncludeService = (svc: StudioService) => {
-    const isAlbum = svc.slug.startsWith('photo-album');
+    const groupKey = getPackageServiceGroupKey(svc.slug, svc.name);
     if (includedSlugSet.has(svc.slug)) {
       // Remove from includedServices
       onChangeIncludedServices(
-        includedServices.filter((i) =>
-          isAlbum ? !i.serviceSlug.startsWith('photo-album') : i.serviceSlug !== svc.slug
+        normalizedIncludedServices.filter((item) =>
+          getPackageServiceGroupKey(
+            item.serviceSlug,
+            activeServices.find((service) => service.slug === item.serviceSlug)?.name
+          ) !== groupKey
         )
       );
     } else {
@@ -155,8 +165,11 @@ export function DynamicPackageServicesConfigurator({
           : 1;
 
       const nextIncluded = [
-        ...includedServices.filter((item) =>
-          isAlbum ? !item.serviceSlug.startsWith('photo-album') : true
+        ...normalizedIncludedServices.filter((item) =>
+          getPackageServiceGroupKey(
+            item.serviceSlug,
+            activeServices.find((service) => service.slug === item.serviceSlug)?.name
+          ) !== groupKey
         ),
         { serviceSlug: svc.slug, quantity: defaultQty, durationTier },
       ];
@@ -172,7 +185,7 @@ export function DynamicPackageServicesConfigurator({
       : 1;
     const qty = Math.max(minimum, newQty);
     onChangeIncludedServices(
-      includedServices.map((i) => (i.serviceSlug === slug ? { ...i, quantity: qty } : i))
+      normalizedIncludedServices.map((i) => (i.serviceSlug === slug ? { ...i, quantity: qty } : i))
     );
   };
 
@@ -225,7 +238,7 @@ export function DynamicPackageServicesConfigurator({
           <div className="text-right">
             <span className="inline-flex items-center gap-1 rounded-full bg-[#061E1C]/80 border border-[#D8C78E]/40 px-2.5 py-1 text-[11px] font-bold text-[#D8C78E]">
               <Check className="h-3 w-3 stroke-[3]" />
-              {includedServices.length} {includedServices.length === 1 ? 'Service' : 'Services'} Included
+              {normalizedIncludedServices.length} {normalizedIncludedServices.length === 1 ? 'Service' : 'Services'} Included
             </span>
           </div>
         </div>
@@ -264,7 +277,7 @@ export function DynamicPackageServicesConfigurator({
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-[#D8C78E] block">
-              1. Base Included Services ({includedServices.length} Selected)
+              1. Base Included Services ({normalizedIncludedServices.length} Selected)
             </span>
             <p className="text-[11px] text-[#E6ECEB]/60">
               Check services to bundle into this package. Adjust camera counts or album sheets.
@@ -275,7 +288,7 @@ export function DynamicPackageServicesConfigurator({
         <div className="space-y-2 pt-1 max-h-72 overflow-y-auto pr-1">
           {activeServices.map((svc) => {
             const isIncluded = includedSlugSet.has(svc.slug);
-            const currentItem = includedServices.find((i) => i.serviceSlug === svc.slug);
+            const currentItem = normalizedIncludedServices.find((i) => i.serviceSlug === svc.slug);
             const catalogMinimum =
               svc.pricingType === 'per_unit' && !svc.slug.startsWith('photo-album')
                 ? Math.max(1, Number(svc.minQuantity) || 1)
