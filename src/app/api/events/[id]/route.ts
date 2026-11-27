@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import {
   addEventPaymentOnServer,
   deleteEventPaymentOnServer,
@@ -11,14 +11,6 @@ import {
   updateEventStageOnServer,
 } from '@/src/server/studioStore';
 import { EventStage, PaymentRecord, StudioEvent } from '@/src/types/studio';
-
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
-
-async function isAuthorizedAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
-}
 
 function revalidateCatalogPages() {
   revalidatePath('/');
@@ -34,6 +26,13 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await context.params;
     const body = (await request.json()) as {
       resource?: string;
@@ -51,12 +50,6 @@ export async function PATCH(
     };
 
     if (body.resource === 'catalog-event') {
-      if (!(await isAuthorizedAdmin())) {
-        return NextResponse.json(
-          { error: 'Unauthorized. Studio staff authentication required.' },
-          { status: 401 }
-        );
-      }
       const { resource: _resource, ...patch } = body;
       const state = await updateEventOnServer(id, patch as Partial<StudioEvent>);
       revalidateCatalogPages();
@@ -110,17 +103,18 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await context.params;
 
     const { searchParams } = new URL(_request.url);
     const resource = searchParams.get('resource');
     if (resource === 'catalog-event') {
-      if (!(await isAuthorizedAdmin())) {
-        return NextResponse.json(
-          { error: 'Unauthorized. Studio staff authentication required.' },
-          { status: 401 }
-        );
-      }
       const state = await deleteEventOnServer(id);
       revalidateCatalogPages();
       return NextResponse.json(state);

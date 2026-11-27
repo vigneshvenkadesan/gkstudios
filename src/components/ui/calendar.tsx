@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { AvailabilityStatus, CalendarDayEntry } from '@/src/types/studio';
 import { cn, toISODate } from '@/src/lib/utils';
 import { PublicLocale, translate } from '@/src/i18n/translations';
+import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 
 interface StudioCalendarProps {
   monthDate: Date;
@@ -241,9 +242,16 @@ export function StudioCalendar({
                         className="w-full text-left rounded-sm border border-white/15 bg-black/30 px-1 py-0.5 sm:px-1.5 sm:py-1 transition-all hover:border-[#D8C78E] hover:bg-[#134E49] cursor-pointer group/item"
                         title={`Click to view/manage: ${dayEntry.title}`}
                       >
-                        <p className="text-[9px] sm:text-xs font-semibold text-white truncate group-hover/item:text-[#D8C78E]">
-                          {dayEntry.title}
-                        </p>
+                        <div className="flex min-w-0 items-center gap-1">
+                          <EventTypeIcon
+                            name={dayEntry.eventType || dayEntry.title}
+                            category={dayEntry.eventType}
+                            className="h-3 w-3 shrink-0 text-[#D8C78E]"
+                          />
+                          <p className="text-[9px] sm:text-xs font-semibold text-white truncate group-hover/item:text-[#D8C78E]">
+                            {dayEntry.title}
+                          </p>
+                        </div>
                         {dayEntry.venue && (
                           <p className="hidden sm:block text-[9px] text-[#E6ECEB]/75 truncate">
                             {dayEntry.venue}
@@ -290,9 +298,15 @@ export function StudioCalendar({
               type="button"
               disabled={isDisabled}
               aria-pressed={isSelected}
-              aria-label={`${cell.iso} ${isPast ? t('calendar.pastDate') : locale === 'en' ? status : statusLabel(status)}${entry?.[0]?.title ? ` — ${entry[0].title}` : ''}`}
+              aria-label={`${cell.iso} ${isPast ? t('calendar.pastDate') : locale === 'en' ? status : statusLabel(status)}${entry?.length ? ` — ${entry.map((dayEntry) => dayEntry.eventType || dayEntry.title).join(', ')}` : ''}`}
               onClick={() => onSelectDate(cell.iso, entry?.[0])}
-              title={entry ? `${locale === 'en' ? status : statusLabel(status)}: ${entry[0].title}` : `${cell.iso} · ${t('calendar.available')}`}
+              title={
+                entry
+                  ? `${locale === 'en' ? status : statusLabel(status)}: ${entry
+                      .map((dayEntry) => dayEntry.eventType || dayEntry.title)
+                      .join(', ')}`
+                  : `${cell.iso} · ${t('calendar.available')}`
+              }
               className={cn(
                 'relative flex flex-col items-center justify-center rounded-sm border text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C78E]',
                 size === 'compact' ? 'h-11' : 'h-12 sm:h-14',
@@ -334,6 +348,31 @@ export function StudioCalendar({
                     {status === 'Available' ? 'O' : status === 'Limited' ? 'L' : 'B'}
                   </span>
                   <span className="hidden sm:inline">{statusLabel(status)}</span>
+                </span>
+              )}
+              {entry && (
+                <span
+                  className="mt-0.5 flex max-w-full items-center justify-center gap-0.5 overflow-hidden"
+                  title={entry.map((dayEntry) => dayEntry.eventType || dayEntry.title).join(', ')}
+                  aria-hidden="true"
+                >
+                  {entry.slice(0, isCompact ? 2 : 3).map((dayEntry) => (
+                    <EventTypeIcon
+                      key={dayEntry.id || `${dayEntry.date}-${dayEntry.title}`}
+                      name={dayEntry.eventType || dayEntry.title}
+                      category={dayEntry.eventType}
+                      className={cn(
+                        'shrink-0',
+                        isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3',
+                        isSelected ? 'text-[#061E1C]' : 'text-[#D8C78E]'
+                      )}
+                    />
+                  ))}
+                  {entry.length > (isCompact ? 2 : 3) && (
+                    <span className="text-[8px] leading-none text-[#D8C78E]">
+                      +{entry.length - (isCompact ? 2 : 3)}
+                    </span>
+                  )}
                 </span>
               )}
             </button>

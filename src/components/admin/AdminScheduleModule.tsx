@@ -1045,7 +1045,14 @@ export function AdminScheduleModule() {
                             onClick={() => handleSelectDate(entry.date, entry)}
                             className="w-full text-left rounded border border-white/10 bg-[#072421] p-1.5 text-xs text-white hover:border-[#D8C78E] hover:bg-[#134E49] transition-colors cursor-pointer space-y-0.5"
                           >
-                            <p className="font-semibold text-[11px] truncate">{entry.title}</p>
+                            <p className="flex min-w-0 items-center gap-1 font-semibold text-[11px]">
+                              <EventTypeIcon
+                                name={entry.eventType || entry.title}
+                                category={entry.eventType}
+                                className="h-3 w-3 shrink-0 text-[#D8C78E]"
+                              />
+                              <span className="truncate">{entry.title}</span>
+                            </p>
                             {(entry.packageName || (entry.totalPackageAmount && entry.totalPackageAmount > 0)) && (
                               <p className="text-[9.5px] text-[#D8C78E] font-medium truncate">
                                 {entry.packageName}
@@ -1183,7 +1190,14 @@ export function AdminScheduleModule() {
                       <Badge variant={entry.status === 'Booked' ? 'declined' : 'pending'}>
                         {entry.status}
                       </Badge>
-                      <span className="text-sm font-bold text-white">{entry.title}</span>
+                      <span className="inline-flex items-center gap-1.5 text-sm font-bold text-white">
+                        <EventTypeIcon
+                          name={entry.eventType || entry.title}
+                          category={entry.eventType}
+                          className="h-4 w-4 shrink-0 text-[#D8C78E]"
+                        />
+                        {entry.title}
+                      </span>
                     </div>
 
                     {/* Package & Quoted Rate */}

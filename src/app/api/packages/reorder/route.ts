@@ -1,15 +1,7 @@
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import { reorderPackagesOnServer } from '@/src/server/studioStore';
-
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
-
-async function isAuthorizedAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
-}
 
 export async function POST(request: Request) {
   try {

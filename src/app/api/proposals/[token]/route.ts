@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import {
   getBookingByProposalTokenOnServer,
   updateBookingProposalOnServer,
@@ -15,15 +15,8 @@ import {
   ProposalBookingView,
 } from '@/src/types/studio';
 
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
 const VALID_DURATION_TIERS = new Set<DurationTier>(['threeHours', 'halfDay', 'fullDay']);
 const BOOKING_SERVICE_SET = new Set<string>(BOOKING_SERVICE_OPTIONS);
-
-async function isAuthorizedAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

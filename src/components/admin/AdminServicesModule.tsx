@@ -735,7 +735,7 @@ export function AdminServicesModule() {
                       type="number"
                       required
                       min={1}
-                      step={10}
+                      step={1}
                       value={formUnitPrice}
                       onChange={(e) => setFormUnitPrice(e.target.value === '' ? '' : Number(e.target.value))}
                       placeholder="350"

@@ -1,14 +1,13 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
+import {
+  ADMIN_SESSION_COOKIE,
+  ADMIN_SESSION_MAX_AGE_SECONDS,
+  createAdminSessionToken,
+  isAuthorizedAdmin,
+} from '@/src/server/adminAuth';
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const isAuthenticated =
-    cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
-  return NextResponse.json({ authenticated: isAuthenticated });
+  return NextResponse.json({ authenticated: await isAuthorizedAdmin() });
 }
 
 function getCookieOptions(request: Request) {
@@ -16,10 +15,10 @@ function getCookieOptions(request: Request) {
   const isHttps = forwardedProto === 'https' || request.url.startsWith('https://');
   return {
     httpOnly: true,
-    sameSite: (isHttps ? 'none' : 'lax') as 'none' | 'lax',
+    sameSite: 'lax' as const,
     secure: isHttps,
     path: '/',
-    maxAge: 60 * 60 * 12, // 12 hours
+    maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
   };
 }
 
@@ -43,8 +42,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const sessionToken = createAdminSessionToken();
+    if (!sessionToken) {
+      return NextResponse.json(
+        { error: 'Admin sign-in is unavailable. Contact the administrator.' },
+        { status: 503 }
+      );
+    }
+
     const response = NextResponse.json({ authenticated: true });
-    response.cookies.set(ADMIN_COOKIE, AUTHENTICATED_COOKIE_VALUE, getCookieOptions(request));
+    response.cookies.set(ADMIN_SESSION_COOKIE, sessionToken, getCookieOptions(request));
     return response;
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
@@ -54,7 +61,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const response = NextResponse.json({ authenticated: false });
   const opts = getCookieOptions(request);
-  response.cookies.set(ADMIN_COOKIE, '', {
+  response.cookies.set(ADMIN_SESSION_COOKIE, '', {
     ...opts,
     maxAge: 0,
   });

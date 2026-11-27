@@ -1,25 +1,17 @@
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import {
   getServicesFromMongo,
   saveServiceOnServer,
 } from '@/src/server/studioStore';
 import { StudioService } from '@/src/types/studio';
 
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
-
 function revalidateCatalogPages() {
   revalidatePath('/');
   revalidatePath('/packages');
   revalidatePath('/portfolio');
   revalidatePath('/admin/packages');
-}
-
-async function isAuthorizedAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
 }
 
 export const dynamic = 'force-dynamic';

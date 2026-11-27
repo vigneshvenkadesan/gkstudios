@@ -25,11 +25,12 @@ Names only:
 - `MONGODB_STANDARD_URI`
 - `MONGODB_DATABASE`
 - `ADMIN_PIN`
+- `ADMIN_SESSION_SECRET`
 - `PORT`
 - `DEFAULT_APP_PORT`
 - `NGINX_PORT`
 
-Mongo code prefers `MONGODB_STANDARD_URI`, then `MONGODB_URI`. The database default is `gkstudios_dev`. The scripts use `gk_studios` as their local fallback only. Admin PIN must be exactly six digits.
+Mongo code prefers `MONGODB_STANDARD_URI`, then `MONGODB_URI`. The database default is `gkstudios_dev`. The scripts use `gk_studios` as their local fallback only. Admin PIN must be exactly six digits. `ADMIN_SESSION_SECRET` must be a random value of at least 32 characters; without it, admin sign-in and protected mutations fail closed.
 
 ## 2. Directory and File Architecture
 
@@ -384,8 +385,8 @@ services. The services catalog supports legacy `photo-album` plus `photo-album-8
 6. A stored package price is an optional override; without one, the effective price is calculated from included services. Admin forms distinguish the override from the resolved display price.
 7. `buildOptedServicesForPackage` and `calculateCustomizedEventPrice` create historical service snapshots.
 8. `getDynamicPackageDisplaySections` derives “Event Coverage & Crew”, “Albums”, and service-category “Deliverables” from active service items for public cards, proposal customizer, and admin views. These derived sections must never be persisted in `packages.deliverables`; legacy documents are sanitized on package reads and writes.
-9. `/api/packages/[id]` supports GET, PATCH/PUT, and DELETE by custom package `id`, with Mongo `_id` lookup as a fallback. Mutations require the `gk_admin_session=admin-session-v2` cookie; shared client requests include credentials.
-10. The Admin Package Manager configures event-linked packages, included services and quantities, deliverables, and optional price overrides. Per-unit quantities start at each service's minimum and adjust one unit at a time. Legacy customizer inclusion flags remain stored and are preserved when editing packages, but are no longer separately editable in the package form. Proposal upgrades are built from active `services` catalog entries not included in the base; per-service duration selectors recalculate upgrade prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
+9. `/api/packages/[id]` supports GET, PATCH/PUT, and DELETE by custom package `id`, with Mongo `_id` lookup as a fallback. Mutations require a valid signed admin session cookie; shared client requests include credentials.
+10. The Admin Package Manager configures event-linked packages, included services and quantities, deliverables, and optional price overrides. Per-unit quantities start at each service's minimum and adjust one unit at a time. Legacy customizer inclusion flags remain stored and are preserved when editing packages, but are no longer separately editable in the package form. The proposal customizer shows all included package services, including deliverables outside the legacy feature groups, and offers active catalog services not included in the base as upgrades; per-service duration selectors recalculate tiered prices. Booking, inquiry, calendar, and proposal snapshots record each tiered service's resolved tier and current catalog price.
 
 ### Historical snapshot rule
 
@@ -458,7 +459,7 @@ The public `/api/bookings` POST route forwards `durationTier`, `optedServices`, 
 | POST | `/api/portfolio` | Add portfolio item |
 | PATCH/DELETE | `/api/portfolio/[id]` | Update/delete portfolio item |
 
-Mutating package, service, and package-reorder routes, booking status/process actions, and proposal-token creation require `gk_admin_session=admin-session-v2`. The value is created only after a valid six-digit `ADMIN_PIN`. On `/api/proposals/[token]`, client PATCH requests can only save an unapproved `proposalDraft`; admin PATCH requests require that cookie and commit the reviewed proposal to the inquiry.
+Mutating schedule, payment, event-project, package, service, and package-reorder routes, booking status/process actions, and proposal-token creation require a valid signed `gk_admin_session` cookie. The cookie is issued only after a valid six-digit `ADMIN_PIN` and expires after 12 hours. Configure `ADMIN_SESSION_SECRET` with a random value of at least 32 characters. On `/api/proposals/[token]`, client PATCH requests can only save an unapproved `proposalDraft`; admin PATCH requests require that cookie and commit the reviewed proposal to the inquiry.
 
 ## 6. UI and Development Conventions
 

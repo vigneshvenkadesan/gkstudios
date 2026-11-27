@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import {
   createEventOnServer,
   createEventProjectOnServer,
@@ -9,13 +9,6 @@ import {
 import { CUSTOM_PACKAGE_NAME, EventCategory, StudioEvent } from '@/src/types/studio';
 
 export const dynamic = 'force-dynamic';
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
-
-async function isAuthorizedAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
-}
 
 function revalidateCatalogPages() {
   revalidatePath('/');
@@ -51,6 +44,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as Partial<StudioEvent> & {
       resource?: string;
       // EventProject creation fields
@@ -68,12 +68,6 @@ export async function POST(request: Request) {
     };
 
     if (body.resource === 'catalog-event') {
-      if (!(await isAuthorizedAdmin())) {
-        return NextResponse.json(
-          { error: 'Unauthorized. Studio staff authentication required.' },
-          { status: 401 }
-        );
-      }
       const result = await createEventOnServer(body);
       revalidateCatalogPages();
       return NextResponse.json(result, { status: 201 });

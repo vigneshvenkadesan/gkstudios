@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import {
   removeCalendarEntryOnServer,
   upsertCalendarEntryOnServer,
@@ -7,6 +8,13 @@ import { CalendarDayEntry } from '@/src/types/studio';
 
 export async function PUT(request: Request) {
   try {
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
     const entry = (await request.json()) as CalendarDayEntry;
     if (
       !entry.date ||
@@ -34,6 +42,13 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const entryId = searchParams.get('id') || undefined;

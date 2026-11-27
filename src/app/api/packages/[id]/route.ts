@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import {
   deletePackageOnServer,
   getPackageFromMongo,
@@ -11,9 +11,6 @@ import { hasValidPackageServiceDurationTiers } from '@/src/lib/pricing';
 
 const VALID_DURATION_TIERS = ['threeHours', 'halfDay', 'fullDay'] as const;
 
-const ADMIN_COOKIE = 'gk_admin_session';
-const AUTHENTICATED_COOKIE_VALUE = 'admin-session-v2';
-
 function revalidateCatalogPages() {
   revalidatePath('/');
   revalidatePath('/packages');
@@ -21,11 +18,6 @@ function revalidateCatalogPages() {
   revalidatePath('/admin');
   revalidatePath('/admin/events');
   revalidatePath('/admin/packages');
-}
-
-async function isAuthorizedAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(ADMIN_COOKIE)?.value === AUTHENTICATED_COOKIE_VALUE;
 }
 
 export async function GET(

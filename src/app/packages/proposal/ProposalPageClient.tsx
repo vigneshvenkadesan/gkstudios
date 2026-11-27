@@ -470,17 +470,35 @@ export function ProposalPageClient() {
         .map((item) => [item.serviceSlug, item.durationTier as DurationTier])
     );
     const inferredExcludedIds = isSavedPackage && targetPackage
-      ? (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>)
-          .filter((feature) => {
-            const featureSlugs = getPackageFeatureServiceSlugs(targetPackage, services, feature);
-            return (
-              featureSlugs.length > 0 &&
-              !featureSlugs.some((slug) =>
-                optedServices.some((opted) => opted.serviceSlug === slug)
-              )
-            );
-          })
-          .map((feature) => `inc-${feature}`)
+      ? [
+          ...(Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>)
+            .filter((feature) => {
+              const featureSlugs = getPackageFeatureServiceSlugs(targetPackage, services, feature);
+              return (
+                featureSlugs.length > 0 &&
+                !featureSlugs.some((slug) =>
+                  optedServices.some((opted) => opted.serviceSlug === slug)
+                )
+              );
+            })
+            .map((feature) => `inc-${feature}`),
+          ...(targetPackage.includedServices || [])
+            .filter((item) => item.quantity > 0)
+            .filter((item) => {
+              const isFeatureService = (
+                Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>
+              ).some((feature) =>
+                getPackageFeatureServiceSlugs(targetPackage, services, feature).includes(
+                  item.serviceSlug
+                )
+              );
+              return (
+                !isFeatureService &&
+                !optedServices.some((opted) => opted.serviceSlug === item.serviceSlug)
+              );
+            })
+            .map((item) => `inc-service-${item.serviceSlug}`),
+        ]
       : [];
     const inferredUpgradeIds = isSavedPackage ? optedServices
       .filter((item) => !includedSlugs.has(item.serviceSlug))
@@ -804,6 +822,40 @@ export function ProposalPageClient() {
     return results;
   }, [basePackage, getServiceCost, services, serviceDurationOverrides, durationTier]);
 
+  const baseAdditionalServices = useMemo(() => {
+    if (!basePackage?.includedServices?.length) return [];
+
+    const featureServiceSlugs = new Set(
+      (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>).flatMap(
+        (feature) => getPackageFeatureServiceSlugs(basePackage, services, feature)
+      )
+    );
+
+    return basePackage.includedServices
+      .filter((item) => item.quantity > 0 && !featureServiceSlugs.has(item.serviceSlug))
+      .map((item) => {
+        const service = services.find((candidate) => candidate.slug === item.serviceSlug);
+        const itemTier =
+          serviceDurationOverrides[item.serviceSlug] ??
+          item.durationTier ??
+          basePackage.durationTier ??
+          durationTier;
+        return {
+          id: `inc-service-${item.serviceSlug}`,
+          serviceSlug: item.serviceSlug,
+          label: service?.name || item.serviceSlug,
+          description: service?.description || '',
+          quantity: item.quantity,
+          unitLabel: service?.unitLabel || '',
+          pricingType: service?.pricingType,
+          durationTier: itemTier,
+          price: service
+            ? resolveServicePrice(service, itemTier, item.quantity).total
+            : null,
+        };
+      });
+  }, [basePackage, services, serviceDurationOverrides, durationTier]);
+
   // ─── 2. Available catalog services not already in the base package ───
   const availableUpgrades = useMemo(() => {
     if (!basePackage) return [];
@@ -941,6 +993,19 @@ export function ProposalPageClient() {
       }
     });
 
+    baseAdditionalServices.forEach((service) => {
+      if (!unselectedIncludedIds.includes(service.id) || service.price === null) return;
+      const deduction = -service.price;
+      deductionSum += deduction;
+      mods.push({
+        id: service.id,
+        label: `Remove ${service.label}`,
+        badge: formatINR(deduction),
+        isDeduction: true,
+        amount: deduction,
+      });
+    });
+
     let additionSum = 0;
     availableUpgrades.forEach((el) => {
       if (selectedUpgradeIds.includes(el.id)) {
@@ -997,6 +1062,7 @@ export function ProposalPageClient() {
   }, [
     basePackage?.price,
     baseIncludedElements,
+    baseAdditionalServices,
     unselectedIncludedIds,
     availableUpgrades,
     selectedUpgradeIds,
@@ -1162,6 +1228,9 @@ export function ProposalPageClient() {
     if (!basePackage) return [];
     const excludedSlugs = new Set(
       unselectedIncludedIds.flatMap((id) => {
+        if (id.startsWith('inc-service-')) {
+          return [id.slice('inc-service-'.length)];
+        }
         const feature = id.replace('inc-', '') as keyof PackageIncludedFeatures;
         if (!Object.prototype.hasOwnProperty.call(FEATURE_SERVICE_SLUGS, feature)) return [];
         return [
@@ -1191,6 +1260,7 @@ export function ProposalPageClient() {
                 : item.quantity,
           });
         });
+
     } else {
       (Object.keys(FEATURE_SERVICE_SLUGS) as Array<keyof PackageIncludedFeatures>).forEach(
         (feature) => {
@@ -2471,6 +2541,120 @@ export function ProposalPageClient() {
                         </div>
                       );
                     })}
+
+                    {baseAdditionalServices.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#D8C78E]/80 block">
+                            Other Included Base Services
+                          </span>
+                          <span className="text-[10px] text-[#E6ECEB]/55">
+                            Services included in this package, in addition to the coverage options above.
+                          </span>
+                        </div>
+                        {baseAdditionalServices.map((service) => {
+                          const isChecked = !unselectedIncludedIds.includes(service.id);
+                          const priceLabel =
+                            service.price === null
+                              ? 'Rate unavailable'
+                              : formatINR(service.price);
+
+                          return (
+                            <div
+                              key={service.id}
+                              className={`group flex flex-col gap-2 px-3.5 py-2.5 rounded-sm border transition-all duration-200 ${
+                                isChecked
+                                  ? 'border-[#C5B378]/40 bg-[#061E1C]/90 hover:border-[#D8C78E]'
+                                  : 'border-rose-500/40 bg-rose-950/30'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <button
+                                  type="button"
+                                  disabled={service.price === null}
+                                  onClick={() => handleToggleBaseIncluded(service.id)}
+                                  className="flex-1 flex items-center gap-2.5 text-left disabled:cursor-not-allowed"
+                                  aria-label={`${isChecked ? 'Remove' : 'Include'} ${service.label}`}
+                                >
+                                  <div
+                                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                                      isChecked
+                                        ? 'border-[#D8C78E] bg-[#D8C78E] text-[#061E1C]'
+                                        : 'border-rose-400 bg-transparent text-rose-300'
+                                    }`}
+                                  >
+                                    {isChecked ? (
+                                      <Check className="h-3 w-3 stroke-[3]" />
+                                    ) : (
+                                      <Minus className="h-3 w-3 stroke-[3]" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span
+                                      className={`text-xs font-semibold ${
+                                        isChecked
+                                          ? 'text-white'
+                                          : 'text-rose-200 line-through decoration-rose-400/60'
+                                      }`}
+                                    >
+                                      {service.label}
+                                    </span>
+                                    <p className="text-[10px] text-[#E6ECEB]/60 leading-tight">
+                                      {service.quantity}
+                                      {service.unitLabel ? ` ${service.unitLabel}` : ''}
+                                      {service.quantity !== 1 && service.unitLabel && !service.unitLabel.endsWith('s')
+                                        ? 's'
+                                        : ''}
+                                      {service.description ? ` · ${service.description}` : ''}
+                                    </p>
+                                  </div>
+                                </button>
+                                <span
+                                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                    isChecked
+                                      ? 'bg-[#0E423E] text-[#D8C78E] border border-[#C5B378]/40'
+                                      : 'bg-rose-950/60 text-rose-300 border border-rose-500/40'
+                                  }`}
+                                >
+                                  {isChecked
+                                    ? `Included · ${priceLabel}`
+                                    : `Deducted: ${priceLabel}`}
+                                </span>
+                              </div>
+
+                              {isChecked && service.pricingType === 'tiered' && (
+                                <div className="flex items-center justify-between gap-2 border-t border-[#C5B378]/15 pt-2">
+                                  <label
+                                    htmlFor={`proposal-tier-${service.serviceSlug}`}
+                                    className="text-[10px] text-[#D8C78E]"
+                                  >
+                                    {service.label} duration
+                                  </label>
+                                  <select
+                                    id={`proposal-tier-${service.serviceSlug}`}
+                                    value={
+                                      service.durationTier === 'threeHours'
+                                        ? 'halfDay'
+                                        : service.durationTier
+                                    }
+                                    onChange={(event) =>
+                                      setServiceDurationOverrides((current) => ({
+                                        ...current,
+                                        [service.serviceSlug]: event.target.value as DurationTier,
+                                      }))
+                                    }
+                                    className="h-7 rounded border border-[#C5B378]/35 bg-[#072421] px-2 text-[10px] text-white"
+                                  >
+                                    <option value="halfDay">Half Day</option>
+                                    <option value="fullDay">Full Day</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Subtitle for Upgrades */}
                     {availableUpgrades.length > 0 && (

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isAuthorizedAdmin } from '@/src/server/adminAuth';
 import { addEventPaymentOnServer, getStudioState } from '@/src/server/studioStore';
 import { PaymentMethod } from '@/src/types/studio';
 
@@ -7,6 +8,13 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await isAuthorizedAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Studio staff authentication required.' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await context.params;
     const body = (await request.json()) as {
       date?: string;
