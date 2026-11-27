@@ -6,6 +6,8 @@ import {
   Noto_Serif_Tamil,
   Plus_Jakarta_Sans,
 } from 'next/font/google';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Analytics } from '@vercel/analytics/next';
 import { StudioProvider } from '@/src/context/StudioContext';
 import { StudioToaster } from '@/src/components/StudioToaster';
 import { getStudioState } from '@/src/server/studioStore';
@@ -91,6 +93,8 @@ export default async function RootLayout({
           <StudioToaster />
           {children}
         </StudioProvider>
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
