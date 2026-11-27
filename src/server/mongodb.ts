@@ -27,6 +27,7 @@ interface GalleryImageDocument extends mongoose.Document {
   secure_url?: string;
   public_id?: string;
   folder?: string;
+  sortOrder?: number;
   shootNotes?: string;
   exif?: string;
   dateLabel?: string;
@@ -48,6 +49,7 @@ const GalleryImageSchema = new Schema<GalleryImageDocument>(
     secure_url: String,
     public_id: String,
     folder: String,
+    sortOrder: Number,
     shootNotes: String,
     exif: String,
     dateLabel: String,

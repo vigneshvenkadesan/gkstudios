@@ -298,6 +298,7 @@ export interface PortfolioItem {
   public_id?: string;
   folder?: string;
   createdAt?: string;
+  sortOrder?: number;
   shootNotes: string;
   exif: string;
   dateLabel: string;

@@ -96,6 +96,7 @@ interface StudioContextValue {
   addPortfolioItem: (item: Omit<PortfolioItem, 'id'>) => Promise<PortfolioItem>;
   updatePortfolioItem: (id: string, patch: Partial<PortfolioItem>) => Promise<void>;
   deletePortfolioItem: (id: string) => Promise<void>;
+  reorderPortfolioItems: (orderedIds: string[]) => Promise<void>;
   addPackage: (item: Partial<StudioPackage>) => Promise<StudioPackage>;
   updatePackage: (id: string, patch: Partial<StudioPackage>) => Promise<void>;
   deletePackage: (id: string) => Promise<void>;
@@ -267,6 +268,15 @@ export function StudioProvider({
   const deletePortfolioItem = useCallback(async (id: string) => {
     const nextState = await requestJson<StudioState>(`/api/images/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+    });
+    setState(nextState);
+    setStudioLoadError(null);
+  }, []);
+
+  const reorderPortfolioItems = useCallback(async (orderedIds: string[]) => {
+    const nextState = await requestJson<StudioState>('/api/images/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ orderedIds }),
     });
     setState(nextState);
     setStudioLoadError(null);
@@ -464,6 +474,7 @@ export function StudioProvider({
         addPortfolioItem,
         updatePortfolioItem,
         deletePortfolioItem,
+        reorderPortfolioItems,
         addPackage,
         updatePackage,
         deletePackage,

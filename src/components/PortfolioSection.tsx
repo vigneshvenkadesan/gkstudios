@@ -294,7 +294,7 @@ export function PortfolioSection({
                     loading={idx < 3 ? 'eager' : 'lazy'}
                     decoding="async"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    quality={90}
+                    quality={100}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     onError={() =>
@@ -360,7 +360,7 @@ export function PortfolioSection({
                     fill
                     priority
                     sizes="100vw"
-                    quality={90}
+                    quality={100}
                     placeholder="blur"
                     blurDataURL={SHIMMER_BLUR_DATA_URL}
                     className="h-full w-full object-contain"

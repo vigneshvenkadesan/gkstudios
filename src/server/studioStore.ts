@@ -1013,7 +1013,7 @@ export async function getStudioState(): Promise<StudioState> {
   const mongoImages = await galleryImages.find({}).sort({ createdAt: -1, _id: -1 }).lean().exec();
   const plainPortfolio = mongoImages.map((image) =>
     toPlainPortfolioItem(image as unknown as Record<string, unknown>)
-  );
+  ).sort(comparePortfolioItems);
 
   memoryCache = {
     ...memoryCache,
@@ -1044,6 +1044,13 @@ export class PortfolioItemNotFoundError extends Error {
   constructor(id: string) {
     super(`Gallery image "${id}" was not found.`);
     this.name = 'PortfolioItemNotFoundError';
+  }
+}
+
+export class InvalidPortfolioOrderError extends Error {
+  constructor() {
+    super('Gallery order must include every image exactly once.');
+    this.name = 'InvalidPortfolioOrderError';
   }
 }
 
@@ -1088,6 +1095,9 @@ function toPlainPortfolioItem(raw: Record<string, unknown>): PortfolioItem {
     ...(typeof raw.public_id === 'string' ? { public_id: raw.public_id } : {}),
     ...(typeof raw.folder === 'string' ? { folder: raw.folder } : {}),
     ...(createdAt ? { createdAt } : {}),
+    ...(typeof raw.sortOrder === 'number' && Number.isInteger(raw.sortOrder) && raw.sortOrder > 0
+      ? { sortOrder: raw.sortOrder }
+      : {}),
     shootNotes: typeof raw.shootNotes === 'string' ? raw.shootNotes : '',
     exif: typeof raw.exif === 'string' ? raw.exif : '',
     dateLabel: typeof raw.dateLabel === 'string' ? raw.dateLabel : '',
@@ -1097,12 +1107,21 @@ function toPlainPortfolioItem(raw: Record<string, unknown>): PortfolioItem {
   };
 }
 
+function comparePortfolioItems(a: PortfolioItem, b: PortfolioItem): number {
+  if (a.sortOrder === undefined && b.sortOrder !== undefined) return -1;
+  if (a.sortOrder !== undefined && b.sortOrder === undefined) return 1;
+  if (a.sortOrder !== undefined && b.sortOrder !== undefined && a.sortOrder !== b.sortOrder) {
+    return a.sortOrder - b.sortOrder;
+  }
+  return (b.createdAt ?? '').localeCompare(a.createdAt ?? '') || b.id.localeCompare(a.id);
+}
+
 export async function getPortfolioItemsFromMongo(): Promise<PortfolioItem[]> {
   const images = await requireGalleryImageModel();
   const records = await images.find({}).sort({ createdAt: -1, _id: -1 }).lean().exec();
   return records.map((image) =>
     toPlainPortfolioItem(image as unknown as Record<string, unknown>)
-  );
+  ).sort(comparePortfolioItems);
 }
 
 export async function createBookingOnServer(input: {
@@ -1695,10 +1714,20 @@ export async function addPortfolioItemOnServer(
   item: Omit<PortfolioItem, 'id'>
 ): Promise<{ state: StudioState; created: PortfolioItem }> {
   const images = await requireGalleryImageModel();
+  const existingRecords = await images.find({}).select({ sortOrder: 1 }).lean().exec();
+  const maxSortOrder = existingRecords.reduce(
+    (max, record) =>
+      typeof record.sortOrder === 'number' && Number.isInteger(record.sortOrder)
+        ? Math.max(max, record.sortOrder)
+        : max,
+    0
+  );
+  const sortOrder = Math.max(existingRecords.length, maxSortOrder) + 1;
   const imageId = `pf-${new Types.ObjectId().toString()}`;
   const createdRecord = await images.create({
     ...item,
     id: imageId,
+    sortOrder,
     imageUrl: item.imageUrl || item.secure_url,
     secure_url: item.secure_url || item.imageUrl,
     folder: item.folder || 'gkstudios',
@@ -1709,6 +1738,29 @@ export async function addPortfolioItemOnServer(
     state,
     created: toPlainPortfolioItem(createdRecord.toObject() as unknown as Record<string, unknown>),
   };
+}
+
+export async function reorderPortfolioItemsOnServer(orderedIds: string[]): Promise<StudioState> {
+  const images = await requireGalleryImageModel();
+  const currentItems = await getPortfolioItemsFromMongo();
+  const orderedIdSet = new Set(orderedIds);
+  if (
+    orderedIdSet.size !== currentItems.length ||
+    orderedIds.length !== currentItems.length ||
+    currentItems.some((item) => !orderedIdSet.has(item.id))
+  ) {
+    throw new InvalidPortfolioOrderError();
+  }
+
+  await images.bulkWrite(
+    orderedIds.map((id, index) => ({
+      updateOne: {
+        filter: getGalleryImageFilter(id),
+        update: { $set: { sortOrder: index + 1, updatedAt: new Date() } },
+      },
+    }))
+  );
+  return getStudioState();
 }
 
 export async function updatePortfolioItemOnServer(

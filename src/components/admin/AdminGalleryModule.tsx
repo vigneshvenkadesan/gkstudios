@@ -2,7 +2,17 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { Eye, EyeOff, ImagePlus, Pencil, Star, Trash2, Upload } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
+  ImagePlus,
+  Pencil,
+  Star,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudio } from '@/src/context/StudioContext';
 import {
@@ -32,6 +42,7 @@ export function AdminGalleryModule() {
     addPortfolioItem,
     updatePortfolioItem,
     deletePortfolioItem,
+    reorderPortfolioItems,
   } = useStudio();
 
   const [title, setTitle] = useState('');
@@ -220,6 +231,24 @@ export function AdminGalleryModule() {
     }
   };
 
+  const moveImage = async (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= portfolio.length || busyImageId) return;
+
+    const orderedIds = portfolio.map((item) => item.id);
+    [orderedIds[index], orderedIds[nextIndex]] = [orderedIds[nextIndex], orderedIds[index]];
+
+    setBusyImageId(portfolio[index].id);
+    try {
+      await reorderPortfolioItems(orderedIds);
+      toast.success('Gallery order updated.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not reorder gallery images.');
+    } finally {
+      setBusyImageId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Add Portfolio Photo Card */}
@@ -397,8 +426,12 @@ export function AdminGalleryModule() {
           No gallery images have been added yet.
         </Card>
       ) : (
+      <>
+      <p className="text-sm text-[#E6ECEB]/75">
+        Use the arrows to set the display order in the public gallery.
+      </p>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {portfolio.map((item) => (
+        {portfolio.map((item, index) => (
           <Card
             key={item.id}
             className={`overflow-hidden flex flex-col justify-between ${
@@ -412,7 +445,7 @@ export function AdminGalleryModule() {
                   alt={item.title}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  quality={90}
+                  quality={100}
                   placeholder="blur"
                   blurDataURL={SHIMMER_BLUR_DATA_URL}
                   className="h-full w-full object-cover"
@@ -466,6 +499,32 @@ export function AdminGalleryModule() {
               </div>
 
               <div className="flex items-center gap-1">
+                <span
+                  aria-label={`Gallery position ${index + 1}`}
+                  className="mr-1 font-mono text-xs text-[#D8C78E]"
+                >
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Move ${item.title} earlier`}
+                  title="Move earlier"
+                  onClick={() => void moveImage(index, -1)}
+                  disabled={Boolean(busyImageId) || index === 0}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#C5B378]/25 text-[#E6ECEB] hover:border-[#D8C78E] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move ${item.title} later`}
+                  title="Move later"
+                  onClick={() => void moveImage(index, 1)}
+                  disabled={Boolean(busyImageId) || index === portfolio.length - 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#C5B378]/25 text-[#E6ECEB] hover:border-[#D8C78E] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
                 <button
                   type="button"
                   aria-label="Edit photo caption"
@@ -489,6 +548,7 @@ export function AdminGalleryModule() {
           </Card>
         ))}
       </div>
+      </>
       )}
 
       {/* Edit Caption Dialog */}
