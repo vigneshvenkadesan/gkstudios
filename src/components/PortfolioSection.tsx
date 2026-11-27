@@ -30,6 +30,7 @@ import {
 } from '@/src/components/ui/dialog';
 import { SHIMMER_BLUR_DATA_URL, usePreloadImagesOnApproach } from '@/src/lib/imageBlur';
 import { ComplementaryHighlightText } from '@/src/components/ComplementaryHighlightText';
+import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 
 interface PortfolioSectionProps {
   onBookCategory: (category: EventCategory) => void;
@@ -131,10 +132,11 @@ export function PortfolioSection({
   );
   usePreloadImagesOnApproach(sectionRef, preloadUrls, '600px 0px');
   const filterOptions = [
-    { id: 'all', name: t('portfolio.all'), count: visiblePortfolio.length },
+    { id: 'all', name: t('portfolio.all'), category: undefined, count: visiblePortfolio.length },
     ...activeEvents.map((event) => ({
       id: event.id,
       name: event.name,
+      category: event.category,
       count: visiblePortfolio.filter((item) =>
         item.eventId
           ? item.eventId === event.id
@@ -143,6 +145,10 @@ export function PortfolioSection({
     })),
   ];
   const selectedEvent = activeEvents.find((event) => event.id === selectedCategory);
+  const eventById = useMemo(
+    () => new Map(activeEvents.map((event) => [event.id, event])),
+    [activeEvents]
+  );
   const selectedCategoryFallback = selectedCategory.startsWith('category:')
     ? normalizeEventCategory(selectedCategory.replace(/^category:/, ''))
     : null;
@@ -198,6 +204,13 @@ export function PortfolioSection({
                     : 'text-[#E6ECEB]/75 hover:bg-[#0E423E] hover:text-white'
                 }`}
               >
+                {option.id !== 'all' && (
+                  <EventTypeIcon
+                    name={option.name}
+                    category={option.category}
+                    className="mr-1.5 inline-block h-3.5 w-3.5 align-[-2px]"
+                  />
+                )}
                 <span>{option.name}</span>
                 {option.count > 0 && (
                   <span
@@ -252,7 +265,9 @@ export function PortfolioSection({
           </div>
         ) : (
           <div className="mt-10 grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredItems.map((item, idx) => (
+            {filteredItems.map((item, idx) => {
+              const event = item.eventId ? eventById.get(item.eventId) : undefined;
+              return (
               <motion.button
                 key={item.id}
                 type="button"
@@ -306,15 +321,23 @@ export function PortfolioSection({
 
                 {/* Short Editorial Caption */}
                 <div className="absolute inset-x-0 bottom-0 p-5 transition-transform duration-500 ease-out group-hover:-translate-y-1 motion-reduce:group-hover:translate-y-0 sm:p-6">
-                  <p className="text-xs font-medium text-[#D8C78E] truncate">
-                    {translateCategory(locale, item.category)} · {localizePortfolioText(locale, item.id, 'location', item.location)}
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-[#D8C78E] truncate">
+                    <EventTypeIcon
+                      name={event?.name || item.category}
+                      category={event?.category || item.category}
+                      className="h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="truncate">
+                      {event?.name || translateCategory(locale, item.category)} · {localizePortfolioText(locale, item.id, 'location', item.location)}
+                    </span>
                   </p>
                   <h3 className="mt-1 font-serif text-xl sm:text-2xl font-semibold text-white leading-snug">
                     {localizePortfolioText(locale, item.id, 'title', item.title)}
                   </h3>
                 </div>
               </motion.button>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -378,7 +401,20 @@ export function PortfolioSection({
               <div className="max-h-[34dvh] overflow-y-auto px-5 py-4 sm:px-8 sm:py-5">
                 <DialogHeader>
                   <p className="text-xs font-medium text-[#D8C78E]">
-                    {translateCategory(locale, lightboxItem.category)} · {formatLocalizedMonthLabel(lightboxItem.dateLabel, locale)}
+                    <EventTypeIcon
+                      name={
+                        (lightboxItem.eventId && eventById.get(lightboxItem.eventId)?.name) ||
+                        lightboxItem.category
+                      }
+                      category={
+                        eventById.get(lightboxItem.eventId || '')?.category ||
+                        lightboxItem.category
+                      }
+                      className="mr-1.5 inline-block h-3.5 w-3.5 align-[-2px]"
+                    />
+                    {(lightboxItem.eventId && eventById.get(lightboxItem.eventId)?.name) ||
+                      translateCategory(locale, lightboxItem.category)}{' '}
+                    · {formatLocalizedMonthLabel(lightboxItem.dateLabel, locale)}
                   </p>
                   <DialogTitle className="font-serif text-xl font-semibold text-white sm:text-2xl">
                     {localizePortfolioText(locale, lightboxItem.id, 'title', lightboxItem.title)}

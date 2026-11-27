@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
+import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 
 const EMPTY_EVENT: StudioEvent = {
   id: '',
@@ -189,7 +190,14 @@ export function AdminEventsModule() {
                           {String(event.sortOrder).padStart(2, '0')}
                         </td>
                         <td className="px-3 py-3">
-                          <div className="font-medium text-white">{event.name}</div>
+                          <div className="flex items-center gap-2 font-medium text-white">
+                            <EventTypeIcon
+                              name={event.name}
+                              category={event.category}
+                              className="h-4 w-4 text-[#D8C78E]"
+                            />
+                            {event.name}
+                          </div>
                           <div className="mt-0.5 font-mono text-[11px] text-[#E6ECEB]/45">{event.id}</div>
                         </td>
                         <td className="px-3 py-3 text-[#E6ECEB]/80">

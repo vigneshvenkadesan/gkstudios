@@ -45,6 +45,7 @@ import {
   toISODate,
 } from '@/src/lib/utils';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
+import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 import { WhatsAppTemplateModal, WhatsAppRecipientDetails } from '@/src/components/admin/WhatsAppTemplateModal';
 import { QuotePdfActions } from '@/src/components/admin/QuotePdfActions';
 import { useEvents } from '@/src/hooks/useEvents';
@@ -972,7 +973,16 @@ export function AdminScheduleModule() {
                       )}
 
                       <p className="mt-2 text-xs sm:text-sm text-[#E6ECEB]/80 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        {entry.eventType && <span>Category: {englishOnlyName(entry.eventType)}</span>}
+                        {entry.eventType && (
+                          <span className="inline-flex items-center gap-1">
+                            <EventTypeIcon
+                              name={entry.eventType}
+                              category={entry.eventType}
+                              className="h-3.5 w-3.5 text-[#D8C78E]"
+                            />
+                            Category: {englishOnlyName(entry.eventType)}
+                          </span>
+                        )}
                         {entry.venue && <span>· Venue: {entry.venue}</span>}
                         {entry.clientName && <span>· Client: {entry.clientName}</span>}
                         {entry.phone && <span className="font-mono">· Phone: {entry.phone}</span>}

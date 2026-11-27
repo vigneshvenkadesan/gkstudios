@@ -36,6 +36,7 @@ import { BilingualBillModal } from './BilingualBillModal';
 import { downloadBillPdf, shareBillPdfWhatsApp } from '@/src/lib/generateBillPdfBlob';
 import { Badge } from '@/src/components/ui/badge';
 import { englishOnlyName } from '@/src/lib/englishOnlyName';
+import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import {
@@ -57,7 +58,126 @@ import {
 
 type TimelineFilter = 'All' | 'In Production' | 'Balance Due' | 'Delivered';
 
+interface DateFilter {
+  year: string;
+  month: string;
+  startDate: string;
+  endDate: string;
+}
+
+const EMPTY_DATE_FILTER: DateFilter = {
+  year: 'all',
+  month: 'all',
+  startDate: '',
+  endDate: '',
+};
+
+const MONTH_OPTIONS = [
+  ['01', 'January'],
+  ['02', 'February'],
+  ['03', 'March'],
+  ['04', 'April'],
+  ['05', 'May'],
+  ['06', 'June'],
+  ['07', 'July'],
+  ['08', 'August'],
+  ['09', 'September'],
+  ['10', 'October'],
+  ['11', 'November'],
+  ['12', 'December'],
+] as const;
+
 const PAYMENT_METHODS: PaymentMethod[] = ['UPI / GPay', 'Cash', 'Bank Transfer', 'Card'];
+
+function getAvailableYears(dates: string[]): string[] {
+  return Array.from(
+    new Set(
+      dates
+        .map((date) => date.slice(0, 4))
+        .filter((year) => /^\d{4}$/.test(year))
+    )
+  ).sort((a, b) => b.localeCompare(a));
+}
+
+function matchesDateFilter(date: string, filter: DateFilter): boolean {
+  const dateValue = date.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return (
+      filter.year === 'all' &&
+      filter.month === 'all' &&
+      !filter.startDate &&
+      !filter.endDate
+    );
+  }
+  if (filter.year !== 'all' && dateValue.slice(0, 4) !== filter.year) return false;
+  if (filter.month !== 'all' && dateValue.slice(5, 7) !== filter.month) return false;
+  if (filter.startDate && dateValue < filter.startDate) return false;
+  if (filter.endDate && dateValue > filter.endDate) return false;
+  return true;
+}
+
+function DateFilterControls({
+  label,
+  filter,
+  years,
+  onChange,
+}: {
+  label: string;
+  filter: DateFilter;
+  years: string[];
+  onChange: (filter: DateFilter) => void;
+}) {
+  const controlClass =
+    'h-9 rounded-md border border-[#C5B378]/30 bg-[#072421] px-2.5 text-xs text-white focus:border-[#D8C78E] focus:outline-none';
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#C5B378]/15 bg-[#072421]/60 p-2.5">
+      <span className="mr-1 text-xs font-medium text-[#D8C78E]">{label}</span>
+      <select
+        aria-label={`${label} year`}
+        value={filter.year}
+        onChange={(event) => onChange({ ...filter, year: event.target.value })}
+        className={controlClass}
+      >
+        <option value="all">All years</option>
+        {years.map((year) => (
+          <option key={year} value={year}>{year}</option>
+        ))}
+      </select>
+      <select
+        aria-label={`${label} month`}
+        value={filter.month}
+        onChange={(event) => onChange({ ...filter, month: event.target.value })}
+        className={controlClass}
+      >
+        <option value="all">All months</option>
+        {MONTH_OPTIONS.map(([value, month]) => (
+          <option key={value} value={value}>{month}</option>
+        ))}
+      </select>
+      <label className="flex items-center gap-1.5 text-[11px] text-[#E6ECEB]/65">
+        From
+        <input
+          type="date"
+          aria-label={`${label} start date`}
+          value={filter.startDate}
+          onChange={(event) => onChange({ ...filter, startDate: event.target.value })}
+          className={controlClass}
+        />
+      </label>
+      <label className="flex items-center gap-1.5 text-[11px] text-[#E6ECEB]/65">
+        To
+        <input
+          type="date"
+          aria-label={`${label} end date`}
+          value={filter.endDate}
+          onChange={(event) => onChange({ ...filter, endDate: event.target.value })}
+          className={controlClass}
+        />
+      </label>
+    </div>
+  );
+}
 
 function getProjectTotals(project: EventProject) {
   const netTotal = Math.max(0, project.agreedAmount + project.extraCharges - project.discount);
@@ -81,6 +201,8 @@ export function AdminEventsTimelineModule() {
 
   const [filter, setFilter] = useState<TimelineFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [projectDateFilter, setProjectDateFilter] = useState(EMPTY_DATE_FILTER);
+  const [paymentDateFilter, setPaymentDateFilter] = useState(EMPTY_DATE_FILTER);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
@@ -149,6 +271,15 @@ export function AdminEventsTimelineModule() {
     );
   }, [eventProjects]);
 
+  const projectYears = useMemo(
+    () => getAvailableYears(eventProjects.map((project) => project.eventDate)),
+    [eventProjects]
+  );
+  const paymentYears = useMemo(
+    () => getAvailableYears(eventProjects.flatMap((project) => project.payments.map((pay) => pay.date))),
+    [eventProjects]
+  );
+
   const filteredProjects = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return eventProjects.filter((proj) => {
@@ -167,9 +298,21 @@ export function AdminEventsTimelineModule() {
         proj.referenceCode.toLowerCase().includes(q) ||
         proj.venue.toLowerCase().includes(q) ||
         proj.eventType.toLowerCase().includes(q);
-      return matchesFilter && matchesSearch;
+      return (
+        matchesFilter &&
+        matchesSearch &&
+        matchesDateFilter(proj.eventDate, projectDateFilter)
+      );
     });
-  }, [eventProjects, filter, searchQuery]);
+  }, [eventProjects, filter, searchQuery, projectDateFilter]);
+
+  const filteredPayments = useMemo(
+    () =>
+      (activeProject?.payments || []).filter((pay) =>
+        matchesDateFilter(pay.date, paymentDateFilter)
+      ),
+    [activeProject, paymentDateFilter]
+  );
 
   const handleSetStage = async (stage: EventStage) => {
     if (!activeProject) return;
@@ -376,6 +519,13 @@ export function AdminEventsTimelineModule() {
         </div>
       </div>
 
+      <DateFilterControls
+        label="Project dates"
+        filter={projectDateFilter}
+        years={projectYears}
+        onChange={setProjectDateFilter}
+      />
+
       {/* Event Timeline Cards */}
       {filteredProjects.length === 0 ? (
         <Card className="bg-[#0E423E] p-12 text-center">
@@ -404,7 +554,14 @@ export function AdminEventsTimelineModule() {
                       </Badge>
                     </div>
                     <CardTitle className="text-lg text-white pt-1">
-                      {project.clientName} — {englishOnlyName(project.eventType)}
+                      <span className="inline-flex items-center gap-2">
+                        <EventTypeIcon
+                          name={project.eventType}
+                          category={project.eventType}
+                          className="h-4 w-4 text-[#D8C78E]"
+                        />
+                        {project.clientName} — {englishOnlyName(project.eventType)}
+                      </span>
                     </CardTitle>
                     <CardDescription>
                       {formatDateDisplay(project.eventDate)}
@@ -657,7 +814,17 @@ export function AdminEventsTimelineModule() {
                     );
                   })()}
 
-                  {activeProject.payments.length > 0 ? (
+                  <DateFilterControls
+                    label="Payment dates"
+                    filter={paymentDateFilter}
+                    years={paymentYears}
+                    onChange={setPaymentDateFilter}
+                  />
+                  <p className="text-[11px] text-[#E6ECEB]/55">
+                    Showing {filteredPayments.length} of {activeProject.payments.length} payments
+                  </p>
+
+                  {filteredPayments.length > 0 ? (
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -672,7 +839,7 @@ export function AdminEventsTimelineModule() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {activeProject.payments.map((pay) => {
+                          {filteredPayments.map((pay) => {
                             const bill = getBillForPayment(pay);
                             return (
                               <TableRow key={pay.id}>
@@ -788,7 +955,11 @@ export function AdminEventsTimelineModule() {
                       </Table>
                     </div>
                   ) : (
-                    <p className="text-xs text-[#E6ECEB]/70">No payments yet.</p>
+                    <p className="text-xs text-[#E6ECEB]/70">
+                      {activeProject.payments.length > 0
+                        ? 'No payments match the selected date filters.'
+                        : 'No payments yet.'}
+                    </p>
                   )}
 
                   <form

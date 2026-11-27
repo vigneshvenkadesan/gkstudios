@@ -32,6 +32,7 @@ import {
   StudioEvent,
 } from '@/src/types/studio';
 import { EventSelector } from '@/src/components/common/EventSelector';
+import { EventTypeIcon } from '@/src/components/common/EventTypeIcon';
 import { useEvents } from '@/src/hooks/useEvents';
 import { buildWhatsAppUrl, formatDateDisplay, formatINR, toISODate } from '@/src/lib/utils';
 import { WhatsAppTemplateModal } from '@/src/components/admin/WhatsAppTemplateModal';
@@ -987,6 +988,11 @@ export function AdminBookingModule() {
                   </TableCell>
                   <TableCell className="px-5 py-5">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      <EventTypeIcon
+                        name={booking.eventType}
+                        category={booking.eventType}
+                        className="h-4 w-4 text-[#D8C78E]"
+                      />
                       <span className="text-base font-medium text-white">{englishOnlyName(booking.eventType)}</span>
                     </div>
                     <p className="mt-1 text-sm text-[#E6ECEB]/75 min-w-[180px] max-w-[320px]">
@@ -1432,7 +1438,14 @@ export function AdminBookingModule() {
                   {getStatusBadge(activeBooking.status)}
                 </div>
                 <DialogTitle className="text-xl text-white">
-                  {activeBooking.clientName} — {englishOnlyName(activeBooking.eventType)}
+                  <span className="inline-flex items-center gap-2">
+                    <EventTypeIcon
+                      name={activeBooking.eventType}
+                      category={activeBooking.eventType}
+                      className="h-5 w-5 text-[#D8C78E]"
+                    />
+                    {activeBooking.clientName} — {englishOnlyName(activeBooking.eventType)}
+                  </span>
                 </DialogTitle>
                 <DialogDescription className="text-[#E6ECEB]/80">
                   {activeBooking.venue} · {activeBooking.phone}

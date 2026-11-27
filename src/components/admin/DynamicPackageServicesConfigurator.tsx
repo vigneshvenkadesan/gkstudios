@@ -139,10 +139,13 @@ export function DynamicPackageServicesConfigurator({
 
   // Toggle service inclusion in base package
   const handleToggleIncludeService = (svc: StudioService) => {
+    const isAlbum = svc.slug.startsWith('photo-album');
     if (includedSlugSet.has(svc.slug)) {
       // Remove from includedServices
       onChangeIncludedServices(
-        includedServices.filter((i) => i.serviceSlug !== svc.slug)
+        includedServices.filter((i) =>
+          isAlbum ? !i.serviceSlug.startsWith('photo-album') : i.serviceSlug !== svc.slug
+        )
       );
     } else {
       // Add to includedServices with smart default quantity
@@ -152,7 +155,9 @@ export function DynamicPackageServicesConfigurator({
           : 1;
 
       const nextIncluded = [
-        ...includedServices,
+        ...includedServices.filter((item) =>
+          isAlbum ? !item.serviceSlug.startsWith('photo-album') : true
+        ),
         { serviceSlug: svc.slug, quantity: defaultQty, durationTier },
       ];
       onChangeIncludedServices(nextIncluded);

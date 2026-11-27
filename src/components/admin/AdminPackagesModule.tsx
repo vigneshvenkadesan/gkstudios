@@ -95,6 +95,17 @@ function getPackageDurationTier(pkg: StudioPackage): DurationTier {
   return pkg.sortOrder === 3 ? 'fullDay' : 'halfDay';
 }
 
+function removeDuplicateGenericAlbum(
+  includedServices: PackageIncludedService[]
+): PackageIncludedService[] {
+  const hasSizedAlbum = includedServices.some((item) =>
+    item.serviceSlug.startsWith('photo-album-')
+  );
+  return hasSizedAlbum
+    ? includedServices.filter((item) => item.serviceSlug !== 'photo-album')
+    : includedServices;
+}
+
 const STANDARD_DURATION_LABELS = new Set([
   'Up to 3 Hours',
   '3 Hours',
@@ -620,7 +631,7 @@ export function AdminPackagesModule() {
     setEditDurationTier(resolvedDurationTier);
     setEditIncludedServices(
       pkg.includedServices && pkg.includedServices.length > 0
-        ? JSON.parse(JSON.stringify(pkg.includedServices))
+        ? removeDuplicateGenericAlbum(pkg.includedServices.map((item) => ({ ...item })))
         : []
     );
     setEditHighlighted(Boolean(pkg.highlighted));
@@ -645,7 +656,9 @@ export function AdminPackagesModule() {
     setNewDuration(pkg.duration);
     setNewDurationTier(getPackageDurationTier(pkg));
     setNewIncludedServices(
-      pkg.includedServices ? JSON.parse(JSON.stringify(pkg.includedServices)) : []
+      pkg.includedServices
+        ? removeDuplicateGenericAlbum(pkg.includedServices.map((item) => ({ ...item })))
+        : []
     );
     setNewHighlighted(Boolean(pkg.highlighted));
     setNewFeatured(Boolean(pkg.featured));
