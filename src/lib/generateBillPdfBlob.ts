@@ -431,7 +431,7 @@ export async function generateBillPdfBlob(bill: StudioBill): Promise<Blob> {
 
     <!-- Page 1 Bottom Footer -->
     <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
-      <span>GK STUDIOS • Panruti, Tamil Nadu • Ph: +91 74185 43123</span>
+      <span>GK STUDIOS • ${escapeHtml(STUDIO_INFO.address)} • Ph: +91 74185 43123</span>
       <span style="font-weight: 600; color: #072421;">Page 1 of 2 • Official Payment Receipt</span>
     </div>
   `;
@@ -664,7 +664,7 @@ export async function generateQuotePdfBlob(quote: StudioQuotePdfData): Promise<B
       </div>
     </div>
     <div style="border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;">
-      <span>GK STUDIOS · Panruti, Tamil Nadu · +91 ${escapeHtml(STUDIO_INFO.phone)}</span>
+      <span>GK STUDIOS · ${escapeHtml(STUDIO_INFO.address)} · +91 ${escapeHtml(STUDIO_INFO.phone)}</span>
       <span style="font-weight:700;color:#072421;">Page 1 of 3 · Quotation</span>
     </div>
   `;

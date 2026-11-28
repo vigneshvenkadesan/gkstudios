@@ -7,8 +7,8 @@ export const STUDIO_INFO = {
   phone: '7418543123',
   phoneFormatted: '+91 7418543123',
   email: 'gkstudios@gmail.com',
-  address: 'Chennai Highway, Kandarakkottai, Panruti',
-  addressShort: 'Chennai NH, Kandarakkottai, Panruti',
+  address: 'Panruti, Cuddalore',
+  addressShort: 'Panruti, Cuddalore',
   serviceRegion: 'Panruti · Cuddalore · Villupuram · Tindivanam · Chennai & Across Tamil Nadu',
 };
 

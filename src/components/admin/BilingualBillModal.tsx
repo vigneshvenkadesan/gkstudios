@@ -544,7 +544,7 @@ export function BilingualBillModal({ bill, isOpen, onClose }: BilingualBillModal
 
               {/* Page 1 Print-Only Footer */}
               <div className="hidden print:flex justify-between items-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
-                <span>GK STUDIOS • Panruti, Tamil Nadu • Ph: +91 {STUDIO_INFO.phone}</span>
+                <span>GK STUDIOS • {STUDIO_INFO.address} • Ph: +91 {STUDIO_INFO.phone}</span>
                 <span className="font-semibold text-[#072421]">Page 1 of 2 • Official Payment Receipt</span>
               </div>
 

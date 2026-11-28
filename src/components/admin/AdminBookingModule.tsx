@@ -19,6 +19,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { STUDIO_INFO } from '@/src/data/initialStudioData';
 import { useStudio } from '@/src/context/StudioContext';
 import {
   BookingRequest,
@@ -623,7 +624,7 @@ export function AdminBookingModule() {
       : requestedServices?.join(', ');
     return [
       `Vanakkam ${activeBooking.clientName}!`,
-      `This is G Krishna from GK STUDIOS (Creating Memories), Chennai Highway, Kandarakkottai, Panruti.`,
+      `This is G Krishna from GK STUDIOS (Creating Memories), ${STUDIO_INFO.address}.`,
       `Regarding your ${englishOnlyName(activeBooking.eventType)} (Ref: ${activeBooking.referenceCode}) for ${formatDateDisplay(activeBooking.preferredDate)}${activeBooking.endDate ? ` through ${formatDateDisplay(activeBooking.endDate)}` : ''} at ${activeBooking.venue}:`,
       resolvedTime ? `Event start: ${resolvedTime}` : '',
       editEventEndTime.trim()

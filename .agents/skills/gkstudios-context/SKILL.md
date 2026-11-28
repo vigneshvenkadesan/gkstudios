@@ -5,7 +5,7 @@ Use this file as the architecture reference for GK STUDIOS. It describes the ver
 ## 1. Project Overview and Tech Stack
 
 - **Name:** GK STUDIOS ("Creating Memories")
-- **Location:** Chennai Highway, Kandarakkottai, Panruti, Tamil Nadu
+- **Location:** Panruti, Cuddalore, Tamil Nadu
 - **Region:** Panruti, Cuddalore, Villupuram, Tindivanam, Chennai, and Tamil Nadu
 - **Framework:** Next.js 16 App Router, React 19, TypeScript
 - **Styling:** Tailwind CSS 4, Radix UI Dialog/Tabs, custom Emerald/Gold theme

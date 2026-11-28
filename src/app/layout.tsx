@@ -40,11 +40,11 @@ const notoSerifTamil = Noto_Serif_Tamil({
 export const metadata: Metadata = {
   title: 'GK STUDIOS — Creating Memories | South Indian Wedding & Event Photography',
   description:
-    'GK STUDIOS (Creating Memories) — Premier South Indian wedding, Iyer wedding, temple ceremony, Kaathu Kuthi, and candid event photography & 4K videography at Chennai Highway, Kandarakkottai, Panruti.',
+    'GK STUDIOS (Creating Memories) — Premier South Indian wedding, Iyer wedding, temple ceremony, Kaathu Kuthi, and candid event photography & 4K videography at Panruti, Cuddalore.',
   openGraph: {
     title: 'GK STUDIOS — Creating Memories',
     description:
-      'South Indian wedding, temple ceremony, Kaathu Kuthi, and milestone photography & videography studio at Chennai Highway, Kandarakkottai, Panruti.',
+      'South Indian wedding, temple ceremony, Kaathu Kuthi, and milestone photography & videography studio at Panruti, Cuddalore.',
     type: 'website',
   },
   twitter: {
