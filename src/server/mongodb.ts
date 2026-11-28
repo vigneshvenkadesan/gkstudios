@@ -445,3 +445,26 @@ export async function getBillModel(): Promise<Model<BillDocument> | null> {
     mongoose.model<BillDocument>('Bill', BillSchema)
   );
 }
+
+interface StudioSettingDocument extends mongoose.Document {
+  key: string;
+  value?: string;
+  updatedAt?: Date | string;
+}
+
+const StudioSettingSchema = new Schema<StudioSettingDocument>(
+  {
+    key: { type: String, required: true, unique: true, index: true },
+    value: { type: String, default: '' },
+  },
+  { collection: 'studio_settings', strict: true, timestamps: true }
+);
+
+export async function getStudioSettingModel(): Promise<Model<StudioSettingDocument> | null> {
+  if (!(await ensureMongoConnection())) return null;
+
+  return (
+    (mongoose.models.StudioSetting as Model<StudioSettingDocument> | undefined) ||
+    mongoose.model<StudioSettingDocument>('StudioSetting', StudioSettingSchema)
+  );
+}

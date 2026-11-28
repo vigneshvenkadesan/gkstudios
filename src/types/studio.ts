@@ -291,7 +291,10 @@ export type PortfolioGridSizeOption = 'Standard (4:3)' | 'Wide (3:2)' | 'Tall (3
 
 export interface GeneratedCaptionResponse {
   title: string;
+  eventId: string;
+  eventName: string;
   category: CoreEventCategory;
+  location: string;
   shootNotes: string;
   gridSize: PortfolioGridSizeOption;
   featureInHero: boolean;

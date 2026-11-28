@@ -11,6 +11,7 @@ import { normalizeImageCrop } from '@/src/lib/imageCrop';
 
 function getEditablePatch(body: Partial<PortfolioItem>): Partial<PortfolioItem> {
   const patch: Partial<PortfolioItem> = {};
+  if (typeof body.eventId === 'string') patch.eventId = body.eventId.trim();
   if (typeof body.title === 'string') patch.title = body.title;
   if (typeof body.category === 'string') patch.category = body.category;
   if (typeof body.location === 'string') patch.location = body.location;

@@ -433,8 +433,10 @@ export function PortfolioSection({
                       className="mr-1.5 inline-block h-3.5 w-3.5 align-[-2px]"
                     />
                     {(lightboxItem.eventId && eventById.get(lightboxItem.eventId)?.name) ||
-                      translateCategory(locale, lightboxItem.category)}{' '}
-                    · {formatLocalizedMonthLabel(lightboxItem.dateLabel, locale)}
+                      translateCategory(locale, lightboxItem.category)}
+                    {lightboxItem.dateLabel?.trim()
+                      ? ` · ${formatLocalizedMonthLabel(lightboxItem.dateLabel, locale)}`
+                      : ''}
                   </p>
                   <DialogTitle className="font-serif text-xl font-semibold text-white sm:text-2xl">
                     {localizePortfolioText(locale, lightboxItem.id, 'title', lightboxItem.title)}
@@ -457,9 +459,11 @@ export function PortfolioSection({
                       <MapPin className="h-3.5 w-3.5 text-[#D8C78E]" />
                       {localizePortfolioText(locale, lightboxItem.id, 'location', lightboxItem.location)}
                     </span>
-                    <span className="font-mono tabular-nums text-[#D8C78E]/90">
-                      {lightboxItem.exif}
-                    </span>
+                    {lightboxItem.exif?.trim() && (
+                      <span className="font-mono tabular-nums text-[#D8C78E]/90">
+                        {lightboxItem.exif}
+                      </span>
+                    )}
                   </div>
 
                   <Button
